@@ -1,0 +1,65 @@
+############################
+# Java / Maven
+############################
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+############################
+# NetBeans
+############################
+nbproject/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+############################
+# IntelliJ / Eclipse (por si acaso)
+############################
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+############################
+# OS
+############################
+.DS_Store
+Thumbs.db
+
+############################
+# Logs
+############################
+logs/
+*.log
+
+############################
+# Environment / Secrets
+############################
+.env
+.env.*
+application-*.yml
+application-*.properties
+
+############################
+# Docker
+############################
+**/docker-data/
+**/mysql-data/
+
+############################
+# JavaFX build artifacts
+############################
+out/
+
+############################
+# Temporary files
+############################
+*.tmp
+*.bak
+*.swp
