@@ -1,0 +1,23 @@
+server:
+  port: 8081
+
+spring:
+  jpa:
+    open-in-view: false
+  datasource:
+    url: jdbc:mysql://localhost:3306/tpv_auth
+    username: tpv_user
+    password: tpv_pass
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  jackson:
+    serialization:
+      indent_output: true

@@ -1,0 +1,9 @@
+CREATE DATABASE IF NOT EXISTS tpv_auth;
+CREATE DATABASE IF NOT EXISTS tpv_pos;
+CREATE DATABASE IF NOT EXISTS tpv_billing;
+
+GRANT ALL PRIVILEGES ON tpv_auth.* TO 'tpv_user'@'%';
+GRANT ALL PRIVILEGES ON tpv_pos.* TO 'tpv_user'@'%';
+GRANT ALL PRIVILEGES ON tpv_billing.* TO 'tpv_user'@'%';
+
+FLUSH PRIVILEGES;
