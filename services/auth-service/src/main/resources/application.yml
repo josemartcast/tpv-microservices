@@ -23,6 +23,6 @@ spring:
 
 app:
   jwt:
-    secret: "1234567890123456789012345678901234567890123456789012345678901234"
+    secret: ""
     issuer: "tpv-auth-service"
     expiration-minutes: 60

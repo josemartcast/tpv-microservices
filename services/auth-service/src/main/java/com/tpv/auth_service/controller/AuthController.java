@@ -12,6 +12,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import java.util.List;
+import java.util.Map;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -34,6 +38,14 @@ public class AuthController {
         
         String token = jwtService.generateToken(user.getId(),user.getUsername(), roles);
         return new LoginResponse(token,expiresInSeconds, roles);
+    }
+    @GetMapping("/me")
+    public Object me (@AuthenticationPrincipal Jwt jwt){
+        return Map.of(
+        "UserID", jwt.getSubject(),
+        "username", jwt.getClaimAsString("username"),
+        "roles", jwt.getClaimAsStringList("roles")
+                );
     }
     
 }

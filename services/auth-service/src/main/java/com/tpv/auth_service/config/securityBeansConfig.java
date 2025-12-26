@@ -11,6 +11,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 @Configuration
 public class securityBeansConfig {
     
@@ -23,5 +25,11 @@ public class securityBeansConfig {
     public JwtEncoder jwtEncoder(@Value("${app.jwt.secret}") String secret) {
         SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return new NimbusJwtEncoder(new ImmutableSecret<>(key));
+    }
+    @Bean
+    public JwtDecoder jwtDecoder (@Value("${app.jwt.secret}") String secret){
+        SecretKey key = new SecretKeySpec(
+        secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        return NimbusJwtDecoder.withSecretKey(key).build();
     }
 }
