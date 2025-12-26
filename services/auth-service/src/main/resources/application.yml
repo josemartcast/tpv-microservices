@@ -2,8 +2,6 @@ server:
   port: 8081
 
 spring:
-  jpa:
-    open-in-view: false
   datasource:
     url: jdbc:mysql://localhost:3306/tpv_auth
     username: tpv_user
@@ -14,6 +12,7 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
@@ -21,3 +20,9 @@ spring:
   jackson:
     serialization:
       indent_output: true
+
+app:
+  jwt:
+    secret: "1234567890123456789012345678901234567890123456789012345678901234"
+    issuer: "tpv-auth-service"
+    expiration-minutes: 60
