@@ -16,26 +16,26 @@ public class User {
     @Column(nullable = false)
     private String passwordHash;
 
-    @Column(nullable = false)
-    private String role;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Role role;
 
     @Column(nullable = false)
     private boolean active = true;
 
-    // JPA necesita constructor vacío
     protected User() {}
 
-    public User(String username, String passwordHash, String role) {
+    public User(String username, String passwordHash, Role role) {
         this.username = username;
         this.passwordHash = passwordHash;
         this.role = role;
     }
 
-    // getters (solo los necesarios)
+    // getters 
     public Long getId() { return id; }
     public String getUsername() { return username; }
     public String getPasswordHash() { return passwordHash; }
-    public String getRole() { return role; }
+    public Role getRole() { return role; }
     public boolean isActive() { return active; }
 
     public void deactivate() {

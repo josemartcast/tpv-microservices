@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import java.util.List;
 import java.util.Map;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
+import java.util.stream.Collectors;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
@@ -34,18 +34,19 @@ public class AuthController {
     public LoginResponse login (@Valid @RequestBody LoginRequest req){
         
         var user = authService.authenticate(req.username(), req.password());
-        var roles = List.of(user.getRole());
+        var roles = List.of(user.getRole().name());
         
         String token = jwtService.generateToken(user.getId(),user.getUsername(), roles);
         return new LoginResponse(token,expiresInSeconds, roles);
     }
-    @GetMapping("/me")
-    public Object me (@AuthenticationPrincipal Jwt jwt){
-        return Map.of(
-        "UserID", jwt.getSubject(),
-        "username", jwt.getClaimAsString("username"),
-        "roles", jwt.getClaimAsStringList("roles")
-                );
-    }
+@GetMapping("/me")
+public Map<String, Object> me(Authentication auth) {
+    return Map.of(
+        "username", auth.getName(),
+        "authorities", auth.getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .collect(Collectors.toList())
+    );
+}
     
 }
