@@ -1,0 +1,20 @@
+server:
+  port: 8082
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/tpv_pos_db
+    username: tpv_user
+    password: tpv_pass
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+
+security:
+  jwt:
+    secret: "1234567890123456789012345678901234567890123456789012345678901234"
