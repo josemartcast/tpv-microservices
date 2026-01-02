@@ -1,45 +1,57 @@
-
 package com.tpv.pos_service.domain;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 
 @Entity
-@Table (name = "categories")
+@Table(
+    name = "categories",
+    uniqueConstraints = @UniqueConstraint(name = "uk_category_name", columnNames = "name")
+)
 public class Category {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private long id;
-    
-    @Column(nullable = false, unique = true, length = 80)
+    private Long id;
+
+    @Column(nullable = false, length = 80)
     private String name;
-    
-    @Column(nullable= false)
+
+    @Column(nullable = false)
     private boolean active = true;
-    
-    protected Category(){}
-  
-    public Category (String name){
+
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    protected Category() {}
+
+    public Category(String name) {
         this.name = name;
     }
-    public long getId(){
-        return id;
+
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
     }
-    
-    public String getName(){
-        return name;
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now();
     }
-    
-    public boolean isActive(){
-        return active;
-    }
-    
-    public void rename(String name){
-        this.name = name;
-    }
-    
-    public void desactive (){
-        this.active = false;
-    }
-    
+
+    public Long getId() { return id; }
+    public String getName() { return name; }
+    public boolean isActive() { return active; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+
+    public void rename(String name) { this.name = name; }
+    public void deactivate() { this.active = false; }
+    public void activate() { this.active = true; }
 }
