@@ -12,20 +12,23 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/pos/health").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/pos/categories/**")
-                .hasAnyRole("USER", "ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/v1/pos/categories")
-                .hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/v1/pos/categories/**")
-                .hasRole("ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/categories/**")
-                .hasRole("ADMIN")
+                //categories
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/categories/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/categories").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/pos/categories/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/categories/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/categories/**").hasRole("ADMIN")
+                //products
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/products/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/products/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/pos/products/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/products/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/products/**").hasRole("ADMIN")
                 .anyRequest().denyAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

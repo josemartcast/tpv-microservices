@@ -22,30 +22,47 @@ public class CategoryController {
         this.service = service;
     }
 
+    // USER o ADMIN
     @GetMapping
     public List<CategoryResponse> list() {
         return service.listActive();
     }
 
+    // USER o ADMIN
     @GetMapping("/{id}")
     public CategoryResponse get(@PathVariable Long id) {
         return service.getById(id);
     }
 
+    // ADMIN
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CategoryResponse create(@Valid @RequestBody CreateCategoryRequest req) {
         return service.create(req);
     }
 
+    // ADMIN
     @PutMapping("/{id}")
     public CategoryResponse update(@PathVariable Long id, @Valid @RequestBody UpdateCategoryRequest req) {
         return service.update(id, req);
     }
 
+    // ADMIN (soft delete)
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         service.delete(id);
+    }
+
+    // ADMIN (reactivar)
+    @PatchMapping("/{id}/activate")
+    public CategoryResponse activate(@PathVariable Long id) {
+        return service.activate(id);
+    }
+
+    // ADMIN (desactivar)
+    @PatchMapping("/{id}/deactivate")
+    public CategoryResponse deactivate(@PathVariable Long id) {
+        return service.deactivate(id);
     }
 }
