@@ -29,6 +29,13 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/v1/pos/products/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/products/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/products/**").hasRole("ADMIN")
+                //tickets        
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/tickets/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/tickets/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/tickets/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/pay").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/cancel").hasRole("ADMIN")
                 .anyRequest().denyAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
