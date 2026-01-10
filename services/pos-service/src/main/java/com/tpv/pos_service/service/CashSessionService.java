@@ -1,0 +1,70 @@
+package com.tpv.pos_service.service;
+
+import com.tpv.pos_service.domain.CashSession;
+import com.tpv.pos_service.domain.CashSessionStatus;
+import com.tpv.pos_service.dto.*;
+import com.tpv.pos_service.exception.ConflictException;
+import com.tpv.pos_service.exception.NotFoundException;
+import com.tpv.pos_service.repository.CashSessionRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class CashSessionService {
+
+    private final CashSessionRepository repo;
+
+    public CashSessionService(CashSessionRepository repo) {
+        this.repo = repo;
+    }
+
+    @Transactional(readOnly = true)
+    public CashSessionResponse current() {
+        CashSession cs = repo.findFirstByStatusOrderByOpenedAtDesc(CashSessionStatus.OPEN)
+            .orElseThrow(() -> new NotFoundException("No open cash session"));
+        return toResponse(cs);
+    }
+
+    @Transactional
+    public CashSessionResponse open(OpenCashSessionRequest req, String openedBy) {
+        if (repo.existsByStatus(CashSessionStatus.OPEN)) {
+            throw new ConflictException("There is already an open cash session");
+        }
+        if (req.openingCashCents() < 0) {
+            throw new ConflictException("openingCashCents must be >= 0");
+        }
+        CashSession cs = new CashSession(req.openingCashCents(), openedBy, req.note());
+        cs = repo.save(cs);
+        return toResponse(cs);
+    }
+
+    @Transactional
+    public CashSessionResponse close(Long id, CloseCashSessionRequest req, String closedBy) {
+        CashSession cs = repo.findById(id)
+            .orElseThrow(() -> new NotFoundException("Cash session not found: " + id));
+
+        if (cs.getStatus() == CashSessionStatus.CLOSED) {
+            throw new ConflictException("Cash session already closed");
+        }
+        if (req.closingCashCents() < 0) {
+            throw new ConflictException("closingCashCents must be >= 0");
+        }
+
+        cs.close(req.closingCashCents(), closedBy, req.note());
+        return toResponse(cs);
+    }
+
+    private CashSessionResponse toResponse(CashSession cs) {
+        return new CashSessionResponse(
+            cs.getId(),
+            cs.getStatus(),
+            cs.getOpeningCashCents(),
+            cs.getClosingCashCents(),
+            cs.getOpenedAt(),
+            cs.getClosedAt(),
+            cs.getOpenedBy(),
+            cs.getClosedBy(),
+            cs.getNote()
+        );
+    }
+}
