@@ -1,11 +1,16 @@
 package com.tpv.pos_service.controller;
 
-import com.tpv.pos_service.dto.*;
-import com.tpv.pos_service.service.TicketService;
-import jakarta.validation.Valid;
 import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+
+import com.tpv.pos_service.dto.AddTicketLineRequest;
+import com.tpv.pos_service.dto.TicketResponse;
+import com.tpv.pos_service.dto.UpdateLineQtyRequest;
+import com.tpv.pos_service.service.TicketService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/pos/tickets")
@@ -19,33 +24,35 @@ public class TicketController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateTicketResponse create() {
+    public TicketResponse create() {
         return service.create();
     }
 
     @GetMapping("/{id}")
-    public TicketResponse getById(@PathVariable Long id) {
+    public TicketResponse get(@PathVariable Long id) {
         return service.getById(id);
     }
 
-    @GetMapping
-    public List<TicketResponse> list(@RequestParam(defaultValue = "OPEN") String status) {
-        return service.listByStatus(status);
+    @GetMapping("/open")
+    public List<TicketResponse> listOpen() {
+        return service.listOpen();
     }
 
     @PostMapping("/{id}/lines")
-    public TicketResponse addLine(@PathVariable Long id, @Valid @RequestBody AddLineRequest req) {
-        return service.addLine(id, req);
+    @ResponseStatus(HttpStatus.CREATED)
+    public TicketResponse addLine(@PathVariable Long id, @Valid @RequestBody AddTicketLineRequest req) {
+        return service.addLine(id, req.productId(), req.qty());
     }
 
     @PatchMapping("/{id}/lines/{lineId}")
-    public TicketResponse updateQty(@PathVariable Long id, @PathVariable Long lineId, @Valid @RequestBody UpdateLineQtyRequest req) {
-        return service.updateLineQty(id, lineId, req);
+    public TicketResponse updateQty(@PathVariable Long id, @PathVariable Long lineId,
+                                    @Valid @RequestBody UpdateLineQtyRequest req) {
+        return service.updateLineQty(id, lineId, req.qty());
     }
 
     @DeleteMapping("/{id}/lines/{lineId}")
     public TicketResponse deleteLine(@PathVariable Long id, @PathVariable Long lineId) {
-        return service.deleteLine(id, lineId);
+        return service.removeLine(id, lineId);
     }
 
     @PostMapping("/{id}/pay")

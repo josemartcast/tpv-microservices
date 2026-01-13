@@ -23,14 +23,21 @@ public class Ticket {
 
     @Column(nullable = false)
     private Instant updatedAt;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "cash_session_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_ticket_cash_session")
+    )
+    private CashSession cashSession;
 
-
+    public Ticket(CashSession cashSession) {
+        this.cashSession = cashSession;
+    }
 
     public Ticket() {
 
     }
-
-
 
     @PrePersist
     void onCreate() {
@@ -44,16 +51,39 @@ public class Ticket {
         this.updatedAt = Instant.now();
     }
 
-    public Long getId() { return id; }
-    public TicketStatus getStatus() { return status; }
-    public int getTotalCents() { return totalCents; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
+    public Long getId() {
+        return id;
+    }
 
-    public boolean isOpen() { return status == TicketStatus.OPEN; }
+    public TicketStatus getStatus() {
+        return status;
+    }
 
-    public void markPaid() { this.status = TicketStatus.PAID; }
-    public void cancel() { this.status = TicketStatus.CANCELLED; }
+    public int getTotalCents() {
+        return totalCents;
+    }
 
-    public void setTotalCents(int totalCents) { this.totalCents = totalCents; }
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public boolean isOpen() {
+        return status == TicketStatus.OPEN;
+    }
+
+    public void markPaid() {
+        this.status = TicketStatus.PAID;
+    }
+
+    public void cancel() {
+        this.status = TicketStatus.CANCELLED;
+    }
+
+    public void setTotalCents(int totalCents) {
+        this.totalCents = totalCents;
+    }
 }

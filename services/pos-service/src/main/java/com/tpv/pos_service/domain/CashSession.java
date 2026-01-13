@@ -12,7 +12,7 @@ public class CashSession {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 20)
     private CashSessionStatus status = CashSessionStatus.OPEN;
 
     @Column(nullable = false)
@@ -43,7 +43,11 @@ public class CashSession {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    protected CashSession() {}
+    @Column(nullable = false)
+    private int expectedCashCents = 0;
+
+    protected CashSession() {
+    }
 
     public CashSession(int openingCashCents, String openedBy, String note) {
         this.openingCashCents = openingCashCents;
@@ -65,23 +69,61 @@ public class CashSession {
         this.updatedAt = Instant.now();
     }
 
-    public Long getId() { return id; }
-    public CashSessionStatus getStatus() { return status; }
-    public int getOpeningCashCents() { return openingCashCents; }
-    public Integer getClosingCashCents() { return closingCashCents; }
-    public Instant getOpenedAt() { return openedAt; }
-    public Instant getClosedAt() { return closedAt; }
-    public String getOpenedBy() { return openedBy; }
-    public String getClosedBy() { return closedBy; }
-    public String getNote() { return note; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
+    public void registerSale(int amountCents) {
+        this.expectedCashCents += amountCents;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public CashSessionStatus getStatus() {
+        return status;
+    }
+
+    public int getOpeningCashCents() {
+        return openingCashCents;
+    }
+
+    public Integer getClosingCashCents() {
+        return closingCashCents;
+    }
+
+    public Instant getOpenedAt() {
+        return openedAt;
+    }
+
+    public Instant getClosedAt() {
+        return closedAt;
+    }
+
+    public String getOpenedBy() {
+        return openedBy;
+    }
+
+    public String getClosedBy() {
+        return closedBy;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
 
     public void close(int closingCashCents, String closedBy, String note) {
         this.status = CashSessionStatus.CLOSED;
         this.closingCashCents = closingCashCents;
         this.closedBy = closedBy;
         this.closedAt = Instant.now();
-        if (note != null && !note.isBlank()) this.note = note;
+        if (note != null && !note.isBlank()) {
+            this.note = note;
+        }
     }
 }

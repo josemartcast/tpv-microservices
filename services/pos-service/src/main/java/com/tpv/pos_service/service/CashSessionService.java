@@ -21,7 +21,7 @@ public class CashSessionService {
     @Transactional(readOnly = true)
     public CashSessionResponse current() {
         CashSession cs = repo.findFirstByStatusOrderByOpenedAtDesc(CashSessionStatus.OPEN)
-            .orElseThrow(() -> new NotFoundException("No open cash session"));
+                .orElseThrow(() -> new NotFoundException("No open cash session"));
         return toResponse(cs);
     }
 
@@ -41,7 +41,10 @@ public class CashSessionService {
     @Transactional
     public CashSessionResponse close(Long id, CloseCashSessionRequest req, String closedBy) {
         CashSession cs = repo.findById(id)
-            .orElseThrow(() -> new NotFoundException("Cash session not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Cash session not found: " + id));
+        if (cs.getStatus() != CashSessionStatus.OPEN) {
+            throw new ConflictException("Only OPEN cash session can be closed");
+        }
 
         if (cs.getStatus() == CashSessionStatus.CLOSED) {
             throw new ConflictException("Cash session already closed");
@@ -56,15 +59,15 @@ public class CashSessionService {
 
     private CashSessionResponse toResponse(CashSession cs) {
         return new CashSessionResponse(
-            cs.getId(),
-            cs.getStatus(),
-            cs.getOpeningCashCents(),
-            cs.getClosingCashCents(),
-            cs.getOpenedAt(),
-            cs.getClosedAt(),
-            cs.getOpenedBy(),
-            cs.getClosedBy(),
-            cs.getNote()
+                cs.getId(),
+                cs.getStatus(),
+                cs.getOpeningCashCents(),
+                cs.getClosingCashCents(),
+                cs.getOpenedAt(),
+                cs.getClosedAt(),
+                cs.getOpenedBy(),
+                cs.getClosedBy(),
+                cs.getNote()
         );
     }
 }
