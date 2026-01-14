@@ -23,12 +23,22 @@ public class Ticket {
 
     @Column(nullable = false)
     private Instant updatedAt;
+
+    @Column(nullable = false)
+    private int totalGrossCents = 0;
+
+    @Column(nullable = false)
+    private int totalNetCents = 0;
+
+    @Column(nullable = false)
+    private int totalVatCents = 0;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
             name = "cash_session_id",
             nullable = false,
             foreignKey = @ForeignKey(name = "fk_ticket_cash_session")
     )
+
     private CashSession cashSession;
 
     public Ticket(CashSession cashSession) {
@@ -37,6 +47,10 @@ public class Ticket {
 
     public Ticket() {
 
+    }
+
+    public CashSession getCashSession() {
+        return cashSession;
     }
 
     @PrePersist
@@ -85,5 +99,23 @@ public class Ticket {
 
     public void setTotalCents(int totalCents) {
         this.totalCents = totalCents;
+    }
+
+    public int getTotalGrossCents() {
+        return totalGrossCents;
+    }
+
+    public int getTotalNetCents() {
+        return totalNetCents;
+    }
+
+    public int getTotalVatCents() {
+        return totalVatCents;
+    }
+
+    public void setTotals(int gross, int net) {
+        this.totalGrossCents = gross;
+        this.totalNetCents = net;
+        this.totalVatCents = Math.max(0, gross - net);
     }
 }

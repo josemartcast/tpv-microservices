@@ -37,7 +37,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/pay").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/cancel").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/payments").hasRole("ADMIN")
-                        
+                //paymentSummary
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/tickets/*/payment-summary")
+                .hasAnyRole("USER", "ADMIN")
                 //cash session
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/cash-sessions/current")
                 .hasAnyRole("USER", "ADMIN")

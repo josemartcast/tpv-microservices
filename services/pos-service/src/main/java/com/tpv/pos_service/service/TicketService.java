@@ -9,13 +9,20 @@ import com.tpv.pos_service.domain.Product;
 import com.tpv.pos_service.domain.Ticket;
 import com.tpv.pos_service.domain.TicketLine;
 import com.tpv.pos_service.domain.TicketStatus;
+import com.tpv.pos_service.dto.PaymentSummaryResponse;
 import com.tpv.pos_service.dto.TicketLineResponse;
 import com.tpv.pos_service.dto.TicketResponse;
 import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.exception.NotFoundException;
+import com.tpv.pos_service.repository.PaymentRepository;
 import com.tpv.pos_service.repository.ProductRepository;
 import com.tpv.pos_service.repository.TicketLineRepository;
 import com.tpv.pos_service.repository.TicketRepository;
+import com.tpv.pos_service.domain.Payment;
+import com.tpv.pos_service.dto.TicketSummaryResponse;
+import com.tpv.pos_service.domain.CashSession;
+import com.tpv.pos_service.domain.CashSessionStatus;
+import com.tpv.pos_service.repository.CashSessionRepository;
 
 @Service
 public class TicketService {
@@ -23,23 +30,32 @@ public class TicketService {
     private final TicketRepository ticketRepo;
     private final TicketLineRepository lineRepo;
     private final ProductRepository productRepo;
+    private final PaymentRepository paymentRepo;
+    private final CashSessionRepository cashSessionRepo;
 
-    public TicketService(TicketRepository ticketRepo, TicketLineRepository lineRepo, ProductRepository productRepo) {
+    public TicketService(TicketRepository ticketRepo, TicketLineRepository lineRepo, ProductRepository productRepo, PaymentRepository paymentRepo, CashSessionRepository cashSessionRepo) {
         this.ticketRepo = ticketRepo;
         this.lineRepo = lineRepo;
         this.productRepo = productRepo;
+        this.paymentRepo = paymentRepo;
+        this.cashSessionRepo = cashSessionRepo;
     }
 
     @Transactional
     public TicketResponse create() {
-        Ticket t = ticketRepo.save(new Ticket());
+
+        CashSession openSession = cashSessionRepo
+                .findFirstByStatusOrderByOpenedAtDesc(CashSessionStatus.OPEN)
+                .orElseThrow(() -> new ConflictException("No open cash session. Open a cash session first."));
+
+        Ticket t = ticketRepo.save(new Ticket(openSession));
         return toResponse(t, List.of());
     }
 
     @Transactional(readOnly = true)
     public TicketResponse getById(Long ticketId) {
         Ticket t = ticketRepo.findById(ticketId)
-            .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
 
         List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
         return toResponse(t, lines);
@@ -48,12 +64,12 @@ public class TicketService {
     @Transactional(readOnly = true)
     public List<TicketResponse> listOpen() {
         return ticketRepo.findAllByStatusOrderByCreatedAtDesc(TicketStatus.OPEN)
-            .stream()
-            .map(t -> {
-                List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(t.getId());
-                return toResponse(t, lines);
-            })
-            .toList();
+                .stream()
+                .map(t -> {
+                    List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(t.getId());
+                    return toResponse(t, lines);
+                })
+                .toList();
     }
 
     @Transactional
@@ -61,7 +77,7 @@ public class TicketService {
         Ticket t = getOpenTicket(ticketId);
 
         Product p = productRepo.findById(productId)
-            .orElseThrow(() -> new NotFoundException("Product not found: " + productId));
+                .orElseThrow(() -> new NotFoundException("Product not found: " + productId));
 
         if (!p.isActive()) {
             throw new ConflictException("Product is inactive: " + productId);
@@ -81,7 +97,7 @@ public class TicketService {
         Ticket t = getOpenTicket(ticketId);
 
         TicketLine line = lineRepo.findByIdAndTicketId(lineId, ticketId)
-            .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
+                .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
 
         line.changeQty(qty);
 
@@ -95,7 +111,7 @@ public class TicketService {
         Ticket t = getOpenTicket(ticketId);
 
         TicketLine line = lineRepo.findByIdAndTicketId(lineId, ticketId)
-            .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
+                .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
 
         lineRepo.delete(line);
 
@@ -109,7 +125,7 @@ public class TicketService {
         Ticket t = getOpenTicket(ticketId);
 
         recalcTotal(ticketId);
-        if (t.getTotalCents() <= 0) {
+        if (t.getTotalGrossCents() <= 0) {
             throw new ConflictException("Cannot pay an empty ticket");
         }
 
@@ -121,7 +137,7 @@ public class TicketService {
     @Transactional
     public TicketResponse cancel(Long ticketId) {
         Ticket t = ticketRepo.findById(ticketId)
-            .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
 
         if (t.getStatus() == TicketStatus.PAID) {
             throw new ConflictException("Cannot cancel a PAID ticket");
@@ -133,54 +149,116 @@ public class TicketService {
     }
 
     // ================= helpers =================
-
     private Ticket getOpenTicket(Long id) {
         Ticket t = ticketRepo.findById(id)
-            .orElseThrow(() -> new NotFoundException("Ticket not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + id));
 
         if (t.getStatus() != TicketStatus.OPEN) {
             throw new ConflictException("Ticket is not OPEN: " + id);
+        }
+        if (t.getCashSession().getStatus() != CashSessionStatus.OPEN) {
+            throw new ConflictException("Cash session is closed for this ticket");
         }
         return t;
     }
 
     private void recalcTotal(Long ticketId) {
         Ticket t = ticketRepo.findById(ticketId)
-            .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
 
-        int total = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId)
-            .stream()
-            .mapToInt(TicketLine::getLineTotalCents)
-            .sum();
+        var lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
 
-        t.setTotalCents(total);
+        int gross = lines.stream().mapToInt(TicketLine::getLineTotalCents).sum();
+        int net = lines.stream().mapToInt(TicketLine::getNetLineTotalCents).sum();
+
+        t.setTotals(gross, net);
     }
 
     private TicketResponse toResponse(Ticket t, List<TicketLine> lines) {
         List<TicketLineResponse> lineDtos = lines.stream()
-            .map(this::toLineResponse)
-            .toList();
+                .map(this::toLineResponse)
+                .toList();
 
         return new TicketResponse(
-            t.getId(),
-            t.getStatus(),
-            t.getTotalCents(),
-            t.getCreatedAt(),
-            t.getUpdatedAt(),
-            lineDtos
+                t.getId(),
+                t.getStatus(),
+                t.getTotalCents(),
+                t.getCreatedAt(),
+                t.getUpdatedAt(),
+                lineDtos
         );
     }
 
     private TicketLineResponse toLineResponse(TicketLine l) {
         return new TicketLineResponse(
-            l.getId(),
-            l.getProduct().getId(),
-            l.getProductNameSnapshot(),
-            l.getUnitPriceCentsSnapshot(),
-            l.getQty(),
-            l.getLineTotalCents(),
-            l.getCreatedAt(),
-            l.getUpdatedAt()
+                l.getId(),
+                l.getProduct().getId(),
+                l.getProductNameSnapshot(),
+                l.getUnitPriceCentsSnapshot(),
+                l.getQty(),
+                l.getLineTotalCents(),
+                l.getCreatedAt(),
+                l.getUpdatedAt()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public PaymentSummaryResponse paymentSummary(Long ticketId) {
+        Ticket ticket = ticketRepo.findById(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+
+        int paid = paymentRepo.sumAmountCentsByTicketId(ticketId);
+        int pending = Math.max(0, ticket.getTotalCents() - paid);
+
+        return new PaymentSummaryResponse(
+                ticket.getId(),
+                ticket.getTotalCents(),
+                paid,
+                pending
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public TicketSummaryResponse ticketSummary(Long ticketId) {
+
+        Ticket ticket = ticketRepo.findById(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+
+        // Líneas
+        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+
+        // Pagos
+        List<Payment> payments = paymentRepo.findByTicketId(ticketId);
+
+        // Totales
+        int paid = paymentRepo.sumAmountCentsByTicketId(ticketId);
+        int remaining = Math.max(0, ticket.getTotalCents() - paid);
+
+        return new TicketSummaryResponse(
+                ticket.getId(),
+                ticket.getStatus(),
+                ticket.getTotalCents(),
+                paid,
+                remaining,
+                ticket.getCreatedAt(),
+                lines.stream()
+                        .map(l -> new TicketSummaryResponse.TicketLineSummary(
+                        l.getId(),
+                        l.getProduct().getId(),
+                        l.getProductNameSnapshot(),
+                        l.getUnitPriceCentsSnapshot(),
+                        l.getQty(),
+                        l.getLineTotalCents()
+                ))
+                        .toList(),
+                payments.stream()
+                        .map(p -> new TicketSummaryResponse.PaymentSummary(
+                        p.getId(),
+                        p.getMethod(),
+                        p.getAmountCents(),
+                        p.getCreatedAt()
+                ))
+                        .toList()
         );
     }
 }

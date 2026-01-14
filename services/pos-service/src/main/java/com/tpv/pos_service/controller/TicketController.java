@@ -6,9 +6,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import com.tpv.pos_service.dto.AddTicketLineRequest;
+import com.tpv.pos_service.dto.PaymentSummaryResponse;
 import com.tpv.pos_service.dto.TicketResponse;
 import com.tpv.pos_service.dto.UpdateLineQtyRequest;
 import com.tpv.pos_service.service.TicketService;
+import com.tpv.pos_service.dto.TicketSummaryResponse;
 
 import jakarta.validation.Valid;
 
@@ -38,6 +40,16 @@ public class TicketController {
         return service.listOpen();
     }
 
+    @GetMapping("/{id}/payment-summary")
+    public PaymentSummaryResponse paymentSummary(@PathVariable Long id) {
+        return service.paymentSummary(id);
+    }
+
+    @GetMapping("/{id}/summary")
+    public TicketSummaryResponse summary(@PathVariable Long id) {
+        return service.ticketSummary(id);
+    }
+
     @PostMapping("/{id}/lines")
     @ResponseStatus(HttpStatus.CREATED)
     public TicketResponse addLine(@PathVariable Long id, @Valid @RequestBody AddTicketLineRequest req) {
@@ -46,7 +58,7 @@ public class TicketController {
 
     @PatchMapping("/{id}/lines/{lineId}")
     public TicketResponse updateQty(@PathVariable Long id, @PathVariable Long lineId,
-                                    @Valid @RequestBody UpdateLineQtyRequest req) {
+            @Valid @RequestBody UpdateLineQtyRequest req) {
         return service.updateLineQty(id, lineId, req.qty());
     }
 
@@ -64,4 +76,5 @@ public class TicketController {
     public TicketResponse cancel(@PathVariable Long id) {
         return service.cancel(id);
     }
+
 }

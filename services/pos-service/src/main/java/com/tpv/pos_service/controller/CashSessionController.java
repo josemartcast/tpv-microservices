@@ -36,7 +36,6 @@ public class CashSessionController {
     private String usernameFrom(Authentication auth) {
         Object p = auth.getPrincipal();
         if (p instanceof Jwt jwt) {
-            // usa el claim que tú tengas: "username" o "sub"
             String u = jwt.getClaimAsString("username");
             return (u != null && !u.isBlank()) ? u : jwt.getSubject();
         }

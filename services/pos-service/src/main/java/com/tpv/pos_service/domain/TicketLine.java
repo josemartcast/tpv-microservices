@@ -2,14 +2,15 @@ package com.tpv.pos_service.domain;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import com.tpv.pos_service.util.PriceCalc;
 
 @Entity
 @Table(
-    name = "ticket_lines",
-    indexes = {
-        @Index(name = "idx_ticket_lines_ticket", columnList = "ticket_id"),
-        @Index(name = "idx_ticket_lines_product", columnList = "product_id")
-    }
+        name = "ticket_lines",
+        indexes = {
+            @Index(name = "idx_ticket_lines_ticket", columnList = "ticket_id"),
+            @Index(name = "idx_ticket_lines_product", columnList = "product_id")
+        }
 )
 public class TicketLine {
 
@@ -44,7 +45,20 @@ public class TicketLine {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    protected TicketLine() {}
+    @Column(nullable = false)
+    private int vatRateBpsSnapshot;
+
+    @Column(nullable = false)
+    private int netUnitPriceCentsSnapshot;
+
+    @Column(nullable = false)
+    private int netLineTotalCents;
+
+    @Column(nullable = false)
+    private int vatLineTotalCents;
+
+    protected TicketLine() {
+    }
 
     public TicketLine(Ticket ticket, Product product, int qty) {
         this.ticket = ticket;
@@ -52,6 +66,9 @@ public class TicketLine {
 
         this.productNameSnapshot = product.getName();
         this.unitPriceCentsSnapshot = product.getPriceCents();
+
+        this.vatRateBpsSnapshot = product.getVatRateBps();
+        this.netUnitPriceCentsSnapshot = PriceCalc.netFromGross(this.unitPriceCentsSnapshot, this.vatRateBpsSnapshot);
 
         this.qty = qty;
         recalc();
@@ -69,22 +86,69 @@ public class TicketLine {
         this.updatedAt = Instant.now();
     }
 
-    public Long getId() { return id; }
-    public Ticket getTicket() { return ticket; }
-    public Product getProduct() { return product; }
-    public String getProductNameSnapshot() { return productNameSnapshot; }
-    public int getUnitPriceCentsSnapshot() { return unitPriceCentsSnapshot; }
-    public int getQty() { return qty; }
-    public int getLineTotalCents() { return lineTotalCents; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
+    public Long getId() {
+        return id;
+    }
+
+    public Ticket getTicket() {
+        return ticket;
+    }
+
+    public Product getProduct() {
+        return product;
+    }
+
+    public String getProductNameSnapshot() {
+        return productNameSnapshot;
+    }
+
+    public int getUnitPriceCentsSnapshot() {
+        return unitPriceCentsSnapshot;
+    }
+
+    public int getQty() {
+        return qty;
+    }
+
+    public int getLineTotalCents() {
+        return lineTotalCents;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
 
     public void changeQty(int qty) {
         this.qty = qty;
         recalc();
     }
 
+    public int getVatRateBpsSnapshot() {
+        return vatRateBpsSnapshot;
+    }
+
+    public int getNetUnitPriceCentsSnapshot() {
+        return netUnitPriceCentsSnapshot;
+    }
+
+    public int getNetLineTotalCents() {
+        return netLineTotalCents;
+    }
+
+    public int getVatLineTotalCents() {
+        return vatLineTotalCents;
+    }
+
     private void recalc() {
-        this.lineTotalCents = this.unitPriceCentsSnapshot * this.qty;
+        int grossLine = this.unitPriceCentsSnapshot * this.qty;
+        int netLine = this.netUnitPriceCentsSnapshot * this.qty;
+
+        this.lineTotalCents = grossLine;
+        this.netLineTotalCents = netLine;
+        this.vatLineTotalCents = grossLine - netLine;
     }
 }

@@ -32,14 +32,18 @@ public class Product {
     @JoinColumn(name = "category_id", nullable = false, foreignKey = @ForeignKey(name = "fk_product_category"))
     private Category category;
 
+    @Column(nullable = false)
+    private int vatRateBps = 2100; // 21% por defecto
+
     protected Product() {
 
     }
 
-    public Product(String name, int priceCents, Category category) {
+    public Product(String name, int priceCents, Category category, int vatRateBps) {
         this.name = name;
         this.category = category;
         this.priceCents = priceCents;
+        this.vatRateBps = vatRateBps;
     }
 
     @PrePersist
@@ -102,4 +106,13 @@ public class Product {
     public void activate() {
         this.active = true;
     }
+
+    public int getVatRateBps() {
+        return vatRateBps;
+    }
+
+    public void changeVatRateBps(int vatRateBps) {
+        this.vatRateBps = vatRateBps;
+    }
+
 }

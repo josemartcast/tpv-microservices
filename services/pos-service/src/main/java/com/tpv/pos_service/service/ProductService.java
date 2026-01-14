@@ -31,30 +31,31 @@ public class ProductService {
         return (categoryId == null
                 ? productRepo.findAllByActiveTrueOrderByNameAsc()
                 : productRepo.findAllByActiveTrueAndCategory_IdOrderByNameAsc(categoryId))
-            .stream()
-            .map(this::toResponse)
-            .toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public ProductResponse getById(Long id) {
         Product p = productRepo.findByIdAndActiveTrue(id)
-            .orElseThrow(() -> new NotFoundException("Product not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Product not found: " + id));
         return toResponse(p);
     }
 
     @Transactional
     public ProductResponse create(CreateProductRequest req) {
         String name = normalize(req.name());
+        int vat = req.vatRateBps();
 
         if (productRepo.existsByNameIgnoreCase(name)) {
             throw new ConflictException("Product name already exists: " + name);
         }
 
         Category category = categoryRepo.findByIdAndActiveTrue(req.categoryId())
-            .orElseThrow(() -> new NotFoundException("Category not found/active: " + req.categoryId()));
+                .orElseThrow(() -> new NotFoundException("Category not found/active: " + req.categoryId()));
 
-        Product p = new Product(name, req.priceCents(), category);
+        Product p = new Product(name, req.priceCents(), category, vat);
         p = productRepo.save(p);
         return toResponse(p);
     }
@@ -62,7 +63,7 @@ public class ProductService {
     @Transactional
     public ProductResponse update(Long id, UpdateProductRequest req) {
         Product p = productRepo.findById(id)
-            .orElseThrow(() -> new NotFoundException("Product not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Product not found: " + id));
 
         String newName = normalize(req.name());
 
@@ -71,7 +72,7 @@ public class ProductService {
         }
 
         Category category = categoryRepo.findByIdAndActiveTrue(req.categoryId())
-            .orElseThrow(() -> new NotFoundException("Category not found/active: " + req.categoryId()));
+                .orElseThrow(() -> new NotFoundException("Category not found/active: " + req.categoryId()));
 
         p.rename(newName);
         p.changePrice(req.priceCents());
@@ -83,21 +84,21 @@ public class ProductService {
     @Transactional
     public void delete(Long id) {
         Product p = productRepo.findById(id)
-            .orElseThrow(() -> new NotFoundException("Product not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Product not found: " + id));
         p.deactivate();
     }
 
     @Transactional
     public void activate(Long id) {
         Product p = productRepo.findById(id)
-            .orElseThrow(() -> new NotFoundException("Product not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Product not found: " + id));
         p.activate();
     }
 
     @Transactional
     public void deactivate(Long id) {
         Product p = productRepo.findById(id)
-            .orElseThrow(() -> new NotFoundException("Product not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Product not found: " + id));
         p.deactivate();
     }
 
@@ -110,14 +111,15 @@ public class ProductService {
         Category c = p.getCategory();
 
         return new ProductResponse(
-            p.getId(),
-            p.getName(),
-            p.getPriceCents(),
-            p.isActive(),
-            c.getId(),
-            c.getName(),
-            p.getCreatedAt(),
-            p.getUpdatedAt()
+                p.getId(),
+                p.getName(),
+                p.getPriceCents(),
+                p.isActive(),
+                c.getId(),
+                c.getName(),
+                p.getCreatedAt(),
+                p.getUpdatedAt(),
+                p.getVatRateBps()
         );
     }
 }

@@ -33,7 +33,7 @@ public class PaymentService {
         }
 
         int paidSoFar = paymentRepo.sumAmountCentsByTicketId(ticketId);
-        int remaining = ticket.getTotalCents() - paidSoFar;
+        int remaining = ticket.getTotalGrossCents() - paidSoFar;
 
         if (req.amountCents() > remaining) {
             throw new ConflictException("Payment exceeds remaining amount");
@@ -42,7 +42,7 @@ public class PaymentService {
         Payment payment = new Payment(ticket, req.method(), req.amountCents());
         paymentRepo.save(payment);
 
-        if (paidSoFar + req.amountCents() == ticket.getTotalCents()) {
+        if (paidSoFar + req.amountCents() == ticket.getTotalGrossCents()) {
             ticket.markPaid();
         }
 
