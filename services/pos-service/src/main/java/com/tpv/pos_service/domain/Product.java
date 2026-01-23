@@ -33,7 +33,7 @@ public class Product {
     private Category category;
 
     @Column(nullable = false)
-    private int vatRateBps = 2100; // 21% por defecto
+    private int vatRateBps = 1000; // 21% por defecto
 
     protected Product() {
 

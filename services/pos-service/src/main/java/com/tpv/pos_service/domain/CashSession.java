@@ -46,6 +46,9 @@ public class CashSession {
     @Column(nullable = false)
     private int expectedCashCents = 0;
 
+    @Column(nullable = false)
+    private int cashDifferenceCents = 0;
+
     protected CashSession() {
     }
 
@@ -117,9 +120,22 @@ public class CashSession {
         return updatedAt;
     }
 
+    public int getExpectedCashCents() {
+        return expectedCashCents;
+    }
+
+    public void setExpectedCashCents(int expectedCashCents) {
+        this.expectedCashCents = expectedCashCents;
+    }
+
+    public int getCashDifferenceCents() {
+        return cashDifferenceCents;
+    }
+
     public void close(int closingCashCents, String closedBy, String note) {
         this.status = CashSessionStatus.CLOSED;
         this.closingCashCents = closingCashCents;
+        this.cashDifferenceCents = closingCashCents - (this.openingCashCents + this.expectedCashCents);
         this.closedBy = closedBy;
         this.closedAt = Instant.now();
         if (note != null && !note.isBlank()) {

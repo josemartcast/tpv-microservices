@@ -166,12 +166,8 @@ public class TicketService {
         Ticket t = ticketRepo.findById(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
 
-        var lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
-
-        int gross = lines.stream().mapToInt(TicketLine::getLineTotalCents).sum();
-        int net = lines.stream().mapToInt(TicketLine::getNetLineTotalCents).sum();
-
-        t.setTotals(gross, net);
+        int total = lineRepo.sumGrossByTicketId(ticketId);
+        t.setTotalCents(total);
     }
 
     private TicketResponse toResponse(Ticket t, List<TicketLine> lines) {
@@ -207,15 +203,12 @@ public class TicketService {
         Ticket ticket = ticketRepo.findById(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
 
+        int total = lineRepo.sumGrossByTicketId(ticketId);
         int paid = paymentRepo.sumAmountCentsByTicketId(ticketId);
-        int pending = Math.max(0, ticket.getTotalCents() - paid);
+        int pending = Math.max(0, total - paid);
 
-        return new PaymentSummaryResponse(
-                ticket.getId(),
-                ticket.getTotalCents(),
-                paid,
-                pending
-        );
+        return new PaymentSummaryResponse(ticket.getId(), total, paid, pending);
+
     }
 
     @Transactional(readOnly = true)
