@@ -1,0 +1,135 @@
+# Guía de uso – TPV Desktop
+
+Este documento describe el uso del TPV desde el punto de vista de un **usuario real** (cajero / administrador), siguiendo el flujo natural de trabajo de un negocio.
+
+---
+
+## 1. Login
+
+1. Iniciar la aplicación.
+2. Introducir usuario y contraseña.
+3. Acceder al sistema.
+
+Roles:
+- **ADMIN**: acceso completo (caja, cierre fiscal, cancelaciones).
+- **USER**: acceso limitado (ventas, consultas).
+
+---
+
+## 2. Apertura de caja
+
+Antes de realizar cualquier venta es obligatorio **abrir la caja**.
+
+1. Ir a la pantalla **Caja**.
+2. Introducir el efectivo inicial (por ejemplo, cambio).
+3. Confirmar apertura.
+
+Estado:
+- Caja pasa a **OPEN**.
+- El TPV permite ventas.
+
+---
+
+## 3. Ventas (Sales)
+
+### Crear ticket
+1. Acceder a **Sales**.
+2. Crear un nuevo ticket automáticamente.
+3. Añadir productos al ticket.
+
+### Modificar ticket
+- Ajustar cantidades.
+- Eliminar líneas.
+- El total se recalcula automáticamente.
+
+### Cobro
+1. Seleccionar método de pago:
+   - Efectivo
+   - Tarjeta
+   - Bizum
+2. Confirmar cobro.
+3. El ticket pasa a estado **PAID**.
+
+⚠️ Si no hay caja abierta, las ventas quedan bloqueadas.
+
+---
+
+## 4. Historial de tickets
+
+Desde **Tickets History** se puede:
+
+- Ver tickets creados.
+- Consultar detalle completo:
+  - líneas
+  - pagos
+  - totales
+- Reabrir un ticket en Sales (si está permitido).
+
+---
+
+## 5. Fiscal Summary
+
+Pantalla informativa del turno actual.
+
+Muestra:
+- Tickets pagados y cancelados.
+- Ventas brutas, netas e IVA.
+- Pagos agrupados por método.
+
+No modifica datos, solo consulta.
+
+---
+
+## 6. Fiscal Closure (Cierre de caja)
+
+Proceso crítico al finalizar el turno.
+
+1. Acceder a **Fiscal Closure**.
+2. Revisar:
+   - efectivo inicial
+   - ventas en efectivo
+   - efectivo esperado
+3. Introducir el efectivo contado físicamente.
+4. Revisar la diferencia.
+5. Confirmar cierre de caja.
+
+Resultado:
+- La caja pasa a **CLOSED**.
+- Se guarda el cierre para auditoría.
+- Las ventas quedan bloqueadas hasta abrir una nueva caja.
+
+---
+
+## 7. Settings
+
+Desde **Settings** se puede:
+
+- Configurar la URL del backend (API Gateway).
+- Probar la conexión.
+- Cerrar sesión (logout).
+
+Los ajustes se guardan localmente para futuras ejecuciones.
+
+---
+
+## 8. Flujo recomendado diario
+
+1. Login
+2. Abrir caja
+3. Realizar ventas
+4. Consultar fiscal summary (opcional)
+5. Cerrar caja
+6. Logout
+
+---
+
+## 9. Mensajes comunes
+
+- **“No hay caja abierta”**  
+  → Debe abrirse una caja antes de vender.
+
+- **“Solo ADMIN puede cerrar caja”**  
+  → Acción restringida por rol.
+
+---
+
