@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.tpv.desktop.ui.login.LoginController"
+      spacing="12" alignment="CENTER" prefWidth="420" prefHeight="520">
+
+    <Label text="TPV" style="-fx-font-size: 28px; -fx-font-weight: bold;"/>
+    <Label text="Inicia sesión" style="-fx-font-size: 14px; -fx-opacity: 0.8;"/>
+
+    <VBox spacing="8" maxWidth="280">
+        <TextField fx:id="usernameField" promptText="Usuario"/>
+        <PasswordField fx:id="passwordField" promptText="Contraseña"/>
+        <Button text="Entrar" onAction="#onLogin" maxWidth="Infinity"/>
+        <Label fx:id="errorLabel" text="" style="-fx-text-fill: red;"/>
+    </VBox>
+
+</VBox>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.ui.settings.SettingsController"
+            prefWidth="1100" prefHeight="650">
+
+  <top>
+    <HBox spacing="10" alignment="CENTER_LEFT" style="-fx-padding: 12;">
+      <Label text="Settings" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+    </HBox>
+  </top>
+
+  <center>
+    <VBox spacing="12" style="-fx-padding: 12;">
+      <Label text="API Base URL (Gateway)"/>
+      <TextField fx:id="apiBaseUrlField" promptText="http://localhost:8080" prefWidth="420"/>
+
+      <HBox spacing="10">
+        <Button text="Guardar" onAction="#onSave"/>
+        <Button text="Test conexión" onAction="#onTest"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Logout" onAction="#onLogout"/>
+      </HBox>
+
+      <Label fx:id="statusLabel" text="" />
+    </VBox>
+  </center>
+
+</BorderPane>
+

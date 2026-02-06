@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.ui.fiscal.FiscalController"
+            prefWidth="1100" prefHeight="650">
+
+  <top>
+    <HBox spacing="10" alignment="CENTER_LEFT" style="-fx-padding: 12;">
+      <Label text="Fiscal Summary" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+      <Label text="Caja:"/>
+      <Label fx:id="cashSessionIdLabel" text="-"/>
+      <Region HBox.hgrow="ALWAYS"/>
+      <Button text="Refrescar" onAction="#onRefresh"/>
+    </HBox>
+  </top>
+
+  <center>
+    <VBox spacing="12" style="-fx-padding: 12;">
+
+      <TitledPane text="Resumen tickets" expanded="true">
+        <GridPane hgap="14" vgap="10" style="-fx-padding: 10;">
+          <Label text="Tickets pagados:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+          <Label fx:id="paidTicketsLabel" text="-" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+          <Label text="Tickets cancelados:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+          <Label fx:id="cancelledTicketsLabel" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+        </GridPane>
+      </TitledPane>
+
+      <TitledPane text="Ventas" expanded="true">
+        <GridPane hgap="14" vgap="10" style="-fx-padding: 10;">
+          <Label text="Bruto:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+          <Label fx:id="grossLabel" text="-" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+          <Label text="Neto:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+          <Label fx:id="netLabel" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+          <Label text="IVA:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+          <Label fx:id="vatLabel" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+        </GridPane>
+      </TitledPane>
+
+      <TitledPane text="Pagos por método" expanded="true">
+        <GridPane hgap="14" vgap="10" style="-fx-padding: 10;">
+          <Label text="Efectivo:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+          <Label fx:id="cashPaymentsLabel" text="-" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+          <Label text="Tarjeta:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+          <Label fx:id="cardPaymentsLabel" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+          <Label text="Bizum:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+          <Label fx:id="bizumPaymentsLabel" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+        </GridPane>
+      </TitledPane>
+
+      <Label fx:id="errorLabel" text="" style="-fx-text-fill: red;"/>
+
+    </VBox>
+  </center>
+
+</BorderPane>

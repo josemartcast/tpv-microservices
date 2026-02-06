@@ -26,7 +26,9 @@ public class CashSessionService {
     public CashSessionResponse current() {
         CashSession cs = repo.findFirstByStatusOrderByOpenedAtDesc(CashSessionStatus.OPEN)
                 .orElseThrow(() -> new NotFoundException("No open cash session"));
-        return toResponse(cs);
+        int cashPaidCents = paymentRepo.sumByCashSessionAndMethod(cs.getId(), PaymentMethod.CASH);
+        int expected = cs.getOpeningCashCents() + cashPaidCents;
+        return toResponse(cs, expected);
     }
 
     @Transactional
@@ -38,8 +40,10 @@ public class CashSessionService {
             throw new ConflictException("openingCashCents must be >= 0");
         }
         CashSession cs = new CashSession(req.openingCashCents(), openedBy, req.note());
+        int expected = req.openingCashCents();
+        cs.setExpectedCashCents(expected);
         cs = repo.save(cs);
-        return toResponse(cs);
+        return toResponse(cs, expected);
     }
 
     @Transactional
@@ -60,19 +64,19 @@ public class CashSessionService {
         cs.setExpectedCashCents(expected); // lo guardas para auditoría
 
         cs.close(req.closingCashCents(), closedBy, req.note());
-        return toResponse(cs);
+        return toResponse(cs, expected);
     }
 
-    private CashSessionResponse toResponse(CashSession cs) {
+    private CashSessionResponse toResponse(CashSession cs, int expectedCashCents) {
         Integer diff = (cs.getClosingCashCents() == null)
                 ? null
-                : (cs.getClosingCashCents() - cs.getExpectedCashCents());
+                : (cs.getClosingCashCents() - expectedCashCents);
 
         return new CashSessionResponse(
                 cs.getId(),
                 cs.getStatus(),
                 cs.getOpeningCashCents(),
-                cs.getExpectedCashCents(),
+                expectedCashCents,
                 cs.getClosingCashCents(),
                 diff,
                 cs.getOpenedAt(),

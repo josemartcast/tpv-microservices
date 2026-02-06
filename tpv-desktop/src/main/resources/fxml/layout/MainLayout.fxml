@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.ui.layout.MainLayoutController"
+            prefWidth="1200" prefHeight="750">
+
+  <left>
+    <VBox spacing="10" style="-fx-padding: 14; -fx-background-color: #111827;">
+      <Label text="TPV" style="-fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold;"/>
+
+      <Button text="Sales" onAction="#goSales" maxWidth="Infinity"/>
+      <Button text="Cash Register" onAction="#goCash" maxWidth="Infinity"/>
+      <Button text="Tickets History" onAction="#goHistory" maxWidth="Infinity"/>
+      <Button text="Fiscal Summary" onAction="#goFiscal" maxWidth="Infinity"/>
+      <Button text="Fiscal Closure" onAction="#goFiscalClosure" maxWidth="Infinity"/>
+      <Button text="Settings" onAction="#goSettings" maxWidth="Infinity"/>
+
+      <Region VBox.vgrow="ALWAYS"/>
+      <Button text="Logout" onAction="#logout" maxWidth="Infinity"/>
+    </VBox>
+  </left>
+
+  <center>
+    <StackPane fx:id="content" style="-fx-padding: 16;">
+      <Label text="Bienvenido. Selecciona una sección."/>
+    </StackPane>
+  </center>
+</BorderPane>
