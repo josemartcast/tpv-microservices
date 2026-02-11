@@ -35,6 +35,7 @@ public class AppContext {
     private AppContext() {
         this.appState = new AppState();
         this.appState.terminalIdProperty().set(SettingsStore.getTerminalId());
+        this.appState.activeCustomerProperty().set(SettingsStore.getActiveCustomer());
         String restaurantName = readConfig("TPV_RESTAURANT_NAME", "tpv.restaurant.name", "Restaurante EL GUSTO");
         this.appState.restaurantNameProperty().set(restaurantName);
         this.kioskMode = readBoolean("TPV_KIOSK_MODE", "tpv.kiosk.mode", false);

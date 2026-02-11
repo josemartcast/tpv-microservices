@@ -15,6 +15,8 @@ public class AppState {
     private final ObjectProperty<BackendStatus> backendStatus = new SimpleObjectProperty<>(BackendStatus.ONLINE);
     private final StringProperty restaurantName = new SimpleStringProperty("Restaurante EL GUSTO");
     private final StringProperty activeCustomer = new SimpleStringProperty("Mostrador");
+    private final StringProperty lastComandaPrintText = new SimpleStringProperty("");
+    private final BooleanProperty printSeparateByDestination = new SimpleBooleanProperty(true);
     private final BooleanProperty touchMode = new SimpleBooleanProperty(false);
     private final BooleanProperty kioskMode = new SimpleBooleanProperty(false);
 
@@ -23,6 +25,8 @@ public class AppState {
     public ObjectProperty<BackendStatus> backendStatusProperty() { return backendStatus; }
     public StringProperty restaurantNameProperty() { return restaurantName; }
     public StringProperty activeCustomerProperty() { return activeCustomer; }
+    public StringProperty lastComandaPrintTextProperty() { return lastComandaPrintText; }
+    public BooleanProperty printSeparateByDestinationProperty() { return printSeparateByDestination; }
     public BooleanProperty touchModeProperty() { return touchMode; }
     public BooleanProperty kioskModeProperty() { return kioskMode; }
 }

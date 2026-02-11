@@ -1,6 +1,8 @@
 package com.tpv.desktop.tpv.ui.controllers;
 
+import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.tpv.domain.model.Destination;
+import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.tpv.ui.viewmodel.OrderViewModel;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
@@ -20,6 +22,9 @@ public class SendOrderDialogController {
 
     public void bind(OrderViewModel vm) {
         this.viewModel = vm;
+        splitByDestination.setSelected(AppContext.get().appState().printSeparateByDestinationProperty().get());
+        splitByDestination.selectedProperty().addListener((obs, oldV, newV) ->
+                AppContext.get().appState().printSeparateByDestinationProperty().set(newV));
         refreshCounts();
     }
 
@@ -32,25 +37,35 @@ public class SendOrderDialogController {
 
     @FXML
     public void onSendAll() {
-        viewModel.sendAll();
+        viewModel.sendAll(splitByDestination.isSelected());
         close();
     }
 
     @FXML
     public void onSendBar() {
-        viewModel.sendDestinations(EnumSet.of(Destination.BAR));
+        viewModel.sendDestinations(EnumSet.of(Destination.BAR), splitByDestination.isSelected());
         close();
     }
 
     @FXML
     public void onSendCocina() {
-        viewModel.sendDestinations(EnumSet.of(Destination.COCINA));
+        viewModel.sendDestinations(EnumSet.of(Destination.COCINA), splitByDestination.isSelected());
         close();
     }
 
     @FXML
     public void onReprintLast() {
-        viewModel.feedbackProperty().set("Reimpresión simulada.");
+        try {
+            String text = AppContext.get().appState().lastComandaPrintTextProperty().get();
+            if (text == null || text.isBlank()) {
+                viewModel.feedbackProperty().set("No hay comanda enviada para reimprimir.");
+                return;
+            }
+            PrintUtil.printTextToPdf(text, barCount.getScene().getWindow());
+            viewModel.feedbackProperty().set("Reimpresion enviada a Print to PDF.");
+        } catch (Exception e) {
+            viewModel.feedbackProperty().set("No se pudo reimprimir: " + e.getMessage());
+        }
     }
 
     @FXML
@@ -62,4 +77,3 @@ public class SendOrderDialogController {
         ((Stage) barCount.getScene().getWindow()).close();
     }
 }
-

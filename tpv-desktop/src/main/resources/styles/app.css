@@ -155,10 +155,6 @@
     -fx-cursor: hand;
 }
 
-.footer-btn-accent {
-    -fx-background-color: #d7993f;
-}
-
 .order-header-row {
     -fx-background-color: #eceef4;
     -fx-border-color: #d3d8e5;

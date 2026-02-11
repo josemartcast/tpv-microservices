@@ -5,6 +5,7 @@ import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.OrderLine;
 import com.tpv.desktop.tpv.domain.model.Product;
+import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.tpv.ui.controllers.components.ProductButtonController;
 import com.tpv.desktop.tpv.ui.controllers.components.TicketLineCellController;
 import com.tpv.desktop.tpv.ui.controllers.components.TopBarController;
@@ -16,11 +17,6 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.print.PageLayout;
-import javafx.print.PageOrientation;
-import javafx.print.Paper;
-import javafx.print.Printer;
-import javafx.print.PrinterJob;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
@@ -32,7 +28,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.Window;
 import javafx.util.Duration;
 
 import java.io.IOException;
@@ -42,8 +37,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
-import javafx.scene.text.Font;
-import javafx.scene.text.Text;
 
 public class OrderController {
     @FXML private TopBarController topBarController;
@@ -568,49 +561,7 @@ public class OrderController {
     }
 
     private void printPrebillToPdf(String text) {
-        Printer printer = findPdfPrinter();
-        if (printer == null) {
-            throw new RuntimeException("No se encontro impresora PDF (Microsoft Print to PDF).");
-        }
-
-        PrinterJob job = PrinterJob.createPrinterJob(printer);
-        if (job == null) {
-            throw new RuntimeException("No se pudo crear trabajo de impresion.");
-        }
-
-        Text printableText = new Text(text);
-        printableText.setFont(Font.font("Consolas", 11));
-        printableText.wrappingWidthProperty().set(540);
-        VBox printableRoot = new VBox(printableText);
-        printableRoot.setPadding(new Insets(16));
-
-        PageLayout pageLayout = printer.createPageLayout(Paper.A4, PageOrientation.PORTRAIT, Printer.MarginType.DEFAULT);
-        job.getJobSettings().setPageLayout(pageLayout);
-
-        Window owner = feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null;
-        boolean accepted = owner == null || job.showPrintDialog(owner);
-        if (!accepted) {
-            return;
-        }
-
-        boolean printed = job.printPage(pageLayout, printableRoot);
-        if (!printed) {
-            job.cancelJob();
-            throw new RuntimeException("Fallo al imprimir la pre-cuenta en PDF.");
-        }
-        job.endJob();
-    }
-
-    private static Printer findPdfPrinter() {
-        for (Printer printer : Printer.getAllPrinters()) {
-            String name = printer.getName();
-            if (name == null) continue;
-            String n = name.toLowerCase(Locale.ROOT);
-            if (n.contains("microsoft print to pdf") || n.contains("print to pdf")) {
-                return printer;
-            }
-        }
-        return null;
+        PrintUtil.printTextToPdf(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
     }
 
     private record LineSelection(OrderLine line, CheckBox include, Spinner<Integer> qty) {

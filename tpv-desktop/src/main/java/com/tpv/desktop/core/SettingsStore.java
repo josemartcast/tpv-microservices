@@ -29,6 +29,18 @@ public final class SettingsStore {
     prefs.remove("terminalId");
   }
 
+  public static String getActiveCustomer() {
+    return prefs.get("activeCustomer", "Mostrador");
+  }
+
+  public static void setActiveCustomer(String customer) {
+    if (customer == null || customer.isBlank()) {
+      prefs.put("activeCustomer", "Mostrador");
+      return;
+    }
+    prefs.put("activeCustomer", customer.trim());
+  }
+
   private static String defaultTerminalId() {
     try {
       String host = InetAddress.getLocalHost().getHostName();

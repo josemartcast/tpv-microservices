@@ -11,7 +11,11 @@ import javafx.collections.ObservableList;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -68,13 +72,15 @@ public class OrderViewModel {
         refreshOrder();
     }
 
-    public void sendAll() {
+    public void sendAll(boolean separateByDestination) {
+        snapshotLastSend(EnumSet.allOf(Destination.class), separateByDestination);
         orderService.send(orderId.get(), EnumSet.allOf(Destination.class), true);
         refreshOrder();
         feedback.set("Comanda enviada.");
     }
 
-    public void sendDestinations(Set<Destination> destinations) {
+    public void sendDestinations(Set<Destination> destinations, boolean separateByDestination) {
+        snapshotLastSend(destinations, separateByDestination);
         orderService.send(orderId.get(), destinations, true);
         refreshOrder();
         feedback.set("Comanda enviada a " + destinations);
@@ -206,8 +212,80 @@ public class OrderViewModel {
     public ObservableList<Product> products() { return products; }
     public ObservableList<OrderLine> lines() { return lines; }
 
+    private void snapshotLastSend(Set<Destination> destinations, boolean separateByDestination) {
+        List<OrderLine> pendingLines = lines.stream()
+                .filter(line -> line.getPendingQty() > 0)
+                .filter(line -> isDestinationIncluded(line.getDestination(), destinations))
+                .toList();
+
+        StringBuilder out = new StringBuilder();
+        out.append("RESTAURANTE EL GUSTO").append('\n');
+        out.append("ULTIMA COMANDA ENVIADA").append('\n');
+        out.append("Mesa ").append(tableId.get()).append("  Ticket ").append(orderId.get()).append('\n');
+        out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
+        out.append("--------------------------------------------").append('\n');
+        if (pendingLines.isEmpty()) {
+            out.append("Sin lineas pendientes para enviar").append('\n');
+            out.append("--------------------------------------------").append('\n');
+            AppContext.get().appState().lastComandaPrintTextProperty().set(out.toString());
+            return;
+        }
+
+        if (separateByDestination) {
+            appendDestinationDetail(out, Destination.BAR, pendingLines);
+            appendDestinationDetail(out, Destination.COCINA, pendingLines);
+            appendDestinationDetail(out, Destination.POSTRES, pendingLines);
+        } else {
+            int totalQty = pendingLines.stream().mapToInt(OrderLine::getPendingQty).sum();
+            out.append("COMANDA UNIFICADA  ").append(totalQty).append(" productos").append('\n');
+            for (OrderLine line : pendingLines) {
+                int qty = line.getPendingQty();
+                int total = qty * line.getUnitPriceCents();
+                out.append(String.format(Locale.US, "%2dx %-24s %8.2f", qty, clip(line.getProductName(), 24), total / 100.0)).append('\n');
+                if (line.getNote() != null && !line.getNote().isBlank()) {
+                    out.append("   - ").append(line.getNote()).append('\n');
+                }
+            }
+        }
+
+        out.append("--------------------------------------------").append('\n');
+        AppContext.get().appState().lastComandaPrintTextProperty().set(out.toString());
+    }
+
+    private static boolean isDestinationIncluded(Destination destination, Set<Destination> selected) {
+        boolean all = selected == null || selected.isEmpty() || selected.containsAll(EnumSet.allOf(Destination.class));
+        if (all) {
+            return true;
+        }
+        return selected.contains(destination);
+    }
+
+    private static void appendDestinationDetail(StringBuilder out, Destination destination, List<OrderLine> pendingLines) {
+        List<OrderLine> linesByDest = pendingLines.stream()
+                .filter(line -> line.getDestination() == destination)
+                .toList();
+        if (linesByDest.isEmpty()) {
+            return;
+        }
+        int qty = linesByDest.stream().mapToInt(OrderLine::getPendingQty).sum();
+        out.append(destination.name()).append("  ").append(qty).append(" productos").append('\n');
+        for (OrderLine line : linesByDest) {
+            int pendingQty = line.getPendingQty();
+            int total = pendingQty * line.getUnitPriceCents();
+            out.append(String.format(Locale.US, "%2dx %-24s %8.2f", pendingQty, clip(line.getProductName(), 24), total / 100.0)).append('\n');
+            if (line.getNote() != null && !line.getNote().isBlank()) {
+                out.append("   - ").append(line.getNote()).append('\n');
+            }
+        }
+    }
+
+    private static String clip(String value, int max) {
+        if (value == null) return "";
+        return value.length() <= max ? value : value.substring(0, max - 1) + ".";
+    }
+
     private static String money(int cents) {
-        return String.format(java.util.Locale.US, "%.2f EUR", cents / 100.0);
+        return String.format(Locale.US, "%.2f EUR", cents / 100.0);
     }
 }
 

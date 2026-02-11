@@ -4,9 +4,7 @@ import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.Product;
 import com.tpv.desktop.tpv.app.Navigator;
-import java.awt.Desktop;
-import java.io.File;
-import java.io.IOException;
+import com.tpv.desktop.core.SettingsStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -27,7 +25,6 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -129,6 +126,7 @@ public class FooterBarController {
             String selected = list.getSelectionModel().getSelectedItem();
             if (selected != null) {
                 AppContext.get().appState().activeCustomerProperty().set(selected);
+                SettingsStore.setActiveCustomer(selected);
                 Stage stage = (Stage) selectBtn.getScene().getWindow();
                 stage.close();
             }
@@ -144,35 +142,6 @@ public class FooterBarController {
         scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
         modal.setScene(scene);
         modal.showAndWait();
-    }
-
-    @FXML
-    public void onReimprimir() {
-        try {
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle("Selecciona PDF a reimprimir");
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf"));
-            File initialDir = new File(System.getProperty("user.home"), "Documents");
-            if (initialDir.exists() && initialDir.isDirectory()) {
-                chooser.setInitialDirectory(initialDir);
-            }
-            File selected = chooser.showOpenDialog(null);
-            if (selected == null) {
-                return;
-            }
-
-            if (!Desktop.isDesktopSupported()) {
-                throw new IOException("Desktop API no soportada en este sistema.");
-            }
-            Desktop desktop = Desktop.getDesktop();
-            if (desktop.isSupported(Desktop.Action.PRINT)) {
-                desktop.print(selected);
-            } else {
-                desktop.open(selected);
-            }
-        } catch (Exception e) {
-            showError("No se pudo reimprimir el PDF: " + e.getMessage());
-        }
     }
 
     private void openModal(String title, String fxml, int width, int height) {

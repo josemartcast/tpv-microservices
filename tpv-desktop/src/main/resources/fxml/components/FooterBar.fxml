@@ -11,6 +11,5 @@
   <Button text="Historial" onAction="#onHistorial" styleClass="footer-btn"/>
   <Button text="Productos" onAction="#onProductos" styleClass="footer-btn"/>
   <Button text="Clientes" onAction="#onClientes" styleClass="footer-btn"/>
-  <Button text="Reimprimir" onAction="#onReimprimir" styleClass="footer-btn footer-btn-accent"/>
 </HBox>
 
