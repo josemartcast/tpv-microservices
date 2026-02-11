@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<StackPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="com.tpv.desktop.tpv.ui.controllers.components.TableCardController" fx:id="root"
+           prefWidth="248" prefHeight="186" maxWidth="248" styleClass="table-wrap">
+
+  <VBox fx:id="card" spacing="6" styleClass="table-card table-free">
+    <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+
+    <HBox alignment="CENTER_LEFT" spacing="8">
+      <Label fx:id="tableName" text="Mesa 1" styleClass="table-title"/>
+      <Region HBox.hgrow="ALWAYS"/>
+      <Label fx:id="elapsedLabel" text="45m" styleClass="table-meta"/>
+    </HBox>
+
+    <Label fx:id="stateLabel" text="Libre" styleClass="table-state" wrapText="true"/>
+
+    <HBox spacing="6" alignment="CENTER_LEFT">
+      <Label fx:id="pendingIcon" text="P" styleClass="table-warn" visible="false" managed="false"/>
+      <Label fx:id="billIcon" text="C" styleClass="table-warn" visible="false" managed="false"/>
+    </HBox>
+
+    <Label fx:id="lockLabel" text="" styleClass="table-lock" wrapText="true"/>
+    <Label fx:id="totalLabel" text="-" styleClass="table-total"/>
+    <Region VBox.vgrow="ALWAYS"/>
+    <Button fx:id="openButton" text="Abrir" styleClass="table-action" onAction="#onOpen"/>
+  </VBox>
+
+  <Label fx:id="lockOverlay" text="Bloqueada por otro terminal" styleClass="table-overlay" visible="false" managed="false"/>
+</StackPane>
+

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.*?>
+
+<HBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.tpv.desktop.tpv.ui.controllers.components.TicketLineCellController"
+      fx:id="root" spacing="8" alignment="TOP_LEFT" styleClass="ticket-line">
+  <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+  <Label fx:id="qtyLabel" text="1x" styleClass="ticket-qty"/>
+  <VBox spacing="4" HBox.hgrow="ALWAYS">
+    <HBox spacing="6" alignment="CENTER_LEFT">
+      <Label fx:id="nameLabel" text="Producto" styleClass="ticket-name"/>
+      <Region HBox.hgrow="ALWAYS"/>
+      <Label fx:id="priceLabel" text="0.00" styleClass="ticket-price"/>
+    </HBox>
+    <Label fx:id="noteLabel" text="" styleClass="ticket-note"/>
+    <Label fx:id="destinationLabel" text="BAR" styleClass="ticket-destination"/>
+  </VBox>
+</HBox>
+

@@ -16,6 +16,7 @@ import com.tpv.pos_service.repository.CategoryRepository;
 import com.tpv.pos_service.repository.ProductRepository;
 
 @Service
+@SuppressWarnings("null")
 public class ProductService {
 
     private final ProductRepository productRepo;
@@ -77,6 +78,7 @@ public class ProductService {
         p.rename(newName);
         p.changePrice(req.priceCents());
         p.changeCategory(category);
+        p.changeVatRateBps(req.vatRateBps());
 
         return toResponse(p);
     }

@@ -7,7 +7,11 @@ import java.util.List;
 
 public record TicketResponse(
     long id,
+    Integer tableNumber,
     TicketStatus status,
+    boolean billRequested,
+    int totalBeforeDiscountCents,
+    int discountCents,
     int totalCents,
     Instant createdAt,
     Instant updatedAt,

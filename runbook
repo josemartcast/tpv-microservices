@@ -133,3 +133,96 @@ Los ajustes se guardan localmente para futuras ejecuciones.
 
 ---
 
+
+---
+
+## 10. Carga rapida de catalogo base (entorno local)
+
+Si el catalogo esta vacio, puedes cargar datos base idempotentes con Docker:
+
+```bash
+docker exec -i tpv-mysql mysql -utpv_user -ptpv_pass < docker/mysql/seed_catalog.sql
+```
+
+El script crea categorias y productos base sin duplicar nombres existentes.
+
+## 11. Idempotencia en operaciones criticas (Sprint 1)
+
+Para evitar duplicados por doble click o reintentos de red, estas operaciones soportan cabecera `Idempotency-Key`:
+
+- `POST /api/v1/pos/tickets/{ticketId}/payments`
+- `POST /api/v1/pos/tickets/{ticketId}/send`
+- `POST /api/v1/pos/cash-sessions/{id}/close`
+
+Regla: si repites la misma operacion con la misma key y mismo recurso, el backend devuelve el mismo resultado sin duplicar efectos.
+
+Ejemplo:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/pos/tickets/8/payments \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Terminal-Id: TERMINAL-1" \
+  -H "Idempotency-Key: 2b3be3f8-3b8f-4ad9-9fb3-c9d8f389d9f1" \
+  -H "Content-Type: application/json" \
+  -d '{"method":"CARD","amountCents":1200}'
+```
+
+## 12. Auditoria operativa (Sprint 2)
+
+Endpoint de consulta (solo ADMIN):
+
+- `GET /api/v1/pos/audit/events`
+
+Filtros soportados:
+
+- `from` / `to` (ISO-8601)
+- `action` (ej: `PAYMENT_ADD`, `COMANDA_SEND`, `CASH_CLOSE`)
+- `status` (`SUCCESS` / `FAILED`)
+- `actor`
+- `resourceType` (ej: `TICKET`, `CASH_SESSION`, `TABLE`, `CATALOG`)
+- `resourceId`
+- `limit` (max 1000)
+
+Ejemplo:
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/pos/audit/events?action=PAYMENT_ADD&status=FAILED&limit=50" \
+  -H "Authorization: Bearer <token_admin>" \
+  -H "X-Terminal-Id: TERMINAL-1"
+```
+
+Operaciones auditadas actualmente:
+
+- Carga de catalogo (`CATALOG_SEED`)
+- Creacion/cancelacion/modificacion de ticket (`TICKET_*`)
+- Cobros (`PAYMENT_ADD`)
+- Envio de comanda (`COMANDA_SEND`)
+- Caja (`CASH_OPEN`, `CASH_CLOSE`)
+- Bloqueos de mesa (`TABLE_LOCK`, `TABLE_HEARTBEAT`, `TABLE_UNLOCK`)
+- Apertura de ticket desde salon (`SALON_OPEN_TICKET`)
+
+## 13. UX Beta operativa (Sprint 3)
+
+Mejoras de flujo en pantalla Sales:
+
+- Botonera tactil ampliada (acciones principales y cobro visibles)
+- Buscador de productos en caliente
+- Cobro personalizado (importe parcial + metodo)
+- Feedback visual por estado (`info`, `success`, `warn`, `error`)
+
+Atajos de teclado en Sales:
+
+- `F2`: nuevo ticket
+- `F5`: refrescar ticket
+- `F6`: cobro personalizado
+- `F9`: enviar comanda
+- `F10`: cobrar efectivo
+- `F11`: cobrar tarjeta
+- `F12`: cobrar bizum
+- `Esc`: cancelar ticket actual
+- `Supr`: borrar linea seleccionada (si no enviada)
+
+Comportamiento de cobro:
+
+- Si el pago no liquida el total, el ticket permanece abierto.
+- Si liquida el total, el ticket pasa a pagado y se libera bloqueo de mesa.

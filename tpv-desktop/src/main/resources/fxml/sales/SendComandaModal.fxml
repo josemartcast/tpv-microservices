@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.tpv.desktop.ui.sales.SendComandaController"
+      spacing="10"
+      prefWidth="540"
+      prefHeight="420"
+      style="-fx-padding: 14;">
+
+  <Label text="Send order by destination" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+
+  <HBox spacing="12">
+    <VBox spacing="6" prefWidth="250">
+      <Label fx:id="barCountLabel" text="BAR 0 lines" style="-fx-font-weight: bold;"/>
+      <ListView fx:id="barList" prefHeight="250"/>
+    </VBox>
+    <VBox spacing="6" prefWidth="250">
+      <Label fx:id="cocinaCountLabel" text="COCINA 0 lines" style="-fx-font-weight: bold;"/>
+      <ListView fx:id="cocinaList" prefHeight="250"/>
+    </VBox>
+  </HBox>
+
+  <HBox spacing="8">
+    <Button fx:id="sendAllBtn" text="Send all" onAction="#onSendAll"/>
+    <Button fx:id="sendBarBtn" text="Send BAR only" onAction="#onSendBar"/>
+    <Button fx:id="sendCocinaBtn" text="Send COCINA only" onAction="#onSendCocina"/>
+    <Region HBox.hgrow="ALWAYS"/>
+    <Button text="Cancel" onAction="#onCancel"/>
+  </HBox>
+</VBox>

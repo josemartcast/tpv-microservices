@@ -1,0 +1,626 @@
+package com.tpv.desktop.tpv.ui.controllers;
+
+import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.tpv.app.Navigator;
+import com.tpv.desktop.tpv.domain.model.Category;
+import com.tpv.desktop.tpv.domain.model.OrderLine;
+import com.tpv.desktop.tpv.domain.model.Product;
+import com.tpv.desktop.tpv.ui.controllers.components.ProductButtonController;
+import com.tpv.desktop.tpv.ui.controllers.components.TicketLineCellController;
+import com.tpv.desktop.tpv.ui.controllers.components.TopBarController;
+import com.tpv.desktop.tpv.ui.viewmodel.OrderViewModel;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.collections.ListChangeListener;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.print.PageLayout;
+import javafx.print.PageOrientation;
+import javafx.print.Paper;
+import javafx.print.Printer;
+import javafx.print.PrinterJob;
+import javafx.scene.Node;
+import javafx.scene.control.*;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.Window;
+import javafx.util.Duration;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
+
+public class OrderController {
+    @FXML private TopBarController topBarController;
+    @FXML private ListView<OrderLine> ticketList;
+    @FXML private Label subtotalLabel;
+    @FXML private Label feedbackLabel;
+    @FXML private Label orderHeader;
+    @FXML private ToggleGroup categoryTabs;
+    @FXML private ToggleButton tabEntrantes;
+    @FXML private ToggleButton tabBebidas;
+    @FXML private ToggleButton tabPizzas;
+    @FXML private ToggleButton tabPostres;
+    @FXML private FlowPane productsPane;
+    @FXML private Button sendBtn;
+    @FXML private Button payBtn;
+    @FXML private Button splitBtn;
+    @FXML private Button prebillBtn;
+    @FXML private Button moveBtn;
+    @FXML private Button discountBtn;
+    @FXML private Button noteBtn;
+    @FXML private Button deleteBtn;
+
+    private final OrderViewModel vm = new OrderViewModel();
+    private Timeline heartbeat;
+
+    public void bind(long orderId, int tableId) {
+        vm.bindOrder(orderId, tableId);
+        setupBindings();
+        loadProducts(vm.categories().isEmpty() ? null : vm.categories().getFirst());
+    }
+
+    @FXML
+    public void initialize() {
+        ticketList.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(OrderLine item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    return;
+                }
+                try {
+                    FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/components/TicketLineCell.fxml"));
+                    Node node = loader.load();
+                    TicketLineCellController c = loader.getController();
+                    c.bind(item);
+                    setGraphic(node);
+                } catch (IOException e) {
+                    setText(item.getProductName());
+                }
+            }
+        });
+
+        categoryTabs.selectedToggleProperty().addListener((obs, o, n) -> {
+            if (n == null || vm.categories().isEmpty()) return;
+            Category selected = switch (((ToggleButton) n).getText()) {
+                case "Entrantes" -> byName("Entrantes");
+                case "Bebidas" -> byName("Bebidas");
+                case "Pizzas" -> byName("Pizzas");
+                case "Postres" -> byName("Postres");
+                default -> vm.categories().getFirst();
+            };
+            loadProducts(selected);
+        });
+        tabEntrantes.setSelected(true);
+
+        heartbeat = new Timeline(new KeyFrame(Duration.seconds(20), e -> vm.heartbeatLock()));
+        heartbeat.setCycleCount(Timeline.INDEFINITE);
+        heartbeat.play();
+
+        vm.lines().addListener((ListChangeListener<OrderLine>) change -> updateActionState());
+        updateActionState();
+    }
+
+    private Category byName(String name) {
+        return vm.categories().stream().filter(c -> c.name().equalsIgnoreCase(name)).findFirst().orElse(vm.categories().getFirst());
+    }
+
+    private void setupBindings() {
+        ticketList.setItems(vm.lines());
+        subtotalLabel.textProperty().bind(vm.subtotalTextProperty());
+        feedbackLabel.textProperty().bind(vm.feedbackProperty());
+        orderHeader.setText("Mesa " + vm.tableIdProperty().get() + " - " + vm.peopleProperty().get() + " Personas / " + vm.elapsedProperty().get());
+        topBarController.setCenterTitle(AppContext.get().appState().restaurantNameProperty().get());
+        updateActionState();
+    }
+
+    private void loadProducts(Category category) {
+        if (category == null) return;
+        vm.loadProducts(category);
+        productsPane.getChildren().clear();
+        for (Product product : vm.products()) {
+            try {
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/components/ProductButton.fxml"));
+                Node node = loader.load();
+                ProductButtonController controller = loader.getController();
+                controller.bind(product, () -> vm.addProduct(product));
+                productsPane.getChildren().add(node);
+            } catch (IOException e) {
+                Button fallback = new Button(product.name());
+                fallback.setOnAction(evt -> vm.addProduct(product));
+                productsPane.getChildren().add(fallback);
+            }
+        }
+    }
+
+    @FXML
+    public void onBack() {
+        stopHeartbeat();
+        vm.closeOrReleaseOnBack();
+        Navigator.get().goHome();
+    }
+
+    @FXML
+    public void onSend() {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/views/SendOrderDialog.fxml"));
+            DialogPane pane = loader.load();
+            SendOrderDialogController controller = loader.getController();
+            controller.bind(vm);
+
+            Stage stage = new Stage();
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.setTitle("Enviar Comanda");
+            javafx.scene.Scene scene = new javafx.scene.Scene(pane);
+            scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
+            stage.setScene(scene);
+            stage.showAndWait();
+        } catch (IOException e) {
+            feedbackLabel.setText("No se pudo abrir modal de envÃ­o: " + e.getMessage());
+        }
+    }
+    @FXML
+    public void onPay() {
+        vm.requestBill();
+        String method = promptPaymentMethod("Cobrar", "Selecciona metodo de pago");
+        if (method == null) {
+            return;
+        }
+        try {
+            int pending = vm.pendingPaymentCents();
+            if (pending <= 0) {
+                feedbackLabel.setText("No hay importe pendiente.");
+                return;
+            }
+
+            ChoiceDialog<String> typeDialog = new ChoiceDialog<>("Total", "Total", "Parcial", "Parcial (lineas)");
+            typeDialog.setTitle("Cobro");
+            typeDialog.setHeaderText("Tipo de cobro");
+            typeDialog.setContentText("Modo:");
+            String mode = typeDialog.showAndWait().orElse("Total");
+
+            boolean paid;
+            if ("Parcial (lineas)".equalsIgnoreCase(mode)) {
+                int amountCents = promptPartialByLines(
+                        pending,
+                        "Cobro parcial por lineas",
+                        "Selecciona lineas y cantidades"
+                );
+                if (amountCents <= 0) {
+                    return;
+                }
+                paid = vm.payPartial(method, amountCents);
+            } else if ("Parcial".equalsIgnoreCase(mode)) {
+                String defaultAmount = String.format(Locale.US, "%.2f", pending / 100.0);
+                TextInputDialog amountDialog = new TextInputDialog(defaultAmount);
+                amountDialog.setTitle("Cobro parcial");
+                amountDialog.setHeaderText("Pendiente actual: " + defaultAmount + " EUR");
+                amountDialog.setContentText("Importe a cobrar (EUR):");
+                String amountText = amountDialog.showAndWait().orElse("");
+                if (amountText == null || amountText.isBlank()) {
+                    return;
+                }
+                int amountCents = parseAmountToCents(amountText);
+                paid = vm.payPartial(method, amountCents);
+            } else {
+                paid = vm.payFull(method);
+            }
+
+            if (paid) {
+                stopHeartbeat();
+                Navigator.get().goHome();
+            }
+        } catch (Exception e) {
+            feedbackLabel.setText("No se pudo cobrar: " + e.getMessage());
+        }
+    }
+    @FXML
+    public void onSplit() {
+        try {
+            int pending = vm.pendingPaymentCents();
+            if (pending <= 0) {
+                feedbackLabel.setText("No hay importe pendiente para dividir.");
+                return;
+            }
+
+            int amountCents = promptPartialByLines(
+                    pending,
+                    "Dividir cuenta",
+                    "Selecciona lineas/cantidades para la parte separada"
+            );
+            if (amountCents <= 0) {
+                return;
+            }
+
+            String method = promptPaymentMethod("Cobrar parte dividida", "Metodo para esta parte");
+            if (method == null) {
+                return;
+            }
+
+            boolean paid = vm.payPartial(method, amountCents);
+            if (paid) {
+                stopHeartbeat();
+                Navigator.get().goHome();
+                return;
+            }
+
+            feedbackLabel.setText("Parte dividida cobrada (" + money(amountCents) + ").");
+        } catch (Exception e) {
+            feedbackLabel.setText("No se pudo dividir/cobrar: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    public void onPrebill() {
+        if (vm.lines().isEmpty()) {
+            feedbackLabel.setText("No hay lineas en ticket para pre-cuenta.");
+            return;
+        }
+
+        String text = buildPrebillText();
+        TextArea preview = new TextArea(text);
+        preview.setEditable(false);
+        preview.setWrapText(false);
+        preview.setPrefColumnCount(44);
+        preview.setPrefRowCount(22);
+        preview.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 12px;");
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Precuenta");
+        dialog.setHeaderText("Vista previa de pre-cuenta");
+        ButtonType copyButton = new ButtonType("Copiar", ButtonBar.ButtonData.LEFT);
+        ButtonType printPdfButton = new ButtonType("Print to PDF", ButtonBar.ButtonData.LEFT);
+        dialog.getDialogPane().getButtonTypes().addAll(copyButton, printPdfButton, ButtonType.CLOSE);
+        dialog.getDialogPane().setContent(preview);
+
+        ButtonType action = dialog.showAndWait().orElse(ButtonType.CLOSE);
+        if (action == copyButton) {
+            ClipboardContent content = new ClipboardContent();
+            content.putString(text);
+            Clipboard.getSystemClipboard().setContent(content);
+            feedbackLabel.setText("Pre-cuenta copiada al portapapeles.");
+            return;
+        }
+        if (action == printPdfButton) {
+            printPrebillToPdf(text);
+            feedbackLabel.setText("Enviado a Print to PDF.");
+        }
+    }
+
+    @FXML
+    public void onMoveTable() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setHeaderText("Mover ticket a otra mesa");
+        dialog.setContentText("Mesa destino:");
+        dialog.showAndWait().ifPresent(value -> {
+            try {
+                int newTable = Integer.parseInt(value.trim());
+                vm.moveToTable(newTable);
+                orderHeader.setText("Mesa " + vm.tableIdProperty().get() + " - " + vm.peopleProperty().get() + " Personas / " + vm.elapsedProperty().get());
+            } catch (NumberFormatException e) {
+                feedbackLabel.setText("Mesa destino invalida.");
+            } catch (Exception e) {
+                feedbackLabel.setText("No se pudo mover mesa: " + e.getMessage());
+            }
+        });
+    }
+
+    @FXML
+    public void onDiscount() {
+        try {
+            ChoiceDialog<String> typeDialog = new ChoiceDialog<>("Porcentaje", "Porcentaje", "Importe", "Quitar");
+            typeDialog.setTitle("Descuento");
+            typeDialog.setHeaderText("Aplicar descuento al ticket");
+            typeDialog.setContentText("Modo:");
+            String mode = typeDialog.showAndWait().orElse("");
+            if (mode.isBlank()) {
+                return;
+            }
+
+            if ("Quitar".equalsIgnoreCase(mode)) {
+                vm.clearDiscount();
+                return;
+            }
+
+            if ("Porcentaje".equalsIgnoreCase(mode)) {
+                TextInputDialog d = new TextInputDialog("10");
+                d.setTitle("Descuento %");
+                d.setHeaderText("Introduce porcentaje (0-100)");
+                d.setContentText("Porcentaje:");
+                String raw = d.showAndWait().orElse("");
+                if (raw.isBlank()) return;
+                int percent = Integer.parseInt(raw.trim());
+                vm.applyDiscountPercent(percent);
+                return;
+            }
+
+            TextInputDialog d = new TextInputDialog("1.00");
+            d.setTitle("Descuento importe");
+            d.setHeaderText("Introduce importe de descuento");
+            d.setContentText("EUR:");
+            String raw = d.showAndWait().orElse("");
+            if (raw.isBlank()) return;
+            int amountCents = parseAmountToCents(raw);
+            vm.applyDiscountAmount(amountCents);
+        } catch (Exception e) {
+            feedbackLabel.setText("No se pudo aplicar descuento: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    public void onNote() {
+        TextInputDialog d = new TextInputDialog("");
+        d.setHeaderText("Nota para Ãºltima lÃ­nea pendiente");
+        d.showAndWait().ifPresent(vm::addNoteToLastPending);
+    }
+
+    @FXML
+    public void onDeleteLine() {
+        vm.removeLastPending();
+    }
+
+    @FXML
+    public void onCancelOrder() {
+        stopHeartbeat();
+        vm.cancelOrder();
+        Navigator.get().goHome();
+    }
+
+    private void stopHeartbeat() {
+        if (heartbeat != null) {
+            heartbeat.stop();
+        }
+    }
+
+    private void updateActionState() {
+        boolean hasLines = !vm.lines().isEmpty();
+        boolean hasPending = vm.lines().stream().anyMatch(line -> line.getPendingQty() > 0);
+
+        if (sendBtn != null) sendBtn.setDisable(!hasPending);
+        if (noteBtn != null) noteBtn.setDisable(!hasPending);
+        if (deleteBtn != null) deleteBtn.setDisable(!hasPending);
+
+        if (payBtn != null) payBtn.setDisable(!hasLines);
+        if (splitBtn != null) splitBtn.setDisable(!hasLines);
+        if (prebillBtn != null) prebillBtn.setDisable(!hasLines);
+        if (moveBtn != null) moveBtn.setDisable(!hasLines);
+        if (discountBtn != null) discountBtn.setDisable(!hasLines);
+    }
+    private static int parseAmountToCents(String rawAmount) {
+        String normalized = rawAmount.trim().replace(",", ".");
+        BigDecimal eur = new BigDecimal(normalized);
+        if (eur.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("El importe debe ser mayor que cero.");
+        }
+        return eur.multiply(BigDecimal.valueOf(100))
+                .setScale(0, RoundingMode.HALF_UP)
+                .intValueExact();
+    }
+
+    private String promptPaymentMethod(String title, String header) {
+        ChoiceDialog<String> methodDialog = new ChoiceDialog<>("CARD", "CASH", "CARD", "BIZUM");
+        methodDialog.setTitle(title);
+        methodDialog.setHeaderText(header);
+        methodDialog.setContentText("Metodo:");
+        return methodDialog.showAndWait().orElse(null);
+    }
+    private int promptPartialByLines(int pendingCents, String title, String header) {
+        if (vm.lines().isEmpty()) {
+            feedbackLabel.setText("No hay lineas para cobro parcial.");
+            return 0;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(title);
+        dialog.setHeaderText(header);
+
+        ButtonType applyButton = new ButtonType("Aplicar", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(applyButton, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(8, 4, 4, 4));
+
+        Label pendingLabel = new Label("Pendiente: " + money(pendingCents));
+        pendingLabel.getStyleClass().add("ticket-subtotal-label");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(6);
+        grid.add(new Label("Pagar"), 0, 0);
+        grid.add(new Label("Producto"), 1, 0);
+        grid.add(new Label("Cant."), 2, 0);
+        grid.add(new Label("Subtotal"), 3, 0);
+
+        var selections = new java.util.ArrayList<LineSelection>();
+        int row = 1;
+        for (OrderLine line : vm.lines()) {
+            if (line.getQty() <= 0) continue;
+
+            CheckBox include = new CheckBox();
+            Label name = new Label(line.getProductName());
+            Spinner<Integer> qty = new Spinner<>(0, line.getQty(), 0);
+            qty.setEditable(false);
+            qty.setPrefWidth(84);
+            Label subtotal = new Label("0.00 EUR");
+
+            LineSelection selection = new LineSelection(line, include, qty);
+            selections.add(selection);
+
+            include.selectedProperty().addListener((obs, oldVal, selected) -> {
+                if (selected && qty.getValue() == 0) {
+                    qty.getValueFactory().setValue(line.getQty());
+                }
+                if (!selected) {
+                    qty.getValueFactory().setValue(0);
+                }
+                subtotal.setText(money(selection.selectedCents()));
+            });
+            qty.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null && newVal > 0 && !include.isSelected()) {
+                    include.setSelected(true);
+                }
+                if (newVal != null && newVal == 0 && include.isSelected()) {
+                    include.setSelected(false);
+                }
+                subtotal.setText(money(selection.selectedCents()));
+            });
+
+            grid.add(include, 0, row);
+            grid.add(name, 1, row);
+            grid.add(qty, 2, row);
+            grid.add(subtotal, 3, row);
+            row++;
+        }
+
+        Label selectedLabel = new Label("Seleccionado: 0.00 EUR");
+        selectedLabel.getStyleClass().add("ticket-subtotal-value");
+
+        Runnable refreshSelected = () -> {
+            int selected = selections.stream().mapToInt(LineSelection::selectedCents).sum();
+            selectedLabel.setText("Seleccionado: " + money(selected));
+        };
+
+        selections.forEach(s -> {
+            s.include().selectedProperty().addListener((obs, o, n) -> refreshSelected.run());
+            s.qty().valueProperty().addListener((obs, o, n) -> refreshSelected.run());
+        });
+        refreshSelected.run();
+
+        ScrollPane scroll = new ScrollPane(grid);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportHeight(340);
+
+        HBox totals = new HBox(selectedLabel);
+        totals.setAlignment(Pos.CENTER_RIGHT);
+        HBox.setHgrow(selectedLabel, Priority.ALWAYS);
+
+        content.getChildren().addAll(pendingLabel, scroll, totals);
+        dialog.getDialogPane().setContent(content);
+
+        var result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != applyButton) {
+            return 0;
+        }
+
+        int selectedCents = selections.stream().mapToInt(LineSelection::selectedCents).sum();
+        if (selectedCents <= 0) {
+            throw new IllegalArgumentException("Selecciona al menos una linea.");
+        }
+        if (selectedCents > pendingCents) {
+            throw new IllegalArgumentException("Seleccion supera el pendiente (" + money(pendingCents) + ").");
+        }
+        return selectedCents;
+    }
+
+    private static String money(int cents) {
+        return String.format(Locale.US, "%.2f EUR", cents / 100.0);
+    }
+
+    private String buildPrebillText() {
+        StringBuilder out = new StringBuilder();
+        out.append("RESTAURANTE EL GUSTO").append('\n');
+        out.append("PRECUENTA").append('\n');
+        out.append("Mesa ").append(vm.tableIdProperty().get())
+                .append("  Ticket ").append(vm.orderIdProperty().get()).append('\n');
+        out.append("Cliente ").append(AppContext.get().appState().activeCustomerProperty().get()).append('\n');
+        out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
+        out.append("--------------------------------------------").append('\n');
+        for (OrderLine line : vm.lines()) {
+            int lineTotal = line.getQty() * line.getUnitPriceCents();
+            out.append(String.format(Locale.US, "%2dx %-24s %8.2f", line.getQty(), clip(line.getProductName(), 24), lineTotal / 100.0))
+                    .append('\n');
+            if (line.getNote() != null && !line.getNote().isBlank()) {
+                out.append("   - ").append(line.getNote()).append('\n');
+            }
+        }
+        out.append("--------------------------------------------").append('\n');
+        out.append(String.format(Locale.US, "TOTAL:%33.2f", vm.lines().stream()
+                .mapToInt(l -> l.getQty() * l.getUnitPriceCents())
+                .sum() / 100.0)).append('\n');
+        out.append(String.format(Locale.US, "PENDIENTE:%29.2f", vm.pendingPaymentCents() / 100.0)).append('\n');
+        out.append("--------------------------------------------").append('\n');
+        out.append("Gracias. Esta pre-cuenta no es factura.").append('\n');
+        return out.toString();
+    }
+
+    private static String clip(String value, int max) {
+        if (value == null) {
+            return "";
+        }
+        return value.length() <= max ? value : value.substring(0, max - 1) + ".";
+    }
+
+    private void printPrebillToPdf(String text) {
+        Printer printer = findPdfPrinter();
+        if (printer == null) {
+            throw new RuntimeException("No se encontro impresora PDF (Microsoft Print to PDF).");
+        }
+
+        PrinterJob job = PrinterJob.createPrinterJob(printer);
+        if (job == null) {
+            throw new RuntimeException("No se pudo crear trabajo de impresion.");
+        }
+
+        Text printableText = new Text(text);
+        printableText.setFont(Font.font("Consolas", 11));
+        printableText.wrappingWidthProperty().set(540);
+        VBox printableRoot = new VBox(printableText);
+        printableRoot.setPadding(new Insets(16));
+
+        PageLayout pageLayout = printer.createPageLayout(Paper.A4, PageOrientation.PORTRAIT, Printer.MarginType.DEFAULT);
+        job.getJobSettings().setPageLayout(pageLayout);
+
+        Window owner = feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null;
+        boolean accepted = owner == null || job.showPrintDialog(owner);
+        if (!accepted) {
+            return;
+        }
+
+        boolean printed = job.printPage(pageLayout, printableRoot);
+        if (!printed) {
+            job.cancelJob();
+            throw new RuntimeException("Fallo al imprimir la pre-cuenta en PDF.");
+        }
+        job.endJob();
+    }
+
+    private static Printer findPdfPrinter() {
+        for (Printer printer : Printer.getAllPrinters()) {
+            String name = printer.getName();
+            if (name == null) continue;
+            String n = name.toLowerCase(Locale.ROOT);
+            if (n.contains("microsoft print to pdf") || n.contains("print to pdf")) {
+                return printer;
+            }
+        }
+        return null;
+    }
+
+    private record LineSelection(OrderLine line, CheckBox include, Spinner<Integer> qty) {
+        int selectedCents() {
+            Integer value = qty.getValue();
+            int qtyValue = value == null ? 0 : value;
+            return include.isSelected() ? qtyValue * line.getUnitPriceCents() : 0;
+        }
+    }
+}
+
+
+

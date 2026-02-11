@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProductRepository extends JpaRepository <Product, Long>{
     boolean existsByNameIgnoreCase(String name);
+    Optional<Product> findByNameIgnoreCase(String name);
 
     Optional<Product> findByIdAndActiveTrue(Long id);
 

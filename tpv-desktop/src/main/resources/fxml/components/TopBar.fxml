@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<HBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.tpv.desktop.tpv.ui.controllers.components.TopBarController"
+      fx:id="root" alignment="CENTER_LEFT" spacing="18" styleClass="topbar" prefHeight="56">
+  <padding><Insets top="8" right="16" bottom="8" left="16"/></padding>
+
+  <HBox alignment="CENTER_LEFT" spacing="8">
+    <Label fx:id="menuLabel" text="Menu" styleClass="topbar-icon" onMouseClicked="#onOpenMenu"/>
+    <Label fx:id="restaurantLabel" text="Restaurante" styleClass="topbar-link" onMouseClicked="#onGoHome"/>
+    <Label text="|" styleClass="topbar-sep"/>
+    <Label fx:id="leftRestaurantLabel" text="Restaurante EL GUSTO" styleClass="topbar-link" onMouseClicked="#onGoHome"/>
+  </HBox>
+
+  <Region HBox.hgrow="ALWAYS"/>
+  <Label fx:id="centerTitleLabel" text="Restaurante EL GUSTO" styleClass="topbar-title"/>
+  <Region HBox.hgrow="ALWAYS"/>
+
+  <HBox alignment="CENTER_RIGHT" spacing="8">
+    <Label fx:id="backendBadge" text="ONLINE" styleClass="badge badge-online"/>
+    <Label fx:id="latencyBadge" text="45ms" styleClass="badge badge-latency"/>
+    <Button fx:id="errorsButton" text="Errores" onAction="#onShowErrors" styleClass="btn-link"/>
+    <Label fx:id="usernameLabel" text="Usuario activo" styleClass="topbar-user" onMouseClicked="#onOpenUserMenu"/>
+    <Label fx:id="avatarLabel" text="User" styleClass="avatar-dot" onMouseClicked="#onOpenUserMenu"/>
+  </HBox>
+</HBox>
+

@@ -1,6 +1,7 @@
 package com.tpv.desktop.api.pos;
 
 import com.tpv.desktop.api.ApiClient;
+import java.util.Map;
 
 public final class CashApi {
 
@@ -29,10 +30,15 @@ public final class CashApi {
 
 
     public static CashSessionResponse close(long cashSessionId, CloseCashSessionRequest req) throws Exception {
+        return close(cashSessionId, req, null);
+    }
+
+    public static CashSessionResponse close(long cashSessionId, CloseCashSessionRequest req, String idempotencyKey) throws Exception {
         return ApiClient.post(
                 "/api/v1/pos/cash-sessions/" + cashSessionId + "/close",
                 req,
-                CashSessionResponse.class
+                CashSessionResponse.class,
+                idempotencyKey == null ? null : Map.of("Idempotency-Key", idempotencyKey)
         );
     }
 }

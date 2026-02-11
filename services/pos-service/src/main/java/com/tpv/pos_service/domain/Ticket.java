@@ -18,6 +18,9 @@ public class Ticket {
     @Column(nullable = false)
     private int totalCents = 0;
 
+    @Column(nullable = false)
+    private int discountCents = 0;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -32,6 +35,13 @@ public class Ticket {
 
     @Column(nullable = false)
     private int totalVatCents = 0;
+
+    @Column
+    private Integer tableNumber;
+
+    @Column(nullable = false)
+    private boolean billRequested = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
             name = "cash_session_id",
@@ -43,6 +53,11 @@ public class Ticket {
 
     public Ticket(CashSession cashSession) {
         this.cashSession = cashSession;
+    }
+
+    public Ticket(CashSession cashSession, Integer tableNumber) {
+        this.cashSession = cashSession;
+        this.tableNumber = tableNumber;
     }
 
     public Ticket() {
@@ -101,6 +116,14 @@ public class Ticket {
         this.totalCents = totalCents;
     }
 
+    public int getDiscountCents() {
+        return discountCents;
+    }
+
+    public void setDiscountCents(int discountCents) {
+        this.discountCents = Math.max(0, discountCents);
+    }
+
     public int getTotalGrossCents() {
         return totalGrossCents;
     }
@@ -117,5 +140,21 @@ public class Ticket {
         this.totalGrossCents = gross;
         this.totalNetCents = net;
         this.totalVatCents = Math.max(0, gross - net);
+    }
+
+    public Integer getTableNumber() {
+        return tableNumber;
+    }
+
+    public void setTableNumber(Integer tableNumber) {
+        this.tableNumber = tableNumber;
+    }
+
+    public boolean isBillRequested() {
+        return billRequested;
+    }
+
+    public void setBillRequested(boolean billRequested) {
+        this.billRequested = billRequested;
     }
 }

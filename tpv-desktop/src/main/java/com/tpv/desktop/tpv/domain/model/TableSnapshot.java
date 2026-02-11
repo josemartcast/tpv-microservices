@@ -1,0 +1,16 @@
+package com.tpv.desktop.tpv.domain.model;
+
+public record TableSnapshot(
+        int tableId,
+        String label,
+        TableStatus status,
+        int totalCents,
+        long elapsedMinutes,
+        int pendingCount,
+        boolean billRequested,
+        String lockOwner,
+        String lockTerminalId,
+        long orderId
+) {
+}
+

@@ -6,47 +6,48 @@
 <BorderPane xmlns="http://javafx.com/javafx/21"
             xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.tpv.desktop.ui.sales.SalesController"
+            fx:id="root"
+            styleClass="sales-view"
             prefWidth="1000" prefHeight="650">
 
-  <!-- LEFT: categorías -->
   <left>
-    <VBox spacing="10" style="-fx-padding: 12;">
-      <Label text="Categorías" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
-      <ListView fx:id="categoriesList" prefWidth="220"/>
+    <VBox spacing="10" styleClass="sales-panel" prefWidth="240">
+      <Label text="Categories" styleClass="sales-section-title"/>
+      <ListView fx:id="categoriesList" prefWidth="220" VBox.vgrow="ALWAYS"/>
     </VBox>
   </left>
 
-  <!-- CENTER: productos -->
   <center>
-    <VBox spacing="10" style="-fx-padding: 12;">
+    <VBox spacing="10" styleClass="sales-panel">
       <HBox spacing="10" alignment="CENTER_LEFT">
-        <Label text="Productos" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+        <Label text="Products" styleClass="sales-section-title"/>
+        <TextField fx:id="productSearchField" promptText="Search product..." prefWidth="260"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button text="Nuevo ticket" onAction="#onNewTicket"/>
+        <Label text="F2 New | F9 Send | F10 Cash | F11 Card | F12 Bizum | F6 Custom" styleClass="sales-hotkeys-hint"/>
+        <Button fx:id="newTicketBtn" text="New ticket" onAction="#onNewTicket" styleClass="touch-btn"/>
       </HBox>
 
       <ScrollPane fitToWidth="true" fitToHeight="true">
         <content>
-          <FlowPane fx:id="productsPane" hgap="10" vgap="10" prefWrapLength="600"/>
+          <FlowPane fx:id="productsPane" hgap="10" vgap="10" prefWrapLength="800"/>
         </content>
       </ScrollPane>
 
-      <Label fx:id="errorLabel" text="" style="-fx-text-fill: red;"/>
+      <Label fx:id="errorLabel" text="" styleClass="sales-feedback sales-feedback-info"/>
     </VBox>
   </center>
 
-  <!-- RIGHT: ticket actual -->
   <right>
-    <VBox spacing="10" style="-fx-padding: 12;" prefWidth="380">
-      <Label text="Ticket actual" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+    <VBox spacing="10" styleClass="sales-panel" prefWidth="420">
+      <Label text="Current ticket" styleClass="sales-section-title"/>
 
-      <Label fx:id="ticketInfoLabel" text="Sin ticket"/>
+      <Label fx:id="ticketInfoLabel" text="No ticket"/>
 
-      <TableView fx:id="linesTable" prefHeight="420">
+      <TableView fx:id="linesTable" prefHeight="420" VBox.vgrow="ALWAYS">
         <columns>
-          <TableColumn fx:id="colName" text="Producto" prefWidth="170"/>
+          <TableColumn fx:id="colName" text="Product" prefWidth="170"/>
           <TableColumn fx:id="colQty" text="Qty" prefWidth="60"/>
-          <TableColumn fx:id="colUnit" text="€/u" prefWidth="70"/>
+          <TableColumn fx:id="colUnit" text="EUR/u" prefWidth="70"/>
           <TableColumn fx:id="colTotal" text="Total" prefWidth="70"/>
         </columns>
       </TableView>
@@ -59,17 +60,22 @@
       <Separator/>
 
       <HBox spacing="10">
-        <Button fx:id="payCashBtn" text="Cobrar Efectivo" onAction="#onPayCash" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
-        <Button fx:id="payCardBtn" text="Tarjeta" onAction="#onPayCard" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+        <Button fx:id="sendBtn" text="Send (F9)" onAction="#onSend" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-primary"/>
+        <Button fx:id="payCashBtn" text="Cash (F10)" onAction="#onPayCash" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-success"/>
       </HBox>
-      <Button fx:id="payBizumBtn" text="Bizum" onAction="#onPayBizum" maxWidth="Infinity"/>
+      <HBox spacing="10">
+        <Button fx:id="payCardBtn" text="Card (F11)" onAction="#onPayCard" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-success"/>
+        <Button fx:id="payBizumBtn" text="Bizum (F12)" onAction="#onPayBizum" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-success"/>
+      </HBox>
+      <HBox spacing="10">
+        <Button fx:id="payCustomBtn" text="Custom pay (F6)" onAction="#onPayCustom" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn"/>
+      </HBox>
 
       <HBox spacing="10">
-        <Button fx:id="cancelBtn" text="Cancelar" onAction="#onCancel" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
-        <Button fx:id="refreshBtn" text="Refrescar" onAction="#onRefresh" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+        <Button fx:id="cancelBtn" text="Cancel (Esc)" onAction="#onCancel" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-danger"/>
+        <Button fx:id="refreshBtn" text="Refresh (F5)" onAction="#onRefresh" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn"/>
       </HBox>
     </VBox>
   </right>
 
 </BorderPane>
-

@@ -14,6 +14,7 @@ import com.tpv.pos_service.exception.NotFoundException;
 import com.tpv.pos_service.repository.CategoryRepository;
 
 @Service
+@SuppressWarnings("null")
 public class CategoryService {
 
     private final CategoryRepository repo;

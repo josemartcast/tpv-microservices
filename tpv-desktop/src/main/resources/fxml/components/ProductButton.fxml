@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.Button?>
+
+<Button xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+        fx:controller="com.tpv.desktop.tpv.ui.controllers.components.ProductButtonController"
+        fx:id="button" text="Producto" onAction="#onClick"
+        prefWidth="180" prefHeight="84" wrapText="true" styleClass="product-btn"/>
+

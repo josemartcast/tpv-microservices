@@ -135,7 +135,7 @@ public class CashSession {
     public void close(int closingCashCents, String closedBy, String note) {
         this.status = CashSessionStatus.CLOSED;
         this.closingCashCents = closingCashCents;
-        this.cashDifferenceCents = closingCashCents - (this.openingCashCents + this.expectedCashCents);
+        this.cashDifferenceCents = closingCashCents - this.expectedCashCents;
         this.closedBy = closedBy;
         this.closedAt = Instant.now();
         if (note != null && !note.isBlank()) {

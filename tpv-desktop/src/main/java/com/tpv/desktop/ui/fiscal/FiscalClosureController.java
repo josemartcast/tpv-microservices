@@ -2,6 +2,7 @@ package com.tpv.desktop.ui.fiscal;
 
 import com.tpv.desktop.api.pos.*;
 import com.tpv.desktop.core.MoneyUtil;
+import java.util.UUID;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
@@ -20,6 +21,8 @@ public class FiscalClosureController {
 
   private long cashSessionId;
   private int expectedCashCents;
+  private String lastCloseAttemptSignature;
+  private String lastCloseAttemptKey;
 
   @FXML
   public void initialize() {
@@ -59,7 +62,20 @@ public class FiscalClosureController {
       CloseCashSessionRequest req =
           new CloseCashSessionRequest(counted, noteArea.getText());
 
-      CashApi.close(cashSessionId, req);
+      String note = noteArea.getText() == null ? "" : noteArea.getText().trim();
+      String signature = cashSessionId + "|" + counted + "|" + note;
+      String key;
+      if (signature.equals(lastCloseAttemptSignature) && lastCloseAttemptKey != null) {
+        key = lastCloseAttemptKey;
+      } else {
+        key = UUID.randomUUID().toString();
+        lastCloseAttemptSignature = signature;
+        lastCloseAttemptKey = key;
+      }
+
+      CashApi.close(cashSessionId, req, key);
+      lastCloseAttemptSignature = null;
+      lastCloseAttemptKey = null;
 
       statusLabel.setText("Caja cerrada correctamente.");
 

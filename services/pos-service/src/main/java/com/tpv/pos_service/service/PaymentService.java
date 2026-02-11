@@ -6,8 +6,10 @@ import com.tpv.pos_service.exception.*;
 import com.tpv.pos_service.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
+@SuppressWarnings("null")
 public class PaymentService {
 
     private final TicketRepository ticketRepo;
@@ -21,7 +23,14 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentResponse addPayment(Long ticketId, CreatePaymentRequest req) {
+    public PaymentResponse addPayment(Long ticketId, CreatePaymentRequest req, String idempotencyKey) {
+        String key = normalizeIdempotencyKey(idempotencyKey);
+        if (key != null) {
+            var existing = paymentRepo.findByTicketIdAndIdempotencyKey(ticketId, key).orElse(null);
+            if (existing != null) {
+                return toResponse(existing);
+            }
+        }
 
         Ticket ticket = ticketRepo.findById(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
@@ -54,19 +63,46 @@ public class PaymentService {
             throw new ConflictException("Payment exceeds remaining amount");
         }
 
-        Payment payment = new Payment(ticket, req.method(), req.amountCents());
-        paymentRepo.save(payment);
+        Payment payment = new Payment(ticket, req.method(), req.amountCents(), key);
+        try {
+            paymentRepo.save(payment);
+        } catch (DataIntegrityViolationException duplicate) {
+            if (key == null) {
+                throw duplicate;
+            }
+            var existing = paymentRepo.findByTicketIdAndIdempotencyKey(ticketId, key).orElseThrow(() -> duplicate);
+            return toResponse(existing);
+        }
         if (payment.getMethod() == PaymentMethod.CASH) {
             ticket.getCashSession().registerSale(payment.getAmountCents());
-        }
-        if (req.method() == PaymentMethod.CASH) {
-            Ticket ticketManaged = ticket;
-            ticketManaged.getCashSession().registerSale(req.amountCents());
         }
         if (paidSoFar + req.amountCents() == total) {
             ticket.markPaid();
         }
 
+        return toResponse(payment);
+    }
+
+    @Transactional
+    public PaymentResponse addPayment(Long ticketId, CreatePaymentRequest req) {
+        return addPayment(ticketId, req, null);
+    }
+
+    private PaymentResponse toResponse(Payment payment) {
         return new PaymentResponse(payment.getId(), payment.getMethod(), payment.getAmountCents(), payment.getCreatedAt());
+    }
+
+    private String normalizeIdempotencyKey(String key) {
+        if (key == null) {
+            return null;
+        }
+        String normalized = key.trim();
+        if (normalized.isBlank()) {
+            return null;
+        }
+        if (normalized.length() > 80) {
+            throw new ConflictException("Idempotency-Key too long (max 80)");
+        }
+        return normalized;
     }
 }

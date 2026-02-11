@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.tpv.ui.controllers.HomeController"
+            styleClass="app-root" prefWidth="1920" prefHeight="1080">
+
+  <top>
+    <fx:include source="../components/TopBar.fxml" fx:id="topBar"/>
+  </top>
+
+  <center>
+    <VBox spacing="10" styleClass="main-pane">
+      <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+
+      <Label text="Mapa de Mesas" styleClass="section-title"/>
+      <Label fx:id="offlineBanner" text="Backend OFFLINE: acciones pausadas" visible="false" managed="false" styleClass="offline-banner"/>
+
+      <ScrollPane fx:id="homeScroll" fitToWidth="true" fitToHeight="true" styleClass="home-scroll">
+        <content>
+          <FlowPane fx:id="tablesPane" hgap="10" vgap="10" prefWrapLength="1750" styleClass="tables-flow">
+            <padding><Insets top="6" right="2" bottom="8" left="2"/></padding>
+          </FlowPane>
+        </content>
+      </ScrollPane>
+
+      <Label fx:id="feedbackLabel" text="" styleClass="feedback-label"/>
+    </VBox>
+  </center>
+
+  <bottom>
+    <fx:include source="../components/FooterBar.fxml" fx:id="footerBar"/>
+  </bottom>
+</BorderPane>
+

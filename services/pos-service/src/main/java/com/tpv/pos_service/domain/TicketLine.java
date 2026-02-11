@@ -57,6 +57,12 @@ public class TicketLine {
     @Column(nullable = false)
     private int vatLineTotalCents;
 
+    @Column(nullable = false)
+    private boolean sent = false;
+
+    @Column
+    private Instant sentAt;
+
     protected TicketLine() {
     }
 
@@ -150,5 +156,20 @@ public class TicketLine {
         this.lineTotalCents = grossLine;
         this.netLineTotalCents = netLine;
         this.vatLineTotalCents = grossLine - netLine;
+    }
+
+    public boolean isSent() {
+        return sent;
+    }
+
+    public Instant getSentAt() {
+        return sentAt;
+    }
+
+    public void markSent() {
+        this.sent = true;
+        if (this.sentAt == null) {
+            this.sentAt = Instant.now();
+        }
     }
 }

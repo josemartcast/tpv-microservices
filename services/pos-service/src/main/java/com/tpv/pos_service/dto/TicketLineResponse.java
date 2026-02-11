@@ -6,6 +6,8 @@ public record TicketLineResponse(
     long id,
     long productId,
     String productName,
+    String destination,
+    boolean sent,
     int unitPriceCents,
     int qty,
     int lineTotalCents,

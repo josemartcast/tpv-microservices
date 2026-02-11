@@ -12,14 +12,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@SuppressWarnings("null")
 public class CashSessionService {
 
     private final CashSessionRepository repo;
     private final PaymentRepository paymentRepo;
+    private final IdempotencyService idempotencyService;
 
-    public CashSessionService(CashSessionRepository repo, PaymentRepository paymentRepo) {
+    public CashSessionService(CashSessionRepository repo, PaymentRepository paymentRepo, IdempotencyService idempotencyService) {
         this.repo = repo;
         this.paymentRepo = paymentRepo;
+        this.idempotencyService = idempotencyService;
     }
 
     @Transactional(readOnly = true)
@@ -47,7 +50,22 @@ public class CashSessionService {
     }
 
     @Transactional
+    public CashSessionResponse close(Long id, CloseCashSessionRequest req, String closedBy, String idempotencyKey) {
+        return idempotencyService.execute(
+                "cash-close",
+                id,
+                idempotencyKey,
+                CashSessionResponse.class,
+                () -> doClose(id, req, closedBy)
+        );
+    }
+
+    @Transactional
     public CashSessionResponse close(Long id, CloseCashSessionRequest req, String closedBy) {
+        return close(id, req, closedBy, null);
+    }
+
+    private CashSessionResponse doClose(Long id, CloseCashSessionRequest req, String closedBy) {
         CashSession cs = repo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Cash session not found: " + id));
 

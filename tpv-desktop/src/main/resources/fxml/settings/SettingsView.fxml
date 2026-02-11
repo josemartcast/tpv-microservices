@@ -19,16 +19,31 @@
       <Label text="API Base URL (Gateway)"/>
       <TextField fx:id="apiBaseUrlField" promptText="http://localhost:8080" prefWidth="420"/>
 
+      <Label text="Terminal ID"/>
+      <TextField fx:id="terminalIdField" promptText="TERMINAL-BARRA" prefWidth="420"/>
+
       <HBox spacing="10">
         <Button text="Guardar" onAction="#onSave"/>
-        <Button text="Test conexión" onAction="#onTest"/>
+        <Button text="Test conexion" onAction="#onTest"/>
+        <Button text="Reset Terminal ID" onAction="#onResetTerminalId"/>
+        <Button text="Liberar mis bloqueos" onAction="#onReleaseOwnLocks"/>
+        <Button text="Abrir logs red" onAction="#onOpenConnectivityLogs"/>
+        <Button text="Limpiar logs red" onAction="#onClearConnectivityLogs"/>
+        <Button text="Recargar logs" onAction="#onReloadConnectivityLogs"/>
+        <Button text="Copiar diagnostico" onAction="#onCopyConnectivityDiagnostics"/>
         <Region HBox.hgrow="ALWAYS"/>
         <Button text="Logout" onAction="#onLogout"/>
       </HBox>
+
+      <Label text="Ultimos errores de conectividad (5)"/>
+      <TextArea fx:id="connectivityLogArea"
+                editable="false"
+                wrapText="true"
+                prefRowCount="7"
+                promptText="Sin errores recientes para este terminal."/>
 
       <Label fx:id="statusLabel" text="" />
     </VBox>
   </center>
 
 </BorderPane>
-

@@ -1,0 +1,261 @@
+.root {
+    -fx-font-family: "Segoe UI";
+}
+
+.topbar {
+    -fx-padding: 10 14 10 14;
+    -fx-background-color: linear-gradient(to right, #1f2a44, #2d3a57);
+}
+
+.topbar-title {
+    -fx-text-fill: #f4f6fb;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+}
+
+.topbar-subtitle {
+    -fx-text-fill: #d5dbeb;
+    -fx-font-size: 12px;
+}
+
+.status-chip {
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 10;
+    -fx-text-fill: white;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.status-online {
+    -fx-background-color: #2e7d32;
+}
+
+.status-degraded {
+    -fx-background-color: #f9a825;
+}
+
+.status-offline {
+    -fx-background-color: #c62828;
+}
+
+.sidebar {
+    -fx-padding: 14;
+    -fx-background-color: #111827;
+}
+
+.sidebar-title {
+    -fx-text-fill: white;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.content-area {
+    -fx-padding: 0;
+    -fx-background-color: #eef1f7;
+}
+
+.salon-view {
+    -fx-background-color: #eef1f7;
+}
+
+.panel {
+    -fx-background-color: #f8f9fc;
+    -fx-border-color: #d7dce8;
+    -fx-border-width: 0 0 1 0;
+}
+
+.section-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f2533;
+}
+
+.meta-text {
+    -fx-font-size: 12px;
+    -fx-text-fill: #4b556d;
+}
+
+.sync-fresh {
+    -fx-text-fill: #2e7d32;
+    -fx-font-weight: bold;
+}
+
+.sync-warn {
+    -fx-text-fill: #b26a00;
+    -fx-font-weight: bold;
+}
+
+.sync-stale {
+    -fx-text-fill: #c62828;
+    -fx-font-weight: bold;
+}
+
+.mesa-card {
+    -fx-padding: 12;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #d8deeb;
+    -fx-background-color: #ffffff;
+    -fx-border-width: 1;
+}
+
+.mesa-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f2533;
+}
+
+.mesa-status {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.mesa-lock {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #991b1b;
+}
+
+.mesa-total {
+    -fx-font-size: 34px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0f172a;
+}
+
+.mesa-meta {
+    -fx-font-size: 12px;
+    -fx-text-fill: #475569;
+}
+
+.mesa-free {
+    -fx-border-color: #6ea86b;
+}
+
+.mesa-free .mesa-status {
+    -fx-text-fill: #2e7d32;
+}
+
+.mesa-occupied {
+    -fx-border-color: #43506a;
+}
+
+.mesa-occupied .mesa-status {
+    -fx-text-fill: #334155;
+}
+
+.mesa-pending {
+    -fx-border-color: #f9a825;
+    -fx-background-color: #fff9e8;
+}
+
+.mesa-pending .mesa-status {
+    -fx-text-fill: #b26a00;
+}
+
+.mesa-incident {
+    -fx-border-color: #d97706;
+    -fx-background-color: #fff2e2;
+}
+
+.mesa-incident .mesa-status {
+    -fx-text-fill: #b45309;
+}
+
+.mesa-locked {
+    -fx-border-color: #c62828;
+    -fx-background-color: #fef2f2;
+}
+
+.mesa-locked .mesa-status {
+    -fx-text-fill: #991b1b;
+}
+
+.mesa-has-lock {
+    -fx-border-width: 2;
+}
+
+.mesa-action-btn {
+    -fx-pref-height: 34;
+    -fx-font-size: 12px;
+}
+
+.mesa-card .button:disabled {
+    -fx-opacity: 1;
+    -fx-background-color: #d0d7e6;
+    -fx-text-fill: #4b556d;
+}
+
+.salon-scroll {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+}
+
+.sales-view {
+    -fx-background-color: #eef1f7;
+}
+
+.sales-panel {
+    -fx-padding: 12;
+    -fx-background-color: #f8f9fc;
+    -fx-border-color: #d7dce8;
+    -fx-border-width: 0 1 0 0;
+}
+
+.sales-section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f2533;
+}
+
+.sales-hotkeys-hint {
+    -fx-font-size: 11px;
+    -fx-text-fill: #6b7280;
+}
+
+.touch-btn {
+    -fx-pref-height: 42;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.touch-btn-primary {
+    -fx-background-color: #1d4ed8;
+    -fx-text-fill: white;
+}
+
+.touch-btn-success {
+    -fx-background-color: #2e7d32;
+    -fx-text-fill: white;
+}
+
+.touch-btn-danger {
+    -fx-background-color: #c62828;
+    -fx-text-fill: white;
+}
+
+.sales-feedback {
+    -fx-padding: 8 10 8 10;
+    -fx-background-radius: 8;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.sales-feedback-info {
+    -fx-background-color: #e8eefc;
+    -fx-text-fill: #1e40af;
+}
+
+.sales-feedback-success {
+    -fx-background-color: #e8f8ec;
+    -fx-text-fill: #166534;
+}
+
+.sales-feedback-warn {
+    -fx-background-color: #fff4dd;
+    -fx-text-fill: #9a6200;
+}
+
+.sales-feedback-error {
+    -fx-background-color: #feecec;
+    -fx-text-fill: #991b1b;
+}

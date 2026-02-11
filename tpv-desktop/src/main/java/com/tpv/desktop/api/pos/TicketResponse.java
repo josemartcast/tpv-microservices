@@ -5,10 +5,13 @@ import java.util.List;
 
 public record TicketResponse(
     long id,
-    String status,     // en backend es enum, pero aquí lo tratamos como String ("OPEN","PAID"...)
+    Integer tableNumber,
+    String status,
+    boolean billRequested,
+    int totalBeforeDiscountCents,
+    int discountCents,
     int totalCents,
     Instant createdAt,
     Instant updatedAt,
     List<TicketLineResponse> lines
 ) {}
-

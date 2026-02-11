@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Payment> findByTicketId(Long ticketId);
+    java.util.Optional<Payment> findByTicketIdAndIdempotencyKey(Long ticketId, String idempotencyKey);
 
     @Query("select coalesce(sum(p.amountCents),0) from Payment p where p.ticket.id = :ticketId")
     int sumAmountCentsByTicketId(@Param("ticketId") Long ticketId);

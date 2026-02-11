@@ -7,10 +7,10 @@ services:
     restart: always
 
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: tpv_auth
-      MYSQL_USER: tpv_user
-      MYSQL_PASSWORD: tpv_pass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-tpv_auth}
+      MYSQL_USER: ${MYSQL_USER:-tpv_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tpv_pass}
 
     ports:
       - "3306:3306"

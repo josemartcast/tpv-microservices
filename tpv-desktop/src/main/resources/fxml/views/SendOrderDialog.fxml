@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<DialogPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.tpv.ui.controllers.SendOrderDialogController"
+            prefWidth="680" prefHeight="460" styleClass="send-dialog">
+
+  <header>
+    <HBox alignment="CENTER_LEFT" styleClass="send-dialog-head">
+      <padding><Insets top="10" right="14" bottom="10" left="14"/></padding>
+      <Label text="Enviar Comanda" styleClass="send-dialog-title"/>
+      <Region HBox.hgrow="ALWAYS"/>
+      <Button text="X" onAction="#onClose" styleClass="btn-link"/>
+    </HBox>
+  </header>
+
+  <content>
+    <VBox spacing="12" styleClass="send-dialog-content">
+      <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+
+      <VBox spacing="4" styleClass="send-group">
+        <Label text="BAR" styleClass="send-group-title"/>
+        <Label fx:id="barCount" text="0 productos" styleClass="send-group-line"/>
+      </VBox>
+      <VBox spacing="4" styleClass="send-group">
+        <Label text="COCINA" styleClass="send-group-title"/>
+        <Label fx:id="cocinaCount" text="0 productos" styleClass="send-group-line"/>
+      </VBox>
+      <VBox spacing="4" styleClass="send-group">
+        <Label text="POSTRES" styleClass="send-group-title"/>
+        <Label fx:id="postresCount" text="0 productos" styleClass="send-group-line"/>
+      </VBox>
+
+      <HBox spacing="8">
+        <Button text="Enviar Todo" onAction="#onSendAll" styleClass="send-btn send-btn-primary"/>
+        <Button text="Enviar Solo BAR" onAction="#onSendBar" styleClass="send-btn send-btn-dark"/>
+        <Button text="Enviar Solo COCINA" onAction="#onSendCocina" styleClass="send-btn send-btn-green"/>
+      </HBox>
+
+      <HBox alignment="CENTER_LEFT" spacing="12">
+        <CheckBox fx:id="splitByDestination" text="Imprimir separado por destino" selected="true"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Reimprimir ultimo" onAction="#onReprintLast" styleClass="send-btn send-btn-dark"/>
+      </HBox>
+    </VBox>
+  </content>
+</DialogPane>

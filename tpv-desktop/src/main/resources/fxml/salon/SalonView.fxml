@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.TilePane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.ui.salon.SalonController"
+            fx:id="root"
+            styleClass="salon-view">
+
+  <top>
+    <VBox spacing="10" styleClass="panel">
+      <padding>
+        <Insets top="12" right="12" bottom="8" left="12"/>
+      </padding>
+      <Label text="Mapa de mesas" styleClass="section-title"/>
+      <HBox spacing="8" alignment="CENTER_LEFT">
+        <Label text="Zone"/>
+        <ComboBox fx:id="zoneFilter" onAction="#onFilterChanged" prefWidth="180"/>
+        <Label text="Status"/>
+        <ComboBox fx:id="statusFilter" onAction="#onFilterChanged" prefWidth="180"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label fx:id="lastSyncLabel" text="No sync yet" styleClass="meta-text"/>
+        <Button text="Refresh" onAction="#onRefresh"/>
+      </HBox>
+    </VBox>
+  </top>
+
+  <center>
+    <ScrollPane fitToWidth="true" fitToHeight="true" styleClass="salon-scroll">
+      <content>
+        <TilePane fx:id="mesasPane" hgap="12" vgap="12" prefTileWidth="250" prefTileHeight="178">
+          <padding>
+            <Insets top="12" right="12" bottom="12" left="12"/>
+          </padding>
+        </TilePane>
+      </content>
+    </ScrollPane>
+  </center>
+
+  <bottom>
+    <HBox styleClass="panel" alignment="CENTER_LEFT">
+      <padding>
+        <Insets top="8" right="12" bottom="12" left="12"/>
+      </padding>
+      <Label fx:id="feedbackLabel" text="" styleClass="meta-text"/>
+    </HBox>
+  </bottom>
+</BorderPane>

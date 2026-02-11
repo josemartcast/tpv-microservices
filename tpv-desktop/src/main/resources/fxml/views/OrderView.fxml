@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.tpv.ui.controllers.OrderController"
+            styleClass="app-root" prefWidth="1920" prefHeight="1080">
+  <fx:define>
+    <ToggleGroup fx:id="categoryTabs"/>
+  </fx:define>
+
+  <top>
+    <VBox>
+      <fx:include source="../components/TopBar.fxml" fx:id="topBar"/>
+      <HBox spacing="8" alignment="CENTER_LEFT" styleClass="order-header-row">
+        <padding><Insets top="6" right="12" bottom="6" left="12"/></padding>
+        <Button text="Volver" onAction="#onBack" styleClass="btn-flat-dark"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label fx:id="orderHeader" text="Mesa 12 - 4 Personas / 50 min" styleClass="order-headline"/>
+        <Region HBox.hgrow="ALWAYS"/>
+      </HBox>
+    </VBox>
+  </top>
+
+  <center>
+    <HBox spacing="12" styleClass="order-body">
+      <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+
+      <VBox prefWidth="340" maxWidth="370" styleClass="ticket-panel" spacing="8">
+        <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        <Label text="Pedido Actual" styleClass="ticket-title"/>
+        <ListView fx:id="ticketList" VBox.vgrow="ALWAYS" styleClass="ticket-list"/>
+        <HBox alignment="CENTER_LEFT" spacing="8" styleClass="ticket-subtotal-box">
+          <Label text="Subtotal:" styleClass="ticket-subtotal-label"/>
+          <Label fx:id="subtotalLabel" text="0.00 EUR" styleClass="ticket-subtotal-value"/>
+        </HBox>
+        <HBox spacing="8">
+          <Button fx:id="noteBtn" text="Nota" onAction="#onNote" styleClass="small-dark-btn"/>
+          <Button fx:id="deleteBtn" text="Borrar" onAction="#onDeleteLine" styleClass="small-dark-btn"/>
+          <Button text="Anular" onAction="#onCancelOrder" styleClass="small-dark-btn"/>
+        </HBox>
+      </VBox>
+
+      <VBox HBox.hgrow="ALWAYS" spacing="10" styleClass="catalog-panel">
+        <HBox spacing="6">
+          <ToggleButton fx:id="tabEntrantes" text="Entrantes" toggleGroup="$categoryTabs" styleClass="category-tab"/>
+          <ToggleButton fx:id="tabBebidas" text="Bebidas" toggleGroup="$categoryTabs" styleClass="category-tab"/>
+          <ToggleButton fx:id="tabPizzas" text="Pizzas" toggleGroup="$categoryTabs" styleClass="category-tab"/>
+          <ToggleButton fx:id="tabPostres" text="Postres" toggleGroup="$categoryTabs" styleClass="category-tab"/>
+        </HBox>
+
+        <ScrollPane fitToWidth="true" styleClass="catalog-scroll" VBox.vgrow="ALWAYS">
+          <content>
+            <FlowPane fx:id="productsPane" hgap="10" vgap="10" prefWrapLength="780"/>
+          </content>
+        </ScrollPane>
+      </VBox>
+
+      <VBox prefWidth="320" maxWidth="340" spacing="10" styleClass="actions-panel">
+        <Button fx:id="sendBtn" text="ENVIAR" onAction="#onSend" styleClass="action-btn-primary-major"/>
+        <Button fx:id="payBtn" text="COBRAR" onAction="#onPay" styleClass="action-btn-success-major"/>
+        <Button fx:id="splitBtn" text="DIVIDIR" onAction="#onSplit" styleClass="action-btn-teal"/>
+        <Button fx:id="prebillBtn" text="IMPRIMIR PRECUENTA" onAction="#onPrebill" styleClass="action-btn-green"/>
+        <Button fx:id="moveBtn" text="Mover Mesa" onAction="#onMoveTable" styleClass="action-btn-dark"/>
+        <Button fx:id="discountBtn" text="Descuento" onAction="#onDiscount" styleClass="action-btn-danger"/>
+        <Region VBox.vgrow="ALWAYS"/>
+        <Label fx:id="feedbackLabel" text="" styleClass="feedback-label" wrapText="true"/>
+      </VBox>
+
+    </HBox>
+  </center>
+
+  <bottom>
+    <fx:include source="../components/FooterBar.fxml" fx:id="footerBar"/>
+  </bottom>
+</BorderPane>
+

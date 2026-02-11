@@ -6,6 +6,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 
 @Configuration
 public class SecurityConfig {
@@ -25,18 +26,21 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/categories/**").hasRole("ADMIN")
                 //products
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/products/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/products").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/products/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/pos/products/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/products/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/products/**").hasRole("ADMIN")
                 //tickets        
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/tickets/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(RegexRequestMatcher.regexMatcher(HttpMethod.POST, "/api/v1/pos/tickets/?$")).hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/pay").denyAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/cancel").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/payments").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/**").hasAnyRole("USER", "ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/tickets/**").hasAnyRole("USER", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/tickets/**").hasAnyRole("USER", "ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/pay").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/cancel").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/payments").hasRole("ADMIN")
                 //fiscalSummary
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/cash-sessions/*/fiscal-summary")
                 .hasAnyRole("USER", "ADMIN")
@@ -52,6 +56,23 @@ public class SecurityConfig {
                 .hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/cash-sessions/*/close")
                 .hasRole("ADMIN")
+                // audit
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/audit/events")
+                .hasRole("ADMIN")
+                // admin tools
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/admin/seed-catalog")
+                .hasRole("ADMIN")
+                // salon
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/salon/tables")
+                .hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/salon/tables/*/open-ticket")
+                .hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/salon/tables/*/lock")
+                .hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/salon/tables/*/heartbeat")
+                .hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/salon/tables/*/unlock")
+                .hasAnyRole("USER", "ADMIN")
                 .anyRequest().denyAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

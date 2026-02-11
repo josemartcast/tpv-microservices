@@ -10,10 +10,14 @@ import org.springframework.data.repository.query.Param;
 public interface TicketLineRepository extends JpaRepository<TicketLine, Long> {
 
     List<TicketLine> findAllByTicketIdOrderByIdAsc(Long ticketId);
+    List<TicketLine> findAllByTicketIdAndSentFalseOrderByIdAsc(Long ticketId);
 
     Optional<TicketLine> findByIdAndTicketId(Long id, Long ticketId);
 
     void deleteAllByTicketId(Long ticketId);
+
+    @Query("select count(l) from TicketLine l where l.ticket.id = :ticketId and l.sent = false")
+    long countPendingByTicketId(@Param("ticketId") Long ticketId);
 
     @Query("select coalesce(sum(l.lineTotalCents),0) from TicketLine l where l.ticket.id = :ticketId")
     int sumGrossByTicketId(@Param("ticketId") Long ticketId);

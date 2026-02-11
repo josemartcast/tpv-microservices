@@ -1,3 +1,9 @@
 package com.tpv.pos_service.dto;
 
-public record CloseCashSessionRequest(int closingCashCents, String note) {}
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
+
+public record CloseCashSessionRequest(
+        @Min(0) int closingCashCents,
+        @Size(max = 255) String note
+) {}
