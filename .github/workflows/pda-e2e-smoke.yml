@@ -1,0 +1,131 @@
+name: PDA E2E Smoke
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  pda-e2e-smoke:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Start backend services
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          chmod +x services/auth-service/mvnw services/pos-service/mvnw gateway/mvnw
+
+          (
+            cd services/auth-service
+            DB_URL='jdbc:mysql://127.0.0.1:3306/tpv_auth?createDatabaseIfNotExist=true' \
+            DB_USERNAME='root' \
+            DB_PASSWORD='root' \
+            JWT_SECRET='1234567890123456789012345678901234567890123456789012345678901234' \
+            ./mvnw -q -DskipTests spring-boot:run
+          ) > .ci-logs/auth-service.log 2>&1 &
+          echo $! > .ci-logs/auth-service.pid
+
+          (
+            cd services/pos-service
+            DB_URL='jdbc:mysql://127.0.0.1:3306/tpv_pos?createDatabaseIfNotExist=true' \
+            DB_USERNAME='root' \
+            DB_PASSWORD='root' \
+            JWT_SECRET='1234567890123456789012345678901234567890123456789012345678901234' \
+            ./mvnw -q -DskipTests spring-boot:run
+          ) > .ci-logs/pos-service.log 2>&1 &
+          echo $! > .ci-logs/pos-service.pid
+
+          (
+            cd gateway
+            AUTH_SERVICE_URI='http://127.0.0.1:8081' \
+            POS_SERVICE_URI='http://127.0.0.1:8082' \
+            JWT_SECRET='1234567890123456789012345678901234567890123456789012345678901234' \
+            ./mvnw -q -DskipTests spring-boot:run
+          ) > .ci-logs/gateway.log 2>&1 &
+          echo $! > .ci-logs/gateway.pid
+
+      - name: Wait for services
+        shell: bash
+        run: |
+          set -euo pipefail
+          for port in 8081 8082 8080; do
+            echo "Waiting for port $port..."
+            for _ in $(seq 1 180); do
+              if timeout 1 bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
+                echo "Port $port is up"
+                break
+              fi
+              sleep 1
+            done
+            if ! timeout 1 bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
+              echo "Port $port did not open in time"
+              exit 1
+            fi
+          done
+
+      - name: Run PDA E2E smoke
+        shell: pwsh
+        run: |
+          ./scripts/pda-e2e-smoke.ps1 `
+            -GatewayBaseUrl "http://127.0.0.1:8080" `
+            -Username "admin" `
+            -Password "admin123" `
+            -TerminalA "CI-A" `
+            -TerminalB "CI-B"
+
+      - name: Print logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo "=== auth-service.log ==="
+          tail -n 300 .ci-logs/auth-service.log || true
+          echo "=== pos-service.log ==="
+          tail -n 300 .ci-logs/pos-service.log || true
+          echo "=== gateway.log ==="
+          tail -n 300 .ci-logs/gateway.log || true
+
+      - name: Stop backend services
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          for pid_file in .ci-logs/*.pid; do
+            [ -f "$pid_file" ] || continue
+            pid="$(cat "$pid_file")"
+            kill "$pid" >/dev/null 2>&1 || true
+          done
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pda-e2e-logs
+          path: .ci-logs/
