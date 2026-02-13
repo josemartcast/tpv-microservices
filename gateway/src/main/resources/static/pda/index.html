@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f2a44" />
+  <title>TPV PDA Hosteleria</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">TPV PDA</div>
+    <div class="status">
+      <span id="networkBadge" class="badge badge-offline">OFFLINE</span>
+      <span id="sessionBadge" class="badge badge-muted">SIN SESION</span>
+      <button id="conflictsBtn" class="btn btn-ghost topbar-btn" type="button">Conflictos</button>
+      <button id="errorsBtn" class="btn btn-ghost topbar-btn" type="button">Errores</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section id="loginScreen" class="screen">
+      <h1>Acceso PDA</h1>
+      <form id="loginForm" class="panel">
+        <label>Usuario
+          <input id="usernameInput" type="text" autocomplete="username" required>
+        </label>
+        <label>Password
+          <input id="passwordInput" type="password" autocomplete="current-password" required>
+        </label>
+        <label>Terminal ID
+          <input id="terminalInput" type="text" required>
+        </label>
+        <label>API Base URL
+          <input id="apiBaseInput" type="url" required>
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+      </form>
+    </section>
+
+    <section id="tablesScreen" class="screen hidden">
+      <div class="screen-head">
+        <h1>Mesas</h1>
+        <div class="actions">
+          <button id="refreshTablesBtn" class="btn btn-secondary">Refresh</button>
+          <button id="logoutBtn" class="btn btn-danger">Logout</button>
+        </div>
+      </div>
+      <p id="tablesInfo" class="muted"></p>
+      <div id="tablesGrid" class="tables-grid"></div>
+    </section>
+
+    <section id="orderScreen" class="screen hidden">
+      <div class="screen-head">
+        <button id="backToTablesBtn" class="btn btn-secondary">Volver</button>
+        <div>
+          <h1 id="orderTitle">Mesa</h1>
+          <p id="orderMeta" class="muted"></p>
+        </div>
+      </div>
+
+      <div class="order-layout">
+        <aside class="panel ticket-panel">
+          <h2>Ticket</h2>
+          <ul id="ticketLines" class="ticket-lines"></ul>
+          <p class="subtotal">Total: <strong id="ticketTotal">0.00 EUR</strong></p>
+        </aside>
+
+        <section class="panel catalog-panel">
+          <div id="categoryTabs" class="category-tabs"></div>
+          <div id="productsGrid" class="products-grid"></div>
+        </section>
+      </div>
+
+      <div class="panel send-panel">
+        <h3>Enviar Comanda</h3>
+        <p id="sendPreviewLabel" class="muted"></p>
+        <div class="send-buttons">
+          <button id="sendAllBtn" class="btn btn-primary">Enviar Todo</button>
+          <button id="sendBarBtn" class="btn btn-secondary">Solo BAR</button>
+          <button id="sendKitchenBtn" class="btn btn-secondary">Solo COCINA</button>
+        </div>
+      </div>
+
+      <div class="panel payment-panel">
+        <h3>Cobro</h3>
+        <p id="paymentPendingLabel" class="muted">Pendiente: 0.00 EUR</p>
+        <div class="payment-buttons">
+          <button id="payFullBtn" class="btn btn-primary" type="button">Cobro Total</button>
+          <button id="payPartialBtn" class="btn btn-secondary" type="button">Cobro Parcial</button>
+          <button id="payLinesBtn" class="btn btn-secondary" type="button">Parcial por lineas</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="errorsDialog" class="dialog">
+    <h3>Ultimos errores</h3>
+    <ul id="errorsList" class="errors-list"></ul>
+    <form method="dialog">
+      <button class="btn btn-secondary" type="submit">Cerrar</button>
+    </form>
+  </dialog>
+
+  <dialog id="conflictsDialog" class="dialog">
+    <h3>Conflictos de sincronizacion</h3>
+    <p class="muted">Acciones offline que no se pudieron aplicar (409/404).</p>
+    <div id="conflictsList" class="conflicts-list"></div>
+    <form method="dialog">
+      <button class="btn btn-secondary" type="submit">Cerrar</button>
+    </form>
+  </dialog>
+
+  <dialog id="methodDialog" class="dialog">
+    <h3>Metodo de pago</h3>
+    <div class="method-buttons">
+      <button class="btn btn-secondary method-choice" data-method="CASH" type="button">CASH</button>
+      <button class="btn btn-secondary method-choice" data-method="CARD" type="button">CARD</button>
+      <button class="btn btn-secondary method-choice" data-method="BIZUM" type="button">BIZUM</button>
+    </div>
+    <form method="dialog">
+      <button class="btn btn-secondary" value="cancel">Cancelar</button>
+    </form>
+  </dialog>
+
+  <dialog id="payLinesDialog" class="dialog">
+    <h3>Cobro parcial por lineas</h3>
+    <p id="payLinesPendingLabel" class="muted">Pendiente: 0.00 EUR</p>
+    <div id="payLinesList" class="pay-lines-list"></div>
+    <p id="payLinesSelectedLabel" class="subtotal">Seleccionado: <strong>0.00 EUR</strong></p>
+    <div class="pay-lines-actions">
+      <button id="payLinesApplyBtn" class="btn btn-primary" type="button">Aplicar</button>
+      <form method="dialog">
+        <button class="btn btn-secondary" value="cancel">Cancelar</button>
+      </form>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

@@ -7,7 +7,7 @@ import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record LoginResponse(
-    @JsonProperty("accesToken") String accessToken,   // backend viene con typo
+    @JsonProperty("accessToken") String accessToken,
     Integer expiresInSeconds,
     List<String> roles
 ) {}

@@ -1,6 +1,7 @@
 package com.tpv.desktop.tpv.services.fake;
 
 import com.tpv.desktop.tpv.app.AppState;
+import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.domain.model.TableLock;
 import com.tpv.desktop.tpv.services.LockService;
 
@@ -22,7 +23,10 @@ public class FakeLockService implements LockService {
         String terminalId = appState.terminalIdProperty().get();
         TableLock existing = store.locks.get(tableId);
         if (existing != null && !terminalId.equalsIgnoreCase(existing.terminalId())) {
-            throw new IllegalStateException("Bloqueada por " + existing.terminalId());
+            throw new LockException(
+                    LockException.Reason.OWNED_BY_OTHER,
+                    "Bloqueada por " + existing.terminalId()
+            );
         }
         TableLock lock = new TableLock(tableId, terminalId, appState.activeUserProperty().get().displayName(), Instant.now().plusSeconds(TTL_SECONDS));
         store.locks.put(tableId, lock);
@@ -41,9 +45,17 @@ public class FakeLockService implements LockService {
     @Override
     public TableLock heartbeat(int tableId) {
         TableLock lock = store.locks.get(tableId);
-        if (lock == null) return lock(tableId);
+        if (lock == null) {
+            throw new LockException(
+                    LockException.Reason.EXPIRED_OR_MISSING,
+                    "No active lock for table " + tableId
+            );
+        }
         if (!appState.terminalIdProperty().get().equalsIgnoreCase(lock.terminalId())) {
-            throw new IllegalStateException("No puedes renovar lock de " + lock.terminalId());
+            throw new LockException(
+                    LockException.Reason.OWNED_BY_OTHER,
+                    "No puedes renovar lock de " + lock.terminalId()
+            );
         }
         TableLock renewed = new TableLock(lock.tableId(), lock.terminalId(), lock.owner(), Instant.now().plusSeconds(TTL_SECONDS));
         store.locks.put(tableId, renewed);

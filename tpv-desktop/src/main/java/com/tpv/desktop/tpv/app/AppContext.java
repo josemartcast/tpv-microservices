@@ -6,6 +6,7 @@ import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.domain.model.User;
 import com.tpv.desktop.tpv.services.*;
 import com.tpv.desktop.tpv.services.fake.*;
+import com.tpv.desktop.tpv.services.local.LocalPrintQueueService;
 import com.tpv.desktop.tpv.services.real.RealApiClient;
 import com.tpv.desktop.tpv.services.real.RealCatalogService;
 import com.tpv.desktop.tpv.services.real.RealLockService;
@@ -29,6 +30,7 @@ public class AppContext {
     private final OrderService orderService;
     private final TableService tableService;
     private final BackendStatusService backendStatusService;
+    private final PrintQueueService printQueueService;
     private final boolean autoLoginEnabled;
     private final boolean kioskMode;
 
@@ -46,12 +48,14 @@ public class AppContext {
         if (mode == RuntimeMode.REAL || mode == RuntimeMode.AUTO) {
             boolean ready = ensureRealSession();
             if (ready) {
+                this.appState.runtimeModeProperty().set("REAL");
                 this.apiClient = new RealApiClient();
                 this.catalogService = new RealCatalogService();
                 this.lockService = new RealLockService();
                 this.orderService = new RealOrderService(catalogService);
                 this.tableService = new RealTableService();
                 this.backendStatusService = new FakeBackendStatusService(apiClient);
+                this.printQueueService = new LocalPrintQueueService();
                 return;
             }
             if (mode == RuntimeMode.REAL) {
@@ -60,12 +64,14 @@ public class AppContext {
         }
 
         FakeDataStore store = new FakeDataStore();
+        this.appState.runtimeModeProperty().set("FAKE");
         this.apiClient = new FakeApiClient();
         this.catalogService = new FakeCatalogService(store);
         this.lockService = new FakeLockService(store, appState);
         this.orderService = new FakeOrderService(store, catalogService);
         this.tableService = new FakeTableService(store, lockService, appState);
         this.backendStatusService = new FakeBackendStatusService(apiClient);
+        this.printQueueService = new LocalPrintQueueService();
     }
 
     public AppState appState() { return appState; }
@@ -74,6 +80,7 @@ public class AppContext {
     public OrderService orderService() { return orderService; }
     public TableService tableService() { return tableService; }
     public BackendStatusService backendStatusService() { return backendStatusService; }
+    public PrintQueueService printQueueService() { return printQueueService; }
 
     private boolean ensureRealSession() {
         if (AuthStore.isLoggedIn()) {

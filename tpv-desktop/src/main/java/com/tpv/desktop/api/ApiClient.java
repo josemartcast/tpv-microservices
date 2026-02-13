@@ -156,8 +156,7 @@ public final class ApiClient {
                 return false;
             }
             JsonNode root = MAPPER.readTree(loginRes.body());
-            String token = root.hasNonNull("accesToken") ? root.get("accesToken").asText() :
-                    (root.hasNonNull("accessToken") ? root.get("accessToken").asText() : null);
+            String token = root.hasNonNull("accessToken") ? root.get("accessToken").asText() : null;
             if (token == null || token.isBlank()) {
                 return false;
             }

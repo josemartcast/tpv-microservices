@@ -1,0 +1,10 @@
+{
+  "name": "TPV PDA",
+  "short_name": "TPV PDA",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eceef2",
+  "theme_color": "#1f2a44",
+  "description": "PDA para servicio de mesas y comandas"
+}

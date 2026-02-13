@@ -2,21 +2,32 @@ package com.tpv.desktop.tpv.ui.controllers.components;
 
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.Nav;
-import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.domain.model.BackendStatus;
 import com.tpv.desktop.tpv.services.BackendStatusService;
+import com.tpv.desktop.tpv.services.PrintQueueService;
+import com.tpv.desktop.tpv.ui.viewmodel.TopBarBadgeMapper;
 import com.tpv.desktop.tpv.ui.viewmodel.TopBarViewModel;
-import javafx.fxml.FXMLLoader;
+import javafx.beans.binding.Bindings;
 import javafx.fxml.FXML;
-import javafx.scene.control.*;
-import javafx.scene.layout.HBox;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.Tooltip;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.HBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.scene.Parent;
+
 import java.io.IOException;
-import javafx.scene.input.MouseEvent;
 
 public class TopBarController {
     @FXML private Label menuLabel;
@@ -26,26 +37,47 @@ public class TopBarController {
     @FXML private Label usernameLabel;
     @FXML private Label avatarLabel;
     @FXML private Label backendBadge;
+    @FXML private Label modeBadge;
     @FXML private Label latencyBadge;
+    @FXML private Label printerBadge;
     @FXML private Button errorsButton;
     @FXML private HBox root;
 
     private final TopBarViewModel vm = new TopBarViewModel();
     private final BackendStatusService backendStatusService = AppContext.get().backendStatusService();
+    private final PrintQueueService printQueueService = AppContext.get().printQueueService();
 
     @FXML
     public void initialize() {
         leftRestaurantLabel.textProperty().bind(vm.restaurantNameProperty());
         centerTitleLabel.textProperty().bind(vm.centerTitleProperty());
-        usernameLabel.setText(AppContext.get().appState().activeUserProperty().get().displayName());
+        usernameLabel.textProperty().bind(Bindings.createStringBinding(
+                () -> AppContext.get().appState().activeUserProperty().get().displayName()
+                        + " | " + AppContext.get().appState().terminalIdProperty().get(),
+                AppContext.get().appState().activeUserProperty(),
+                AppContext.get().appState().terminalIdProperty()
+        ));
         vm.bindReactive(backendBadge.textProperty(), latencyBadge.textProperty());
 
         backendStatusService.statusProperty().addListener((obs, oldV, newV) -> applyStatusStyle(newV));
         applyStatusStyle(backendStatusService.statusProperty().get());
 
+        printQueueService.stateProperty().addListener((obs, oldV, newV) -> applyPrintStatusStyle());
+        printQueueService.pendingJobsProperty().addListener((obs, oldV, newV) -> applyPrintStatusStyle());
+        printQueueService.lastErrorProperty().addListener((obs, oldV, newV) -> applyPrintStatusStyle());
+        applyPrintStatusStyle();
+
+        AppContext.get().appState().runtimeModeProperty().addListener((obs, oldV, newV) -> applyRuntimeModeStyle(newV));
+        applyRuntimeModeStyle(AppContext.get().appState().runtimeModeProperty().get());
+
         Tooltip tip = new Tooltip();
         tip.textProperty().bind(backendStatusService.lastErrorProperty());
         errorsButton.setTooltip(tip);
+
+        Tooltip printTip = new Tooltip();
+        printTip.textProperty().bind(printQueueService.lastErrorProperty());
+        printerBadge.setTooltip(printTip);
+        printerBadge.setOnMouseClicked(e -> onShowPrintErrors());
     }
 
     public void setCenterTitle(String title) {
@@ -65,6 +97,20 @@ public class TopBarController {
             }
         }
         menu.show(errorsButton, javafx.geometry.Side.BOTTOM, 0, 4);
+    }
+
+    public void onShowPrintErrors() {
+        ContextMenu menu = new ContextMenu();
+        if (printQueueService.errorHistory().isEmpty()) {
+            menu.getItems().add(new MenuItem("Sin errores de impresion"));
+        } else {
+            for (String err : printQueueService.errorHistory()) {
+                MenuItem item = new MenuItem(err);
+                item.setDisable(true);
+                menu.getItems().add(item);
+            }
+        }
+        menu.show(printerBadge, javafx.geometry.Side.BOTTOM, 0, 4);
     }
 
     @FXML
@@ -128,11 +174,24 @@ public class TopBarController {
 
     private void applyStatusStyle(BackendStatus status) {
         backendBadge.getStyleClass().removeAll("badge-online", "badge-degraded", "badge-offline");
-        switch (status) {
-            case ONLINE -> backendBadge.getStyleClass().add("badge-online");
-            case DEGRADED -> backendBadge.getStyleClass().add("badge-degraded");
-            case OFFLINE -> backendBadge.getStyleClass().add("badge-offline");
-        }
+        backendBadge.getStyleClass().add(TopBarBadgeMapper.backendBadgeClass(status));
+    }
+
+    private void applyPrintStatusStyle() {
+        printerBadge.getStyleClass().removeAll("badge-online", "badge-degraded", "badge-offline");
+        TopBarBadgeMapper.PrintBadgePresentation presentation = TopBarBadgeMapper.printBadge(
+                printQueueService.stateProperty().get(),
+                printQueueService.pendingJobsProperty().get(),
+                printQueueService.lastErrorProperty().get()
+        );
+        printerBadge.setText(presentation.text());
+        printerBadge.getStyleClass().add(presentation.styleClass());
+    }
+
+    private void applyRuntimeModeStyle(String runtimeMode) {
+        modeBadge.getStyleClass().removeAll("badge-mode-real", "badge-mode-fake");
+        TopBarBadgeMapper.RuntimeModePresentation presentation = TopBarBadgeMapper.runtimeModeBadge(runtimeMode);
+        modeBadge.setText(presentation.text());
+        modeBadge.getStyleClass().add(presentation.styleClass());
     }
 }
-

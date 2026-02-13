@@ -17,6 +17,9 @@ public class SendOrderDialogController {
     @FXML private Label cocinaCount;
     @FXML private Label postresCount;
     @FXML private CheckBox splitByDestination;
+    @FXML private javafx.scene.control.Button sendAllBtn;
+    @FXML private javafx.scene.control.Button sendBarBtn;
+    @FXML private javafx.scene.control.Button sendCocinaBtn;
 
     private OrderViewModel viewModel;
 
@@ -30,27 +33,43 @@ public class SendOrderDialogController {
 
     private void refreshCounts() {
         Map<Destination, Integer> pending = viewModel.pendingByDestination();
-        barCount.setText(pending.getOrDefault(Destination.BAR, 0) + " productos");
-        cocinaCount.setText(pending.getOrDefault(Destination.COCINA, 0) + " productos");
-        postresCount.setText(pending.getOrDefault(Destination.POSTRES, 0) + " productos");
+        int bar = pending.getOrDefault(Destination.BAR, 0);
+        int cocina = pending.getOrDefault(Destination.COCINA, 0);
+        int postres = pending.getOrDefault(Destination.POSTRES, 0);
+        barCount.setText(bar + " productos");
+        cocinaCount.setText(cocina + " productos");
+        postresCount.setText(postres + " productos");
+
+        if (sendAllBtn != null) sendAllBtn.setDisable((bar + cocina + postres) <= 0);
+        if (sendBarBtn != null) sendBarBtn.setDisable(bar <= 0);
+        if (sendCocinaBtn != null) sendCocinaBtn.setDisable(cocina <= 0);
     }
 
     @FXML
     public void onSendAll() {
-        viewModel.sendAll(splitByDestination.isSelected());
-        close();
+        boolean sent = viewModel.sendAll(splitByDestination.isSelected());
+        refreshCounts();
+        if (sent) {
+            close();
+        }
     }
 
     @FXML
     public void onSendBar() {
-        viewModel.sendDestinations(EnumSet.of(Destination.BAR), splitByDestination.isSelected());
-        close();
+        boolean sent = viewModel.sendDestinations(EnumSet.of(Destination.BAR), splitByDestination.isSelected());
+        refreshCounts();
+        if (sent) {
+            close();
+        }
     }
 
     @FXML
     public void onSendCocina() {
-        viewModel.sendDestinations(EnumSet.of(Destination.COCINA), splitByDestination.isSelected());
-        close();
+        boolean sent = viewModel.sendDestinations(EnumSet.of(Destination.COCINA), splitByDestination.isSelected());
+        refreshCounts();
+        if (sent) {
+            close();
+        }
     }
 
     @FXML

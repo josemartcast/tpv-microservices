@@ -49,6 +49,8 @@
 .badge-degraded { -fx-background-color: #b36f16; }
 .badge-offline { -fx-background-color: #b73a3a; }
 .badge-latency { -fx-background-color: #244f7c; }
+.badge-mode-real { -fx-background-color: #1f5da0; }
+.badge-mode-fake { -fx-background-color: #6e4ba3; }
 
 .btn-link {
     -fx-background-color: transparent;

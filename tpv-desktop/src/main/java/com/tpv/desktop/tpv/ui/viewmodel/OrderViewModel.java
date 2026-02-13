@@ -1,10 +1,13 @@
 package com.tpv.desktop.tpv.ui.viewmodel;
 
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.tpv.app.AppState;
 import com.tpv.desktop.tpv.domain.model.*;
 import com.tpv.desktop.tpv.services.CatalogService;
+import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.services.LockService;
 import com.tpv.desktop.tpv.services.OrderService;
+import com.tpv.desktop.tpv.services.PrintQueueService;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -13,16 +16,23 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 public class OrderViewModel {
+    private static final int THERMAL_WIDTH = 42;
+    private static final String THERMAL_SEPARATOR = "-".repeat(THERMAL_WIDTH);
+
     private final CatalogService catalogService;
     private final OrderService orderService;
     private final LockService lockService;
+    private final PrintQueueService printQueueService;
+    private final AppState appState;
 
     private final LongProperty orderId = new SimpleLongProperty();
     private final IntegerProperty tableId = new SimpleIntegerProperty();
@@ -41,6 +51,22 @@ public class OrderViewModel {
         catalogService = ctx.catalogService();
         orderService = ctx.orderService();
         lockService = ctx.lockService();
+        printQueueService = ctx.printQueueService();
+        appState = ctx.appState();
+    }
+
+    OrderViewModel(
+            CatalogService catalogService,
+            OrderService orderService,
+            LockService lockService,
+            PrintQueueService printQueueService,
+            AppState appState
+    ) {
+        this.catalogService = catalogService;
+        this.orderService = orderService;
+        this.lockService = lockService;
+        this.printQueueService = printQueueService;
+        this.appState = appState;
     }
 
     public void bindOrder(long orderId, int tableId) {
@@ -72,18 +98,31 @@ public class OrderViewModel {
         refreshOrder();
     }
 
-    public void sendAll(boolean separateByDestination) {
-        snapshotLastSend(EnumSet.allOf(Destination.class), separateByDestination);
-        orderService.send(orderId.get(), EnumSet.allOf(Destination.class), true);
+    public boolean sendAll(boolean separateByDestination) {
+        Set<Destination> selected = EnumSet.allOf(Destination.class);
+        if (!hasPendingFor(selected)) {
+            feedback.set("No hay lineas pendientes para enviar.");
+            return false;
+        }
+        PrintBatch batch = snapshotLastSend(selected, separateByDestination);
+        orderService.send(orderId.get(), selected, true);
+        enqueuePrintJobs(batch.printJobsByDestination());
         refreshOrder();
         feedback.set("Comanda enviada.");
+        return true;
     }
 
-    public void sendDestinations(Set<Destination> destinations, boolean separateByDestination) {
-        snapshotLastSend(destinations, separateByDestination);
+    public boolean sendDestinations(Set<Destination> destinations, boolean separateByDestination) {
+        if (!hasPendingFor(destinations)) {
+            feedback.set("No hay lineas pendientes para enviar.");
+            return false;
+        }
+        PrintBatch batch = snapshotLastSend(destinations, separateByDestination);
         orderService.send(orderId.get(), destinations, true);
+        enqueuePrintJobs(batch.printJobsByDestination());
         refreshOrder();
         feedback.set("Comanda enviada a " + destinations);
+        return true;
     }
 
     public Map<Destination, Integer> pendingByDestination() {
@@ -118,8 +157,12 @@ public class OrderViewModel {
 
         orderService.addPayment(orderId.get(), method, amountCents);
         if (amountCents >= pending) {
-            lockService.unlock(tableId.get());
-            feedback.set("Cobro registrado (" + method + ").");
+            String unlockWarning = unlockWithPolicy();
+            if (unlockWarning == null) {
+                feedback.set("Cobro registrado (" + method + ").");
+            } else {
+                feedback.set("Cobro registrado (" + method + "). " + unlockWarning);
+            }
             return true;
         }
 
@@ -157,8 +200,8 @@ public class OrderViewModel {
         orderService.moveOrder(orderId.get(), newTable);
         tableId.set(newTable);
         try {
-            lockService.unlock(oldTable);
-        } catch (Exception ignored) {
+            unlockWithPolicy(oldTable);
+        } catch (RuntimeException ignored) {
         }
         lockService.lock(newTable);
         refreshOrder();
@@ -177,7 +220,7 @@ public class OrderViewModel {
 
     public void cancelOrder() {
         orderService.cancelOrder(orderId.get());
-        lockService.unlock(tableId.get());
+        unlockWithPolicy();
     }
 
     public void closeOrReleaseOnBack() {
@@ -195,11 +238,23 @@ public class OrderViewModel {
     }
 
     public void releaseLock() {
-        lockService.unlock(tableId.get());
+        String warning = unlockWithPolicy();
+        if (warning != null) {
+            feedback.set(warning);
+        }
     }
 
     public void heartbeatLock() {
-        lockService.heartbeat(tableId.get());
+        try {
+            lockService.heartbeat(tableId.get());
+        } catch (LockException ex) {
+            if (ex.isRecoverableWithReacquire()) {
+                lockService.lock(tableId.get());
+                feedback.set("Bloqueo recuperado.");
+                return;
+            }
+            throw ex;
+        }
     }
 
     public LongProperty orderIdProperty() { return orderId; }
@@ -212,44 +267,52 @@ public class OrderViewModel {
     public ObservableList<Product> products() { return products; }
     public ObservableList<OrderLine> lines() { return lines; }
 
-    private void snapshotLastSend(Set<Destination> destinations, boolean separateByDestination) {
+    private boolean hasPendingFor(Set<Destination> destinations) {
+        return lines.stream()
+                .anyMatch(line -> line.getPendingQty() > 0 && isDestinationIncluded(line.getDestination(), destinations));
+    }
+
+    private PrintBatch snapshotLastSend(Set<Destination> destinations, boolean separateByDestination) {
         List<OrderLine> pendingLines = lines.stream()
                 .filter(line -> line.getPendingQty() > 0)
                 .filter(line -> isDestinationIncluded(line.getDestination(), destinations))
                 .toList();
+        LinkedHashMap<String, String> printJobsByDestination = new LinkedHashMap<>();
 
         StringBuilder out = new StringBuilder();
         out.append("RESTAURANTE EL GUSTO").append('\n');
         out.append("ULTIMA COMANDA ENVIADA").append('\n');
         out.append("Mesa ").append(tableId.get()).append("  Ticket ").append(orderId.get()).append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
-        out.append("--------------------------------------------").append('\n');
+        out.append(THERMAL_SEPARATOR).append('\n');
         if (pendingLines.isEmpty()) {
             out.append("Sin lineas pendientes para enviar").append('\n');
-            out.append("--------------------------------------------").append('\n');
-            AppContext.get().appState().lastComandaPrintTextProperty().set(out.toString());
-            return;
+            out.append(THERMAL_SEPARATOR).append('\n');
+            appState.lastComandaPrintTextProperty().set(out.toString());
+            return new PrintBatch(out.toString(), printJobsByDestination);
         }
 
         if (separateByDestination) {
             appendDestinationDetail(out, Destination.BAR, pendingLines);
             appendDestinationDetail(out, Destination.COCINA, pendingLines);
             appendDestinationDetail(out, Destination.POSTRES, pendingLines);
+            collectDestinationPrintJob(printJobsByDestination, Destination.BAR, pendingLines);
+            collectDestinationPrintJob(printJobsByDestination, Destination.COCINA, pendingLines);
+            collectDestinationPrintJob(printJobsByDestination, Destination.POSTRES, pendingLines);
         } else {
             int totalQty = pendingLines.stream().mapToInt(OrderLine::getPendingQty).sum();
             out.append("COMANDA UNIFICADA  ").append(totalQty).append(" productos").append('\n');
+            out.append(THERMAL_SEPARATOR).append('\n');
             for (OrderLine line : pendingLines) {
-                int qty = line.getPendingQty();
-                int total = qty * line.getUnitPriceCents();
-                out.append(String.format(Locale.US, "%2dx %-24s %8.2f", qty, clip(line.getProductName(), 24), total / 100.0)).append('\n');
-                if (line.getNote() != null && !line.getNote().isBlank()) {
-                    out.append("   - ").append(line.getNote()).append('\n');
-                }
+                appendLineWithWrap(out, line.getPendingQty(), line.getProductName());
+                appendNoteWithWrap(out, line.getNote());
             }
+            printJobsByDestination.put("ALL", buildUnifiedPrintText(pendingLines, totalQty));
         }
 
-        out.append("--------------------------------------------").append('\n');
-        AppContext.get().appState().lastComandaPrintTextProperty().set(out.toString());
+        out.append(THERMAL_SEPARATOR).append('\n');
+        appState.lastComandaPrintTextProperty().set(out.toString());
+        return new PrintBatch(out.toString(), printJobsByDestination);
     }
 
     private static boolean isDestinationIncluded(Destination destination, Set<Destination> selected) {
@@ -260,32 +323,183 @@ public class OrderViewModel {
         return selected.contains(destination);
     }
 
-    private static void appendDestinationDetail(StringBuilder out, Destination destination, List<OrderLine> pendingLines) {
-        List<OrderLine> linesByDest = pendingLines.stream()
+    private static List<OrderLine> pendingByDestination(Destination destination, List<OrderLine> pendingLines) {
+        return pendingLines.stream()
                 .filter(line -> line.getDestination() == destination)
                 .toList();
+    }
+
+    private static void appendDestinationDetail(StringBuilder out, Destination destination, List<OrderLine> pendingLines) {
+        List<OrderLine> linesByDest = pendingByDestination(destination, pendingLines);
         if (linesByDest.isEmpty()) {
             return;
         }
         int qty = linesByDest.stream().mapToInt(OrderLine::getPendingQty).sum();
         out.append(destination.name()).append("  ").append(qty).append(" productos").append('\n');
+        out.append(THERMAL_SEPARATOR).append('\n');
         for (OrderLine line : linesByDest) {
-            int pendingQty = line.getPendingQty();
-            int total = pendingQty * line.getUnitPriceCents();
-            out.append(String.format(Locale.US, "%2dx %-24s %8.2f", pendingQty, clip(line.getProductName(), 24), total / 100.0)).append('\n');
-            if (line.getNote() != null && !line.getNote().isBlank()) {
-                out.append("   - ").append(line.getNote()).append('\n');
+            appendLineWithWrap(out, line.getPendingQty(), line.getProductName());
+            appendNoteWithWrap(out, line.getNote());
+        }
+        out.append('\n');
+    }
+
+    private void collectDestinationPrintJob(Map<String, String> out, Destination destination, List<OrderLine> pendingLines) {
+        List<OrderLine> linesByDest = pendingByDestination(destination, pendingLines);
+        if (linesByDest.isEmpty()) {
+            return;
+        }
+        int qty = linesByDest.stream().mapToInt(OrderLine::getPendingQty).sum();
+        out.put(destination.name(), buildDestinationPrintText(destination, linesByDest, qty));
+    }
+
+    private String buildUnifiedPrintText(List<OrderLine> pendingLines, int totalQty) {
+        StringBuilder out = new StringBuilder();
+        appendPrintHeader(out);
+        out.append("COMANDA UNIFICADA  ").append(totalQty).append(" productos").append('\n');
+        out.append(THERMAL_SEPARATOR).append('\n');
+        for (OrderLine line : pendingLines) {
+            appendLineWithWrap(out, line.getPendingQty(), line.getProductName());
+            appendNoteWithWrap(out, line.getNote());
+        }
+        out.append(THERMAL_SEPARATOR).append('\n');
+        return out.toString();
+    }
+
+    private String buildDestinationPrintText(Destination destination, List<OrderLine> linesByDest, int qty) {
+        StringBuilder out = new StringBuilder();
+        appendPrintHeader(out);
+        out.append(destination.name()).append("  ").append(qty).append(" productos").append('\n');
+        out.append(THERMAL_SEPARATOR).append('\n');
+        for (OrderLine line : linesByDest) {
+            appendLineWithWrap(out, line.getPendingQty(), line.getProductName());
+            appendNoteWithWrap(out, line.getNote());
+        }
+        out.append(THERMAL_SEPARATOR).append('\n');
+        return out.toString();
+    }
+
+    private void appendPrintHeader(StringBuilder out) {
+        out.append("RESTAURANTE EL GUSTO").append('\n');
+        out.append("ULTIMA COMANDA ENVIADA").append('\n');
+        out.append("Mesa ").append(tableId.get()).append("  Ticket ").append(orderId.get()).append('\n');
+        out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
+    }
+
+    private void enqueuePrintJobs(Map<String, String> printJobsByDestination) {
+        for (Map.Entry<String, String> entry : printJobsByDestination.entrySet()) {
+            printQueueService.enqueue(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private static void appendLineWithWrap(StringBuilder out, int qty, String productName) {
+        String name = productName == null ? "-" : productName.trim();
+        String prefix = qty + "x ";
+        int firstLineWidth = Math.max(8, THERMAL_WIDTH - prefix.length());
+        List<String> wrapped = wrapByWords(name, firstLineWidth);
+        if (wrapped.isEmpty()) {
+            out.append(prefix).append('-').append('\n');
+            return;
+        }
+        out.append(prefix).append(wrapped.getFirst()).append('\n');
+
+        String indent = " ".repeat(prefix.length());
+        int nextWidth = Math.max(8, THERMAL_WIDTH - indent.length());
+        for (int i = 1; i < wrapped.size(); i++) {
+            List<String> extraWrapped = wrapByWords(wrapped.get(i), nextWidth);
+            if (extraWrapped.isEmpty()) {
+                continue;
+            }
+            for (String piece : extraWrapped) {
+                out.append(indent).append(piece).append('\n');
             }
         }
     }
 
-    private static String clip(String value, int max) {
-        if (value == null) return "";
-        return value.length() <= max ? value : value.substring(0, max - 1) + ".";
+    private static void appendNoteWithWrap(StringBuilder out, String note) {
+        if (note == null || note.isBlank()) {
+            return;
+        }
+        String normalized = note.trim();
+        String prefix = "   - ";
+        int width = Math.max(8, THERMAL_WIDTH - prefix.length());
+        List<String> wrapped = wrapByWords(normalized, width);
+        if (wrapped.isEmpty()) {
+            return;
+        }
+        out.append(prefix).append(wrapped.getFirst()).append('\n');
+        String indent = " ".repeat(prefix.length());
+        for (int i = 1; i < wrapped.size(); i++) {
+            out.append(indent).append(wrapped.get(i)).append('\n');
+        }
+    }
+
+    private static List<String> wrapByWords(String text, int maxWidth) {
+        List<String> lines = new ArrayList<>();
+        if (text == null || text.isBlank()) {
+            return lines;
+        }
+        String[] words = text.trim().split("\\s+");
+        StringBuilder current = new StringBuilder();
+        for (String word : words) {
+            if (word.length() > maxWidth) {
+                if (!current.isEmpty()) {
+                    lines.add(current.toString());
+                    current.setLength(0);
+                }
+                int index = 0;
+                while (index < word.length()) {
+                    int end = Math.min(index + maxWidth, word.length());
+                    lines.add(word.substring(index, end));
+                    index = end;
+                }
+                continue;
+            }
+
+            if (current.isEmpty()) {
+                current.append(word);
+                continue;
+            }
+
+            if (current.length() + 1 + word.length() <= maxWidth) {
+                current.append(' ').append(word);
+            } else {
+                lines.add(current.toString());
+                current.setLength(0);
+                current.append(word);
+            }
+        }
+        if (!current.isEmpty()) {
+            lines.add(current.toString());
+        }
+        return lines;
     }
 
     private static String money(int cents) {
         return String.format(Locale.US, "%.2f EUR", cents / 100.0);
     }
+
+    private String unlockWithPolicy() {
+        return unlockWithPolicy(tableId.get());
+    }
+
+    private String unlockWithPolicy(int targetTableId) {
+        try {
+            lockService.unlock(targetTableId);
+            return null;
+        } catch (LockException ex) {
+            if (ex.isOwnershipConflict() || ex.isRecoverableWithReacquire()) {
+                return null;
+            }
+            if (ex.isAuthIssue()) {
+                return "No se pudo liberar lock (sesion expirada). Se limpiara por TTL.";
+            }
+            return "No se pudo liberar lock. Se limpiara por TTL.";
+        } catch (RuntimeException ex) {
+            return "No se pudo liberar lock. Se limpiara por TTL.";
+        }
+    }
+
+    private record PrintBatch(String lastComandaText, Map<String, String> printJobsByDestination) {}
 }
 

@@ -21,7 +21,9 @@
 
   <HBox alignment="CENTER_RIGHT" spacing="8">
     <Label fx:id="backendBadge" text="ONLINE" styleClass="badge badge-online"/>
+    <Label fx:id="modeBadge" text="MODE FAKE" styleClass="badge badge-mode-fake"/>
     <Label fx:id="latencyBadge" text="45ms" styleClass="badge badge-latency"/>
+    <Label fx:id="printerBadge" text="PRINT OK" styleClass="badge badge-online"/>
     <Button fx:id="errorsButton" text="Errores" onAction="#onShowErrors" styleClass="btn-link"/>
     <Label fx:id="usernameLabel" text="Usuario activo" styleClass="topbar-user" onMouseClicked="#onOpenUserMenu"/>
     <Label fx:id="avatarLabel" text="User" styleClass="avatar-dot" onMouseClicked="#onOpenUserMenu"/>

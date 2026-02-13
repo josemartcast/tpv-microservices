@@ -34,9 +34,9 @@
       </VBox>
 
       <HBox spacing="8">
-        <Button text="Enviar Todo" onAction="#onSendAll" styleClass="send-btn send-btn-primary"/>
-        <Button text="Enviar Solo BAR" onAction="#onSendBar" styleClass="send-btn send-btn-dark"/>
-        <Button text="Enviar Solo COCINA" onAction="#onSendCocina" styleClass="send-btn send-btn-green"/>
+        <Button fx:id="sendAllBtn" text="Enviar Todo" onAction="#onSendAll" styleClass="send-btn send-btn-primary"/>
+        <Button fx:id="sendBarBtn" text="Enviar Solo BAR" onAction="#onSendBar" styleClass="send-btn send-btn-dark"/>
+        <Button fx:id="sendCocinaBtn" text="Enviar Solo COCINA" onAction="#onSendCocina" styleClass="send-btn send-btn-green"/>
       </HBox>
 
       <HBox alignment="CENTER_LEFT" spacing="12">

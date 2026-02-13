@@ -14,6 +14,7 @@ public class AppState {
     private final ObjectProperty<User> activeUser = new SimpleObjectProperty<>(new User(1, "Gasa Carmona", "GC"));
     private final ObjectProperty<BackendStatus> backendStatus = new SimpleObjectProperty<>(BackendStatus.ONLINE);
     private final StringProperty restaurantName = new SimpleStringProperty("Restaurante EL GUSTO");
+    private final StringProperty runtimeMode = new SimpleStringProperty("FAKE");
     private final StringProperty activeCustomer = new SimpleStringProperty("Mostrador");
     private final StringProperty lastComandaPrintText = new SimpleStringProperty("");
     private final BooleanProperty printSeparateByDestination = new SimpleBooleanProperty(true);
@@ -24,6 +25,7 @@ public class AppState {
     public ObjectProperty<User> activeUserProperty() { return activeUser; }
     public ObjectProperty<BackendStatus> backendStatusProperty() { return backendStatus; }
     public StringProperty restaurantNameProperty() { return restaurantName; }
+    public StringProperty runtimeModeProperty() { return runtimeMode; }
     public StringProperty activeCustomerProperty() { return activeCustomer; }
     public StringProperty lastComandaPrintTextProperty() { return lastComandaPrintText; }
     public BooleanProperty printSeparateByDestinationProperty() { return printSeparateByDestination; }

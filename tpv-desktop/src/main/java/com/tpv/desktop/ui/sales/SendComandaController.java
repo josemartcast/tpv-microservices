@@ -1,7 +1,6 @@
 package com.tpv.desktop.ui.sales;
 
 import com.tpv.desktop.api.pos.TicketLineResponse;
-import com.tpv.desktop.core.MoneyUtil;
 import java.util.ArrayList;
 import java.util.List;
 import javafx.collections.FXCollections;
@@ -89,7 +88,7 @@ public class SendComandaController {
     }
 
     private String lineText(TicketLineResponse line) {
-        return line.qty() + "x " + line.productName() + "  " + MoneyUtil.centsToEuros(line.lineTotalCents()) + " EUR";
+        return line.qty() + "x " + line.productName();
     }
 
     private SendDestination destinationFor(TicketLineResponse line) {

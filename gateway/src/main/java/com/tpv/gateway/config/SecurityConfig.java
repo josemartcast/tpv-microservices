@@ -12,6 +12,8 @@ public class SecurityConfig {
     public SecurityWebFilterChain SpringSecurityFilterChain(ServerHttpSecurity http) {
 
         http.csrf(ServerHttpSecurity.CsrfSpec::disable).authorizeExchange(auth -> auth
+                .pathMatchers("/favicon.ico").permitAll()
+                .pathMatchers("/pda", "/pda/**").permitAll()
                 .pathMatchers("/api/v1/auth/login").permitAll()
                 .pathMatchers("/api/v1/auth/**").authenticated()
                 .anyExchange().authenticated()

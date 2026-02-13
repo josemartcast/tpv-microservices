@@ -5,6 +5,7 @@ import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.OrderLine;
 import com.tpv.desktop.tpv.domain.model.Product;
+import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.tpv.ui.controllers.components.ProductButtonController;
 import com.tpv.desktop.tpv.ui.controllers.components.TicketLineCellController;
@@ -33,7 +34,6 @@ import javafx.util.Duration;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -103,7 +103,7 @@ public class OrderController {
         });
         tabEntrantes.setSelected(true);
 
-        heartbeat = new Timeline(new KeyFrame(Duration.seconds(20), e -> vm.heartbeatLock()));
+        heartbeat = new Timeline(new KeyFrame(Duration.seconds(20), e -> onHeartbeatTick()));
         heartbeat.setCycleCount(Timeline.INDEFINITE);
         heartbeat.play();
 
@@ -166,7 +166,7 @@ public class OrderController {
             stage.setScene(scene);
             stage.showAndWait();
         } catch (IOException e) {
-            feedbackLabel.setText("No se pudo abrir modal de envÃ­o: " + e.getMessage());
+            feedbackLabel.setText("No se pudo abrir modal de envio: " + e.getMessage());
         }
     }
     @FXML
@@ -360,7 +360,7 @@ public class OrderController {
     @FXML
     public void onNote() {
         TextInputDialog d = new TextInputDialog("");
-        d.setHeaderText("Nota para Ãºltima lÃ­nea pendiente");
+        d.setHeaderText("Nota para ultima linea pendiente");
         d.showAndWait().ifPresent(vm::addNoteToLastPending);
     }
 
@@ -382,11 +382,38 @@ public class OrderController {
         }
     }
 
+    private void onHeartbeatTick() {
+        try {
+            vm.heartbeatLock();
+        } catch (LockException ex) {
+            if (ex.isRecoverableWithReacquire()) {
+                return;
+            }
+            if (ex.isOwnershipConflict()) {
+                stopHeartbeat();
+                vm.feedbackProperty().set("Mesa bloqueada por otro terminal. Volviendo al salon.");
+                Navigator.get().goHome();
+                return;
+            }
+            if (ex.isAuthIssue()) {
+                stopHeartbeat();
+                vm.feedbackProperty().set("Sesion expirada durante lock. Vuelve a entrar.");
+                Navigator.get().goHome();
+                return;
+            }
+            vm.feedbackProperty().set("Error renovando lock: " + ex.getMessage());
+        } catch (RuntimeException ex) {
+            vm.feedbackProperty().set("Error renovando lock: " + ex.getMessage());
+        }
+    }
+
     private void updateActionState() {
         boolean hasLines = !vm.lines().isEmpty();
         boolean hasPending = vm.lines().stream().anyMatch(line -> line.getPendingQty() > 0);
 
-        if (sendBtn != null) sendBtn.setDisable(!hasPending);
+        // Keep ENVIAR always available so the modal can be opened for "Reimprimir ultimo"
+        // even when there are no pending lines.
+        if (sendBtn != null) sendBtn.setDisable(false);
         if (noteBtn != null) noteBtn.setDisable(!hasPending);
         if (deleteBtn != null) deleteBtn.setDisable(!hasPending);
 
@@ -572,6 +599,7 @@ public class OrderController {
         }
     }
 }
+
 
 
 

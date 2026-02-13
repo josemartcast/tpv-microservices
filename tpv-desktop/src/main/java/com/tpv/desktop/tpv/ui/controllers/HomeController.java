@@ -3,6 +3,7 @@ package com.tpv.desktop.tpv.ui.controllers;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.domain.model.BackendStatus;
+import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.ui.controllers.components.TableCardController;
 import com.tpv.desktop.tpv.ui.controllers.components.TopBarController;
 import com.tpv.desktop.tpv.ui.viewmodel.HomeViewModel;
@@ -81,6 +82,16 @@ public class HomeController {
         try {
             long orderId = vm.openOrEnter(table);
             Navigator.get().goOrder(orderId, table.getTableId());
+        } catch (LockException e) {
+            if (e.isOwnershipConflict()) {
+                feedbackLabel.setText("Mesa bloqueada por otro terminal.");
+                return;
+            }
+            if (e.isAuthIssue()) {
+                feedbackLabel.setText("Sesion expirada. Haz login de nuevo.");
+                return;
+            }
+            feedbackLabel.setText("Error de lock: " + e.getMessage());
         } catch (Exception e) {
             feedbackLabel.setText("Bloqueada por Terminal: " + e.getMessage());
         }

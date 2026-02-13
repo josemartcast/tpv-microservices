@@ -17,6 +17,10 @@ public final class SettingsStore {
   }
 
   public static String getTerminalId() {
+    String overridden = readTerminalOverride();
+    if (overridden != null) {
+      return overridden;
+    }
     String def = defaultTerminalId();
     return prefs.get("terminalId", def);
   }
@@ -49,5 +53,17 @@ public final class SettingsStore {
     String env = System.getenv("COMPUTERNAME");
     if (env != null && !env.isBlank()) return env;
     return "TERMINAL-1";
+  }
+
+  private static String readTerminalOverride() {
+    String env = System.getenv("TPV_TERMINAL_ID");
+    if (env != null && !env.isBlank()) {
+      return env.trim();
+    }
+    String prop = System.getProperty("tpv.terminal.id");
+    if (prop != null && !prop.isBlank()) {
+      return prop.trim();
+    }
+    return null;
   }
 }
