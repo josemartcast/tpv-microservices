@@ -1,5 +1,7 @@
 # TPV Desktop – Sistema de Punto de Venta
 
+[![PDA E2E Smoke](https://github.com/josemartcast/tpv-microservices/actions/workflows/pda-e2e-smoke.yml/badge.svg)](https://github.com/josemartcast/tpv-microservices/actions/workflows/pda-e2e-smoke.yml)
+
 TPV Desktop es un sistema de punto de venta desarrollado en **Java** orientado a negocios de hostelería y comercio minorista.  
 El proyecto está diseñado con una arquitectura **backend desacoplada (microservicios)** y un **cliente de escritorio JavaFX**, siguiendo buenas prácticas de desarrollo profesional.
 
