@@ -47,3 +47,4 @@ Cobertura ejecutada en CI:
 ## Recomendacion
 - Ejecutar piloto controlado en un local y registrar incidencias una semana.
 - Si no hay incidencias criticas, pasar a despliegue operativo.
+- Usar checklist de salida: `docs/release-checklist.md`.
