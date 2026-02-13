@@ -178,7 +178,7 @@ public class TicketController {
         String actor = ActorResolver.usernameFrom(auth);
         String term = ActorResolver.terminalFromHeader(terminalId);
         try {
-            TicketResponse response = service.moveTable(id, req.tableNumber());
+            TicketResponse response = service.moveTable(id, req.tableNumber(), term, actor);
             auditService.recordSuccess("TICKET_MOVE_TABLE", "TICKET", id, actor, term, req, response);
             return response;
         } catch (RuntimeException e) {

@@ -24,6 +24,7 @@ import com.tpv.pos_service.domain.CashSession;
 import com.tpv.pos_service.domain.CashSessionStatus;
 import com.tpv.pos_service.repository.CashSessionRepository;
 import com.tpv.pos_service.dto.ApplyDiscountRequest;
+import com.tpv.pos_service.domain.TableLock;
 
 @Service
 @SuppressWarnings("null")
@@ -34,13 +35,15 @@ public class TicketService {
     private final ProductRepository productRepo;
     private final PaymentRepository paymentRepo;
     private final CashSessionRepository cashSessionRepo;
+    private final TableLockService tableLockService;
 
-    public TicketService(TicketRepository ticketRepo, TicketLineRepository lineRepo, ProductRepository productRepo, PaymentRepository paymentRepo, CashSessionRepository cashSessionRepo) {
+    public TicketService(TicketRepository ticketRepo, TicketLineRepository lineRepo, ProductRepository productRepo, PaymentRepository paymentRepo, CashSessionRepository cashSessionRepo, TableLockService tableLockService) {
         this.ticketRepo = ticketRepo;
         this.lineRepo = lineRepo;
         this.productRepo = productRepo;
         this.paymentRepo = paymentRepo;
         this.cashSessionRepo = cashSessionRepo;
+        this.tableLockService = tableLockService;
     }
 
     @Transactional
@@ -174,6 +177,11 @@ public class TicketService {
 
     @Transactional
     public TicketResponse moveTable(Long ticketId, Integer newTableNumber) {
+        return moveTable(ticketId, newTableNumber, null, "system");
+    }
+
+    @Transactional
+    public TicketResponse moveTable(Long ticketId, Integer newTableNumber, String terminalId, String actor) {
         if (newTableNumber == null || newTableNumber < 1 || newTableNumber > 200) {
             throw new ConflictException("Target table out of range: " + newTableNumber);
         }
@@ -183,13 +191,33 @@ public class TicketService {
             List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
             return toResponse(t, lines);
         }
-        boolean targetInUse = ticketRepo.existsByTableNumberAndStatus(newTableNumber, TicketStatus.OPEN);
-        if (targetInUse) {
-            throw new ConflictException("Target table already has an OPEN ticket: " + newTableNumber);
+
+        String moverTerminal = (terminalId == null || terminalId.isBlank())
+                ? ("MOVE-" + ticketId)
+                : terminalId.trim();
+        String moverActor = (actor == null || actor.isBlank()) ? "system" : actor;
+
+        TableLock activeLock = tableLockService.activeLock(newTableNumber);
+        boolean releaseMutexAfterMove = activeLock == null;
+
+        tableLockService.lock(newTableNumber, moverTerminal, moverActor);
+        try {
+            boolean targetInUse = ticketRepo.existsByTableNumberAndStatus(newTableNumber, TicketStatus.OPEN);
+            if (targetInUse) {
+                throw new ConflictException("Target table already has an OPEN ticket: " + newTableNumber);
+            }
+            t.setTableNumber(newTableNumber);
+            List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+            return toResponse(t, lines);
+        } finally {
+            if (releaseMutexAfterMove) {
+                try {
+                    tableLockService.unlock(newTableNumber, moverTerminal, moverActor);
+                } catch (RuntimeException _ignored) {
+                    // best-effort unlock for transient move mutex
+                }
+            }
         }
-        t.setTableNumber(newTableNumber);
-        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
-        return toResponse(t, lines);
     }
 
     @Transactional
