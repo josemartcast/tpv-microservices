@@ -49,12 +49,18 @@ function Invoke-Api {
     [object]$Body = $null,
     [string]$Token = '',
     [string]$TerminalId = '',
+    [hashtable]$ExtraHeaders = @{},
     [int[]]$Expected = @(200)
   )
 
   $headers = @{}
   if ($Token) { $headers['Authorization'] = "Bearer $Token" }
   if ($TerminalId) { $headers['X-Terminal-Id'] = $TerminalId }
+  if ($ExtraHeaders) {
+    foreach ($key in $ExtraHeaders.Keys) {
+      $headers[$key] = [string]$ExtraHeaders[$key]
+    }
+  }
 
   $uri = "$GatewayBaseUrl$Path"
   $jsonBody = ConvertTo-JsonBody $Body
@@ -95,6 +101,10 @@ function Invoke-Api {
 function Assert-True {
   param([bool]$Condition, [string]$Message)
   if (-not $Condition) { throw "ASSERT FAILED: $Message" }
+}
+
+function New-IdempotencyKey([string]$Prefix) {
+  return "$Prefix-$([guid]::NewGuid().ToString('N'))"
 }
 
 function Invoke-LockRace {
@@ -274,6 +284,69 @@ if ($pending -gt 0) {
 # 13) Unlock cleanup
 $unlock = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/unlock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(204,409)
 if ($unlock.Status -eq 204) { Write-Host '[OK] unlock cleanup' } else { Write-Host '[INFO] unlock cleanup returned 409 (already released/expired)' }
+
+# 14) Offline/reconnect replay semantics via idempotency (SEND + PAYMENT)
+$tablesReplay = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
+$replayCandidate = $tablesReplay.Json | Where-Object {
+  $_.tableNumber -ne $tableNumber -and $_.status -eq 'FREE' -and -not $_.lockedTerminalId -and -not $_.ticketId
+} | Select-Object -First 1
+if (-not $replayCandidate) {
+  $replayCandidate = $tablesReplay.Json | Where-Object {
+    $_.status -eq 'FREE' -and -not $_.lockedTerminalId -and -not $_.ticketId
+  } | Select-Object -First 1
+}
+if (-not $replayCandidate) {
+  throw 'No free table without ticket available for replay-idempotency scenario'
+}
+$replayTable = [int]$replayCandidate.tableNumber
+Write-Host "[INFO] replay scenario table=$replayTable"
+
+$lockReplay = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$replayTable/lock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(200)
+Assert-True ($lockReplay.Json.terminalId -eq $TerminalA) 'replay scenario lock must be owned by terminal A'
+
+$openReplay = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$replayTable/open-ticket" -Token $token -TerminalId $TerminalA -Expected @(201,409)
+if ($openReplay.Status -eq 201) {
+  $replayTicketId = [int64]$openReplay.Json.id
+} else {
+  $tablesReplay2 = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
+  $currentReplay = $tablesReplay2.Json | Where-Object { $_.tableNumber -eq $replayTable } | Select-Object -First 1
+  if (-not $currentReplay -or -not $currentReplay.ticketId) {
+    throw "Could not resolve replay ticket on table $replayTable"
+  }
+  $replayTicketId = [int64]$currentReplay.ticketId
+}
+
+$ticketReplayAdded = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$replayTicketId/lines" -Token $token -TerminalId $TerminalA -Body @{ productId = $productId; qty = 1 } -Expected @(201)
+Assert-True ($ticketReplayAdded.Json.lines.Count -gt 0) 'replay ticket should have lines'
+
+$sendReplayKey = New-IdempotencyKey 'qa-send-replay'
+$sendReplay1 = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$replayTicketId/send" -Token $token -TerminalId $TerminalA -ExtraHeaders @{ 'Idempotency-Key' = $sendReplayKey } -Body @{ destination = 'ALL' } -Expected @(200)
+$sendReplay2 = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$replayTicketId/send" -Token $token -TerminalId $TerminalA -ExtraHeaders @{ 'Idempotency-Key' = $sendReplayKey } -Body @{ destination = 'ALL' } -Expected @(200)
+Assert-True ($sendReplay1.Json.sentCount -ge 1) 'first replay send should send at least one line'
+Assert-True ($sendReplay2.Json.sentCount -eq $sendReplay1.Json.sentCount) 'second replay send with same key should return same sentCount'
+$send1Ids = @($sendReplay1.Json.sentLineIds) -join ','
+$send2Ids = @($sendReplay2.Json.sentLineIds) -join ','
+Assert-True ($send1Ids -eq $send2Ids) 'second replay send with same key should return same sentLineIds'
+Write-Host '[OK] idempotent replay for SEND'
+
+$summaryReplay = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$replayTicketId/payment-summary" -Token $token -TerminalId $TerminalA -Expected @(200)
+$pendingReplay = [int]$summaryReplay.Json.pendingCents
+Assert-True ($pendingReplay -gt 0) 'replay ticket should have pending amount'
+
+$payReplayKey = New-IdempotencyKey 'qa-pay-replay'
+$payReplay1 = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$replayTicketId/payments" -Token $token -TerminalId $TerminalA -ExtraHeaders @{ 'Idempotency-Key' = $payReplayKey } -Body @{ method = 'CARD'; amountCents = $pendingReplay } -Expected @(201)
+$payReplay2 = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$replayTicketId/payments" -Token $token -TerminalId $TerminalA -ExtraHeaders @{ 'Idempotency-Key' = $payReplayKey } -Body @{ method = 'CARD'; amountCents = $pendingReplay } -Expected @(201)
+Assert-True ($payReplay1.Json.id -eq $payReplay2.Json.id) 'second replay payment with same key should return same payment id'
+Assert-True ($payReplay1.Json.amountCents -eq $payReplay2.Json.amountCents) 'second replay payment with same key should return same amount'
+
+$ticketReplaySummary = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$replayTicketId/summary" -Token $token -TerminalId $TerminalA -Expected @(200)
+$paymentsInSummary = @($ticketReplaySummary.Json.payments)
+Assert-True ($paymentsInSummary.Count -eq 1) "replay ticket should contain exactly one persisted payment (got $($paymentsInSummary.Count))"
+Assert-True ([int]$ticketReplaySummary.Json.remainingCents -eq 0) 'replay ticket should be fully paid after idempotent replay payment'
+Write-Host '[OK] idempotent replay for PAYMENT'
+
+$unlockReplay = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$replayTable/unlock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(204,409)
+if ($unlockReplay.Status -eq 204) { Write-Host '[OK] unlock replay cleanup' } else { Write-Host '[INFO] unlock replay cleanup returned 409' }
 
 Write-Host ''
 Write-Host 'PDA E2E smoke PASSED' -ForegroundColor Green
