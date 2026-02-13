@@ -35,6 +35,8 @@ class TicketServiceTest {
     private PaymentRepository paymentRepo;
     @Mock
     private CashSessionRepository cashSessionRepo;
+    @Mock
+    private TableLockService tableLockService;
 
     @InjectMocks
     private TicketService service;

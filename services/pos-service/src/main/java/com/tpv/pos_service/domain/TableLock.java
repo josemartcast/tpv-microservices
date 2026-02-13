@@ -14,7 +14,7 @@ import java.time.Instant;
 @Entity
 @Table(
         name = "table_locks",
-        uniqueConstraints = @UniqueConstraint(name = "uk_table_lock_number", columnNames = "tableNumber")
+        uniqueConstraints = @UniqueConstraint(name = "uk_table_lock_number", columnNames = "table_number")
 )
 public class TableLock {
 
@@ -22,22 +22,22 @@ public class TableLock {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "table_number", nullable = false)
     private int tableNumber;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "terminal_id", nullable = false, length = 100)
     private String terminalId;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "locked_by", nullable = false, length = 100)
     private String lockedBy;
 
-    @Column(nullable = false)
+    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     protected TableLock() {

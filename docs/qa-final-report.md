@@ -1,7 +1,8 @@
 # QA Final Report - TPV/PDA
 
 Fecha: 2026-02-13
-Estado general: `GO PILOTO CONTROLADO`
+Estado general: `GO PRODUCCION CONTROLADA`
+Version/tag objetivo: `v1.0.0-rc2`
 
 ## Alcance validado
 - Flujo TPV/PDA con backend real (`auth-service`, `pos-service`, `gateway`).
@@ -31,6 +32,7 @@ Cobertura ejecutada en CI:
 - No doble aplicacion en acciones idempotentes de reconexion.
 - No doble cobro en carrera concurrente.
 - Resultado estable en pipeline (`check verde`).
+- `move-table` protegido ante carrera concurrente (backend + test de integracion).
 
 ## Riesgo residual (no bloqueante para piloto)
 - Impresion fisica en hardware real (colas, cortes, reconexion impresora).
@@ -45,6 +47,11 @@ Cobertura ejecutada en CI:
 - Definir protocolo operativo ante lock conflict (quien libera, cuando, como).
 
 ## Recomendacion
-- Ejecutar piloto controlado en un local y registrar incidencias una semana.
-- Si no hay incidencias criticas, pasar a despliegue operativo.
+- Ejecutar despliegue controlado con observabilidad reforzada en primeras 72h.
+- Si no hay incidencias criticas, consolidar el tag `v1.0.0-rc2` como base operativa.
 - Usar checklist de salida: `docs/release-checklist.md`.
+
+## Firma QA tecnica
+- Decision: `GO PRODUCCION CONTROLADA`
+- Fecha: `2026-02-13`
+- Base de validacion: CI `PDA E2E Smoke` + tests de `pos-service` en verde.

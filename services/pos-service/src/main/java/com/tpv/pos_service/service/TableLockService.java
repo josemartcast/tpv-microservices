@@ -5,6 +5,7 @@ import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.repository.TableLockRepository;
 import java.time.Instant;
 import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +27,18 @@ public class TableLockService {
         Instant expiresAt = now.plusSeconds(LOCK_TTL_SECONDS);
         Optional<TableLock> existingOpt = repo.findByTableNumber(tableNumber);
         if (existingOpt.isEmpty()) {
-            return repo.save(new TableLock(tableNumber, terminalId, username, expiresAt));
+            try {
+                return repo.save(new TableLock(tableNumber, terminalId, username, expiresAt));
+            } catch (DataIntegrityViolationException duplicate) {
+                // Concurrent insert for same table_number
+                TableLock concurrent = repo.findByTableNumber(tableNumber).orElseThrow(() -> duplicate);
+                if (!concurrent.getTerminalId().equalsIgnoreCase(terminalId)) {
+                    throw new ConflictException("Table " + tableNumber + " is locked by " + concurrent.getLockedBy()
+                            + " (" + concurrent.getTerminalId() + ")");
+                }
+                concurrent.renew(expiresAt);
+                return concurrent;
+            }
         }
 
         TableLock existing = existingOpt.get();
