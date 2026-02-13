@@ -17,7 +17,7 @@ function Read-ResponseBody([object]$Response) {
   if ($null -eq $Response) { return '' }
 
   # PowerShell 7 / GitHub Actions: HttpResponseMessage
-  if ($Response -is [System.Net.Http.HttpResponseMessage]) {
+  if ($Response.GetType().FullName -eq 'System.Net.Http.HttpResponseMessage') {
     if ($null -eq $Response.Content) { return '' }
     try {
       return $Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
@@ -146,6 +146,64 @@ function Invoke-LockRace {
 
   $jobA = Start-Job -ScriptBlock $jobScript -ArgumentList @($GatewayBaseUrl, $Token, $TableNumber, $TerminalA)
   $jobB = Start-Job -ScriptBlock $jobScript -ArgumentList @($GatewayBaseUrl, $Token, $TableNumber, $TerminalB)
+  try {
+    Wait-Job -Job @($jobA, $jobB) | Out-Null
+    $results = @()
+    $results += Receive-Job -Job $jobA
+    $results += Receive-Job -Job $jobB
+    return $results
+  } finally {
+    Remove-Job -Job @($jobA, $jobB) -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Invoke-MoveRace {
+  param(
+    [Parameter(Mandatory = $true)][string]$GatewayBaseUrl,
+    [Parameter(Mandatory = $true)][string]$Token,
+    [Parameter(Mandatory = $true)][int64]$TicketAId,
+    [Parameter(Mandatory = $true)][int64]$TicketBId,
+    [Parameter(Mandatory = $true)][int]$TargetTable,
+    [Parameter(Mandatory = $true)][string]$TerminalA,
+    [Parameter(Mandatory = $true)][string]$TerminalB
+  )
+
+  $jobScript = {
+    param($baseUrl, $token, $ticketId, $targetTable, $terminalId)
+    $headers = @{
+      Authorization = "Bearer $token"
+      'X-Terminal-Id' = $terminalId
+    }
+    $body = @{ tableNumber = $targetTable } | ConvertTo-Json -Compress
+    $status = -1
+    $raw = ''
+    $json = $null
+    try {
+      $resp = Invoke-WebRequest -UseBasicParsing -Method 'POST' -Uri "$baseUrl/api/v1/pos/tickets/$ticketId/move-table" -Headers $headers -ContentType 'application/json' -Body $body
+      $status = [int]$resp.StatusCode
+      $raw = $resp.Content
+    } catch {
+      if ($_.Exception.Response) {
+        $status = [int]$_.Exception.Response.StatusCode
+      }
+      if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+        $raw = $_.ErrorDetails.Message
+      }
+    }
+    if ($raw) {
+      try { $json = $raw | ConvertFrom-Json } catch { $json = $null }
+    }
+    [PSCustomObject]@{
+      TicketId = $ticketId
+      TerminalId = $terminalId
+      Status = $status
+      Raw = $raw
+      Json = $json
+    }
+  }
+
+  $jobA = Start-Job -ScriptBlock $jobScript -ArgumentList @($GatewayBaseUrl, $Token, $TicketAId, $TargetTable, $TerminalA)
+  $jobB = Start-Job -ScriptBlock $jobScript -ArgumentList @($GatewayBaseUrl, $Token, $TicketBId, $TargetTable, $TerminalB)
   try {
     Wait-Job -Job @($jobA, $jobB) | Out-Null
     $results = @()
@@ -347,6 +405,49 @@ Write-Host '[OK] idempotent replay for PAYMENT'
 
 $unlockReplay = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$replayTable/unlock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(204,409)
 if ($unlockReplay.Status -eq 204) { Write-Host '[OK] unlock replay cleanup' } else { Write-Host '[INFO] unlock replay cleanup returned 409' }
+
+# 15) Concurrent move-table race (two tickets -> same destination)
+$tablesMove = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
+$moveCandidates = @($tablesMove.Json | Where-Object { $_.status -eq 'FREE' -and -not $_.lockedTerminalId -and -not $_.ticketId } | Select-Object -First 3)
+Assert-True ($moveCandidates.Count -ge 3) "need at least 3 free tables for move race (got $($moveCandidates.Count))"
+
+$sourceTableA = [int]$moveCandidates[0].tableNumber
+$sourceTableB = [int]$moveCandidates[1].tableNumber
+$targetMoveTable = [int]$moveCandidates[2].tableNumber
+Write-Host "[INFO] move race sourceA=$sourceTableA sourceB=$sourceTableB target=$targetMoveTable"
+
+$openMoveA = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$sourceTableA/open-ticket" -Token $token -TerminalId $TerminalA -Expected @(201)
+$openMoveB = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$sourceTableB/open-ticket" -Token $token -TerminalId $TerminalB -Expected @(201)
+$moveTicketA = [int64]$openMoveA.Json.id
+$moveTicketB = [int64]$openMoveB.Json.id
+
+$moveRaceResults = Invoke-MoveRace -GatewayBaseUrl $GatewayBaseUrl -Token $token -TicketAId $moveTicketA -TicketBId $moveTicketB -TargetTable $targetMoveTable -TerminalA $TerminalA -TerminalB $TerminalB
+$move200 = @($moveRaceResults | Where-Object { $_.Status -eq 200 })
+$moveDenied = @($moveRaceResults | Where-Object { @(403,409) -contains $_.Status })
+$moveStatuses = (@($moveRaceResults | ForEach-Object { $_.Status } | Sort-Object) -join ',')
+Assert-True ($move200.Count -eq 1) "move race should produce exactly one 200 (got: $moveStatuses)"
+Assert-True ($moveDenied.Count -eq 1) "move race should produce exactly one denied status (403/409) (got: $moveStatuses)"
+
+$moveWinner = $move200[0]
+$winnerTicketId = [int64]$moveWinner.TicketId
+$loserTicketId = if ($winnerTicketId -eq $moveTicketA) { $moveTicketB } else { $moveTicketA }
+
+$winnerTicket = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$winnerTicketId" -Token $token -TerminalId $TerminalA -Expected @(200)
+$loserTicket = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$loserTicketId" -Token $token -TerminalId $TerminalA -Expected @(200)
+Assert-True ([int]$winnerTicket.Json.tableNumber -eq $targetMoveTable) "winner ticket should end at target table $targetMoveTable"
+
+$expectedLoserTable = if ($loserTicketId -eq $moveTicketA) { $sourceTableA } else { $sourceTableB }
+Assert-True ([int]$loserTicket.Json.tableNumber -eq $expectedLoserTable) "loser ticket should remain on original table $expectedLoserTable"
+Write-Host "[OK] move-table race winner ticket=$winnerTicketId target=$targetMoveTable loser ticket=$loserTicketId"
+
+# cleanup move race tickets
+$cancelWinner = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$winnerTicketId/cancel" -Token $token -TerminalId $TerminalA -Expected @(200,409)
+$cancelLoser = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$loserTicketId/cancel" -Token $token -TerminalId $TerminalA -Expected @(200,409)
+if ($cancelWinner.Status -eq 200 -and $cancelLoser.Status -eq 200) {
+  Write-Host '[OK] cleanup move race tickets'
+} else {
+  Write-Host '[INFO] cleanup move race tickets returned conflict on one ticket'
+}
 
 Write-Host ''
 Write-Host 'PDA E2E smoke PASSED' -ForegroundColor Green

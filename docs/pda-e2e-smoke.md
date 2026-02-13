@@ -12,6 +12,7 @@ Validar de extremo a extremo el flujo minimo de PDA contra backend real:
 - cobro
 - liberacion de lock
 - replay idempotente de acciones en reconexion (`SEND` y `PAYMENT` con la misma `Idempotency-Key`)
+- carrera concurrente de `move-table` (dos tickets compitiendo por misma mesa destino)
 
 ## Script
 `scripts/pda-e2e-smoke.ps1`
