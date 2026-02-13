@@ -19,7 +19,11 @@ function Read-ResponseBody([object]$Response) {
   # PowerShell 7 / GitHub Actions: HttpResponseMessage
   if ($Response -is [System.Net.Http.HttpResponseMessage]) {
     if ($null -eq $Response.Content) { return '' }
-    return $Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    try {
+      return $Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    } catch {
+      return ''
+    }
   }
 
   # Windows PowerShell: WebResponse
@@ -62,7 +66,13 @@ function Invoke-Api {
   } catch {
     if ($_.Exception.Response -eq $null) { throw }
     $status = [int]$_.Exception.Response.StatusCode
-    $raw = Read-ResponseBody $_.Exception.Response
+    $raw = ''
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+      $raw = $_.ErrorDetails.Message
+    }
+    if (-not $raw) {
+      $raw = Read-ResponseBody $_.Exception.Response
+    }
   }
 
   $parsed = $null
