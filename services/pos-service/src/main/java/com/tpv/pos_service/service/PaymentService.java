@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
-@SuppressWarnings("null")
 public class PaymentService {
 
     private final TicketRepository ticketRepo;

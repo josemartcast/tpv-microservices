@@ -93,7 +93,9 @@ class PaymentRaceConcurrencyIT {
             int successCount = (resultA.success ? 1 : 0) + (resultB.success ? 1 : 0);
             assertEquals(1, successCount, "exactly one concurrent payment should succeed");
 
+            PayResult successful = resultA.success ? resultA : resultB;
             PayResult failed = resultA.success ? resultB : resultA;
+            assertTrue(successful.paymentId != null && successful.paymentId > 0, "successful payment should return id");
             assertTrue(failed.error instanceof ConflictException, "losing concurrent payment should be conflict");
 
             PaymentSummaryResponse after = ticketService.paymentSummary(ticket.id());

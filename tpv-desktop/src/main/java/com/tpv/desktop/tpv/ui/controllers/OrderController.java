@@ -7,6 +7,7 @@ import com.tpv.desktop.tpv.domain.model.OrderLine;
 import com.tpv.desktop.tpv.domain.model.Product;
 import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
+import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.ui.controllers.components.ProductButtonController;
 import com.tpv.desktop.tpv.ui.controllers.components.TicketLineCellController;
 import com.tpv.desktop.tpv.ui.controllers.components.TopBarController;
@@ -579,7 +580,43 @@ public class OrderController {
     private String buildPrebillText() {
         StringBuilder out = new StringBuilder();
         String restaurantName = AppContext.get().appState().restaurantNameProperty().get();
-        out.append((restaurantName == null || restaurantName.isBlank() ? "RESTAURANTE" : restaurantName).toUpperCase(Locale.ROOT)).append('\n');
+        String legalName = SettingsStore.getFiscalLegalName();
+        String taxId = SettingsStore.getFiscalTaxId();
+        String fiscalAddress = SettingsStore.getFiscalAddress();
+        String fiscalPostalCode = SettingsStore.getFiscalPostalCode();
+        String fiscalCity = SettingsStore.getFiscalCity();
+        String fiscalProvince = SettingsStore.getFiscalProvince();
+        String fiscalCountry = SettingsStore.getFiscalCountry();
+
+        String headerName = (restaurantName == null || restaurantName.isBlank() ? "RESTAURANTE" : restaurantName);
+        if (legalName != null && !legalName.isBlank()) {
+            headerName = legalName;
+        }
+
+        out.append(headerName.toUpperCase(Locale.ROOT)).append('\n');
+        if (taxId != null && !taxId.isBlank()) {
+            out.append("NIF/CIF ").append(taxId).append('\n');
+        }
+        if ((fiscalAddress != null && !fiscalAddress.isBlank())
+                || (fiscalPostalCode != null && !fiscalPostalCode.isBlank())
+                || (fiscalCity != null && !fiscalCity.isBlank())) {
+            if (fiscalAddress != null && !fiscalAddress.isBlank()) {
+                out.append(clip(fiscalAddress, 42)).append('\n');
+            }
+            String cityLine = String.format(
+                    Locale.ROOT,
+                    "%s %s %s",
+                    fiscalPostalCode == null ? "" : fiscalPostalCode.trim(),
+                    fiscalCity == null ? "" : fiscalCity.trim(),
+                    fiscalProvince == null ? "" : fiscalProvince.trim()
+            ).trim();
+            if (!cityLine.isBlank()) {
+                out.append(clip(cityLine, 42)).append('\n');
+            }
+            if (fiscalCountry != null && !fiscalCountry.isBlank()) {
+                out.append(fiscalCountry.trim().toUpperCase(Locale.ROOT)).append('\n');
+            }
+        }
         out.append("PRECUENTA").append('\n');
         out.append("Mesa ").append(vm.tableIdProperty().get())
                 .append("  Ticket ").append(vm.orderIdProperty().get()).append('\n');

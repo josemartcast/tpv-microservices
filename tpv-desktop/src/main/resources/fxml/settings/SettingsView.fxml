@@ -25,6 +25,59 @@
       <Label text="Nombre del negocio"/>
       <TextField fx:id="restaurantNameField" promptText="Restaurante EL GUSTO" prefWidth="420"/>
 
+      <TitledPane text="Datos fiscales" expanded="false">
+        <GridPane hgap="10" vgap="10" style="-fx-padding: 10;">
+          <Label text="Razon social" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalLegalNameField"
+                     promptText="Restaurante El Gusto S.L."
+                     GridPane.rowIndex="0"
+                     GridPane.columnIndex="1"
+                     prefWidth="360"/>
+
+          <Label text="NIF/CIF" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalTaxIdField"
+                     promptText="B12345678"
+                     GridPane.rowIndex="1"
+                     GridPane.columnIndex="1"
+                     prefWidth="200"/>
+
+          <Label text="Direccion fiscal" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalAddressField"
+                     promptText="Calle Mayor 1"
+                     GridPane.rowIndex="2"
+                     GridPane.columnIndex="1"
+                     prefWidth="360"/>
+
+          <Label text="Codigo postal" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalPostalCodeField"
+                     promptText="28001"
+                     GridPane.rowIndex="3"
+                     GridPane.columnIndex="1"
+                     prefWidth="120"/>
+
+          <Label text="Ciudad" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalCityField"
+                     promptText="Madrid"
+                     GridPane.rowIndex="4"
+                     GridPane.columnIndex="1"
+                     prefWidth="220"/>
+
+          <Label text="Provincia" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalProvinceField"
+                     promptText="Madrid"
+                     GridPane.rowIndex="5"
+                     GridPane.columnIndex="1"
+                     prefWidth="220"/>
+
+          <Label text="Pais (ISO)" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalCountryField"
+                     promptText="ES"
+                     GridPane.rowIndex="6"
+                     GridPane.columnIndex="1"
+                     prefWidth="80"/>
+        </GridPane>
+      </TitledPane>
+
       <HBox spacing="10">
         <Button text="Guardar" onAction="#onSave"/>
         <Button text="Test conexion" onAction="#onTest"/>

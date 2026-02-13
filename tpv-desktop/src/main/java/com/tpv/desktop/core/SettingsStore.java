@@ -65,6 +65,70 @@ public final class SettingsStore {
     prefs.put("restaurantName", value.trim());
   }
 
+  public static String getFiscalLegalName() {
+    return prefs.get("fiscalLegalName", getRestaurantName());
+  }
+
+  public static void setFiscalLegalName(String value) {
+    if (value == null || value.isBlank()) {
+      prefs.put("fiscalLegalName", getRestaurantName());
+      return;
+    }
+    prefs.put("fiscalLegalName", value.trim());
+  }
+
+  public static String getFiscalTaxId() {
+    return prefs.get("fiscalTaxId", "");
+  }
+
+  public static void setFiscalTaxId(String value) {
+    prefs.put("fiscalTaxId", value == null ? "" : value.trim().toUpperCase());
+  }
+
+  public static String getFiscalAddress() {
+    return prefs.get("fiscalAddress", "");
+  }
+
+  public static void setFiscalAddress(String value) {
+    prefs.put("fiscalAddress", value == null ? "" : value.trim());
+  }
+
+  public static String getFiscalPostalCode() {
+    return prefs.get("fiscalPostalCode", "");
+  }
+
+  public static void setFiscalPostalCode(String value) {
+    prefs.put("fiscalPostalCode", value == null ? "" : value.trim());
+  }
+
+  public static String getFiscalCity() {
+    return prefs.get("fiscalCity", "");
+  }
+
+  public static void setFiscalCity(String value) {
+    prefs.put("fiscalCity", value == null ? "" : value.trim());
+  }
+
+  public static String getFiscalProvince() {
+    return prefs.get("fiscalProvince", "");
+  }
+
+  public static void setFiscalProvince(String value) {
+    prefs.put("fiscalProvince", value == null ? "" : value.trim());
+  }
+
+  public static String getFiscalCountry() {
+    return prefs.get("fiscalCountry", "ES");
+  }
+
+  public static void setFiscalCountry(String value) {
+    if (value == null || value.isBlank()) {
+      prefs.put("fiscalCountry", "ES");
+      return;
+    }
+    prefs.put("fiscalCountry", value.trim().toUpperCase());
+  }
+
   private static String defaultTerminalId() {
     try {
       String host = InetAddress.getLocalHost().getHostName();

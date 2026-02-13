@@ -1,4 +1,3 @@
-
 package com.tpv.auth_service.config;
 
 import org.springframework.context.annotation.Bean;
@@ -18,13 +17,12 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                .requestMatchers("/api/v1/auth/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/auth/**").authenticated()
 
                 // endpoints de prueba por roles
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/user/**").hasAnyRole("USER", "ADMIN")
-
-                // /me debe requerir token válido
-                .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
 
                 .anyRequest().denyAll()
             )
@@ -37,4 +35,3 @@ public class SecurityConfig {
         return http.build();
     }
 }
-

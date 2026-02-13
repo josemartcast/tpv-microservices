@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.ui.users.UserAdminController"
+            prefWidth="980"
+            prefHeight="700">
+    <top>
+        <HBox spacing="10" alignment="CENTER_LEFT" style="-fx-padding: 12;">
+            <Label text="Usuarios y Roles" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Refrescar" onAction="#onRefresh"/>
+        </HBox>
+    </top>
+    <center>
+        <VBox spacing="12" style="-fx-padding: 12;">
+            <GridPane hgap="8" vgap="8" style="-fx-padding: 10; -fx-border-color: #d3d7e5; -fx-border-radius: 6;">
+                <Label text="Nuevo usuario" style="-fx-font-weight: 700;" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                <Label text="Usuario" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                <TextField fx:id="createUsernameField" promptText="camarero1" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                <Label text="Password" GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+                <PasswordField fx:id="createPasswordField" promptText="min 6 caracteres" GridPane.rowIndex="1" GridPane.columnIndex="3"/>
+                <Label text="Rol" GridPane.rowIndex="1" GridPane.columnIndex="4"/>
+                <ComboBox fx:id="createRoleBox" prefWidth="140" GridPane.rowIndex="1" GridPane.columnIndex="5"/>
+                <Button text="Crear usuario" onAction="#onCreateUser" GridPane.rowIndex="1" GridPane.columnIndex="6"/>
+            </GridPane>
+
+            <TableView fx:id="usersTable" prefHeight="340">
+                <columns>
+                    <TableColumn fx:id="idCol" text="ID" prefWidth="90"/>
+                    <TableColumn fx:id="usernameCol" text="Usuario" prefWidth="280"/>
+                    <TableColumn fx:id="roleCol" text="Rol" prefWidth="120"/>
+                    <TableColumn fx:id="activeCol" text="Activo" prefWidth="100"/>
+                </columns>
+            </TableView>
+
+            <Separator/>
+
+            <GridPane hgap="8" vgap="8" style="-fx-padding: 10; -fx-border-color: #d3d7e5; -fx-border-radius: 6;">
+                <Label fx:id="selectedUserLabel" text="Usuario seleccionado: -" style="-fx-font-weight: 700;" GridPane.rowIndex="0" GridPane.columnIndex="0" GridPane.columnSpan="6"/>
+
+                <Label text="Rol" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                <ComboBox fx:id="editRoleBox" prefWidth="140" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                <Button text="Guardar rol" onAction="#onSaveRole" GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+
+                <Label text="Nueva password" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                <PasswordField fx:id="resetPasswordField" promptText="min 6 caracteres" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+                <Button text="Reset password" onAction="#onResetPassword" GridPane.rowIndex="2" GridPane.columnIndex="2"/>
+
+                <Label text="Estado" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                <CheckBox fx:id="activeCheck" text="Activo" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+                <Button text="Guardar estado" onAction="#onSaveActive" GridPane.rowIndex="3" GridPane.columnIndex="2"/>
+                <Button text="Eliminar usuario" onAction="#onDeleteUser" style="-fx-background-color: #bf2f2f; -fx-text-fill: white;" GridPane.rowIndex="3" GridPane.columnIndex="3"/>
+            </GridPane>
+
+            <Label fx:id="statusLabel" text=""/>
+        </VBox>
+    </center>
+</BorderPane>

@@ -15,7 +15,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Locale;
 import javafx.fxml.FXML;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -30,6 +33,13 @@ public class SettingsController {
   @FXML private TextField apiBaseUrlField;
   @FXML private TextField terminalIdField;
   @FXML private TextField restaurantNameField;
+  @FXML private TextField fiscalLegalNameField;
+  @FXML private TextField fiscalTaxIdField;
+  @FXML private TextField fiscalAddressField;
+  @FXML private TextField fiscalPostalCodeField;
+  @FXML private TextField fiscalCityField;
+  @FXML private TextField fiscalProvinceField;
+  @FXML private TextField fiscalCountryField;
   @FXML private TextArea connectivityLogArea;
   @FXML private Label statusLabel;
 
@@ -38,6 +48,13 @@ public class SettingsController {
     apiBaseUrlField.setText(SettingsStore.getApiBaseUrl());
     terminalIdField.setText(SettingsStore.getTerminalId());
     restaurantNameField.setText(SettingsStore.getRestaurantName());
+    fiscalLegalNameField.setText(SettingsStore.getFiscalLegalName());
+    fiscalTaxIdField.setText(SettingsStore.getFiscalTaxId());
+    fiscalAddressField.setText(SettingsStore.getFiscalAddress());
+    fiscalPostalCodeField.setText(SettingsStore.getFiscalPostalCode());
+    fiscalCityField.setText(SettingsStore.getFiscalCity());
+    fiscalProvinceField.setText(SettingsStore.getFiscalProvince());
+    fiscalCountryField.setText(SettingsStore.getFiscalCountry());
     loadConnectivityLogsPreview();
   }
 
@@ -57,16 +74,95 @@ public class SettingsController {
 
     String restaurantName = restaurantNameField.getText() == null ? "" : restaurantNameField.getText().trim();
     if (restaurantName.length() < 2) {
-      statusLabel.setText("Nombre de negocio no valido (min 2 caracteres).");
+      showValidationError("Nombre de negocio no valido (min 2 caracteres).");
       return;
+    }
+
+    String fiscalLegalName = valueOf(fiscalLegalNameField);
+    String fiscalTaxId = valueOf(fiscalTaxIdField).toUpperCase(Locale.ROOT);
+    String fiscalAddress = valueOf(fiscalAddressField);
+    String fiscalPostalCode = valueOf(fiscalPostalCodeField);
+    String fiscalCity = valueOf(fiscalCityField);
+    String fiscalProvince = valueOf(fiscalProvinceField);
+    String fiscalCountry = valueOf(fiscalCountryField).toUpperCase(Locale.ROOT);
+
+    boolean hasAnyFiscalData = !fiscalLegalName.isBlank()
+            || !fiscalTaxId.isBlank()
+            || !fiscalAddress.isBlank()
+            || !fiscalPostalCode.isBlank()
+            || !fiscalCity.isBlank()
+            || !fiscalProvince.isBlank()
+            || !fiscalCountry.isBlank();
+
+    if (hasAnyFiscalData) {
+      if (fiscalLegalName.length() < 2) {
+        showValidationError("La razon social es obligatoria para datos fiscales.");
+        return;
+      }
+      if (fiscalTaxId.isBlank()) {
+        showValidationError("El NIF/CIF es obligatorio para datos fiscales.");
+        return;
+      }
+      if (!fiscalTaxId.matches("[A-Z0-9]{5,16}")) {
+        showValidationError("NIF/CIF no valido. Usa formato alfanumerico (5-16 caracteres).");
+        return;
+      }
+      if (!fiscalPostalCode.isBlank() && !fiscalPostalCode.matches("[0-9A-Z\\-\\s]{4,10}")) {
+        showValidationError("Codigo postal no valido.");
+        return;
+      }
+      if (!fiscalCountry.isBlank() && !fiscalCountry.matches("[A-Z]{2}")) {
+        showValidationError("Pais no valido. Usa codigo ISO-2 (ej: ES, FR, PT).");
+        return;
+      }
+    }
+
+    if (fiscalCountry.isBlank()) {
+      fiscalCountry = "ES";
+      if (fiscalCountryField != null) {
+        fiscalCountryField.setText(fiscalCountry);
+      }
     }
 
     SettingsStore.setApiBaseUrl(url);
     SettingsStore.setTerminalId(terminalId);
     SettingsStore.setRestaurantName(restaurantName);
+    SettingsStore.setFiscalLegalName(fiscalLegalName);
+    SettingsStore.setFiscalTaxId(fiscalTaxId);
+    SettingsStore.setFiscalAddress(fiscalAddress);
+    SettingsStore.setFiscalPostalCode(fiscalPostalCode);
+    SettingsStore.setFiscalCity(fiscalCity);
+    SettingsStore.setFiscalProvince(fiscalProvince);
+    SettingsStore.setFiscalCountry(fiscalCountry);
+
+    if (fiscalLegalNameField != null && fiscalLegalNameField.getText() != null) {
+      fiscalLegalNameField.setText(fiscalLegalName);
+    }
+    if (fiscalTaxIdField != null && fiscalTaxIdField.getText() != null) {
+      fiscalTaxIdField.setText(fiscalTaxId);
+    }
+    if (fiscalCountryField != null && fiscalCountryField.getText() != null) {
+      fiscalCountryField.setText(fiscalCountry);
+    }
+
     AppContext.get().appState().restaurantNameProperty().set(restaurantName);
     loadConnectivityLogsPreview();
     statusLabel.setText("Guardado.");
+  }
+
+  private static String valueOf(TextField field) {
+    if (field == null || field.getText() == null) {
+      return "";
+    }
+    return field.getText().trim();
+  }
+
+  private void showValidationError(String message) {
+    statusLabel.setText(message);
+    Alert alert = new Alert(Alert.AlertType.WARNING, message, ButtonType.OK);
+    alert.setTitle("Validacion");
+    alert.setHeaderText("Revisa los datos");
+    alert.showAndWait();
   }
 
   @FXML

@@ -123,13 +123,17 @@ public class TopBarController {
         MenuItem settings = new MenuItem("Settings");
         settings.setOnAction(e -> openSettingsModal());
 
+        MenuItem usersAdmin = new MenuItem("Usuarios");
+        usersAdmin.setOnAction(e -> openUsersAdminModal());
+        usersAdmin.setDisable(!AuthStore.hasRole("ADMIN"));
+
         MenuItem logout = new MenuItem("Logout");
         logout.setOnAction(e -> {
             AuthStore.clear();
             Nav.goToLogin();
         });
 
-        menu.getItems().addAll(salon, settings, new SeparatorMenuItem(), logout);
+        menu.getItems().addAll(salon, settings, usersAdmin, new SeparatorMenuItem(), logout);
         menu.show(menuLabel, javafx.geometry.Side.BOTTOM, 0, 4);
     }
 
@@ -145,13 +149,17 @@ public class TopBarController {
         MenuItem settings = new MenuItem("Settings");
         settings.setOnAction(e -> openSettingsModal());
 
+        MenuItem usersAdmin = new MenuItem("Usuarios");
+        usersAdmin.setOnAction(e -> openUsersAdminModal());
+        usersAdmin.setDisable(!AuthStore.hasRole("ADMIN"));
+
         MenuItem logout = new MenuItem("Logout");
         logout.setOnAction(e -> {
             AuthStore.clear();
             Nav.goToLogin();
         });
 
-        menu.getItems().addAll(settings, new SeparatorMenuItem(), logout);
+        menu.getItems().addAll(settings, usersAdmin, new SeparatorMenuItem(), logout);
         menu.show(usernameLabel, javafx.geometry.Side.BOTTOM, 0, 4);
     }
 
@@ -167,6 +175,32 @@ public class TopBarController {
             modal.showAndWait();
         } catch (IOException e) {
             Alert alert = new Alert(Alert.AlertType.ERROR, "No se pudo abrir Settings: " + e.getMessage(), ButtonType.OK);
+            alert.setHeaderText("Error");
+            alert.showAndWait();
+        }
+    }
+
+    private void openUsersAdminModal() {
+        if (!AuthStore.hasRole("ADMIN")) {
+            Alert alert = new Alert(Alert.AlertType.WARNING,
+                    "Esta accion requiere un usuario con rol ADMIN.\nCierra sesion e inicia con un usuario administrador.",
+                    ButtonType.OK);
+            alert.setTitle("Permisos insuficientes");
+            alert.setHeaderText("Usuarios y Roles");
+            alert.showAndWait();
+            return;
+        }
+        try {
+            Parent root = FXMLLoader.load(getClass().getResource("/fxml/users/UsersAdminView.fxml"));
+            Stage modal = new Stage();
+            modal.initModality(Modality.APPLICATION_MODAL);
+            modal.setTitle("Usuarios y Roles");
+            Scene scene = new Scene(root, 980, 700);
+            scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
+            modal.setScene(scene);
+            modal.showAndWait();
+        } catch (IOException e) {
+            Alert alert = new Alert(Alert.AlertType.ERROR, "No se pudo abrir Usuarios: " + e.getMessage(), ButtonType.OK);
             alert.setHeaderText("Error");
             alert.showAndWait();
         }
