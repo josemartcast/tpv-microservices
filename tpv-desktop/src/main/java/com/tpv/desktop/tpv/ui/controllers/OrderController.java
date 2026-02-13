@@ -121,6 +121,9 @@ public class OrderController {
         feedbackLabel.textProperty().bind(vm.feedbackProperty());
         orderHeader.setText("Mesa " + vm.tableIdProperty().get() + " - " + vm.peopleProperty().get() + " Personas / " + vm.elapsedProperty().get());
         topBarController.setCenterTitle(AppContext.get().appState().restaurantNameProperty().get());
+        AppContext.get().appState().restaurantNameProperty().addListener(
+                (obs, oldV, newV) -> topBarController.setCenterTitle(newV)
+        );
         updateActionState();
     }
 
@@ -166,7 +169,9 @@ public class OrderController {
             stage.setScene(scene);
             stage.showAndWait();
         } catch (IOException e) {
-            feedbackLabel.setText("No se pudo abrir modal de envio: " + e.getMessage());
+            String msg = "No se pudo abrir modal de envio: " + e.getMessage();
+            feedbackLabel.setText(msg);
+            showErrorDialog("Enviar comanda", msg);
         }
     }
     @FXML
@@ -179,7 +184,9 @@ public class OrderController {
         try {
             int pending = vm.pendingPaymentCents();
             if (pending <= 0) {
-                feedbackLabel.setText("No hay importe pendiente.");
+                String msg = "No hay importe pendiente.";
+                feedbackLabel.setText(msg);
+                showInfoDialog("Cobrar", msg);
                 return;
             }
 
@@ -221,7 +228,9 @@ public class OrderController {
                 Navigator.get().goHome();
             }
         } catch (Exception e) {
-            feedbackLabel.setText("No se pudo cobrar: " + e.getMessage());
+            String msg = "No se pudo cobrar: " + e.getMessage();
+            feedbackLabel.setText(msg);
+            showErrorDialog("Cobrar", msg);
         }
     }
     @FXML
@@ -229,7 +238,9 @@ public class OrderController {
         try {
             int pending = vm.pendingPaymentCents();
             if (pending <= 0) {
-                feedbackLabel.setText("No hay importe pendiente para dividir.");
+                String msg = "No hay importe pendiente para dividir.";
+                feedbackLabel.setText(msg);
+                showInfoDialog("Dividir", msg);
                 return;
             }
 
@@ -256,14 +267,18 @@ public class OrderController {
 
             feedbackLabel.setText("Parte dividida cobrada (" + money(amountCents) + ").");
         } catch (Exception e) {
-            feedbackLabel.setText("No se pudo dividir/cobrar: " + e.getMessage());
+            String msg = "No se pudo dividir/cobrar: " + e.getMessage();
+            feedbackLabel.setText(msg);
+            showErrorDialog("Dividir", msg);
         }
     }
 
     @FXML
     public void onPrebill() {
         if (vm.lines().isEmpty()) {
-            feedbackLabel.setText("No hay lineas en ticket para pre-cuenta.");
+            String msg = "No hay lineas en ticket para pre-cuenta.";
+            feedbackLabel.setText(msg);
+            showInfoDialog("Precuenta", msg);
             return;
         }
 
@@ -289,11 +304,13 @@ public class OrderController {
             content.putString(text);
             Clipboard.getSystemClipboard().setContent(content);
             feedbackLabel.setText("Pre-cuenta copiada al portapapeles.");
+            showInfoDialog("Precuenta", "Pre-cuenta copiada al portapapeles.");
             return;
         }
         if (action == printPdfButton) {
             printPrebillToPdf(text);
             feedbackLabel.setText("Enviado a Print to PDF.");
+            showInfoDialog("Precuenta", "Enviado a Print to PDF.");
         }
     }
 
@@ -308,9 +325,13 @@ public class OrderController {
                 vm.moveToTable(newTable);
                 orderHeader.setText("Mesa " + vm.tableIdProperty().get() + " - " + vm.peopleProperty().get() + " Personas / " + vm.elapsedProperty().get());
             } catch (NumberFormatException e) {
-                feedbackLabel.setText("Mesa destino invalida.");
+                String msg = "Mesa destino invalida.";
+                feedbackLabel.setText(msg);
+                showInfoDialog("Mover mesa", msg);
             } catch (Exception e) {
-                feedbackLabel.setText("No se pudo mover mesa: " + e.getMessage());
+                String msg = "No se pudo mover mesa: " + e.getMessage();
+                feedbackLabel.setText(msg);
+                showErrorDialog("Mover mesa", msg);
             }
         });
     }
@@ -353,7 +374,9 @@ public class OrderController {
             int amountCents = parseAmountToCents(raw);
             vm.applyDiscountAmount(amountCents);
         } catch (Exception e) {
-            feedbackLabel.setText("No se pudo aplicar descuento: " + e.getMessage());
+            String msg = "No se pudo aplicar descuento: " + e.getMessage();
+            feedbackLabel.setText(msg);
+            showErrorDialog("Descuento", msg);
         }
     }
 
@@ -555,7 +578,8 @@ public class OrderController {
 
     private String buildPrebillText() {
         StringBuilder out = new StringBuilder();
-        out.append("RESTAURANTE EL GUSTO").append('\n');
+        String restaurantName = AppContext.get().appState().restaurantNameProperty().get();
+        out.append((restaurantName == null || restaurantName.isBlank() ? "RESTAURANTE" : restaurantName).toUpperCase(Locale.ROOT)).append('\n');
         out.append("PRECUENTA").append('\n');
         out.append("Mesa ").append(vm.tableIdProperty().get())
                 .append("  Ticket ").append(vm.orderIdProperty().get()).append('\n');
@@ -589,6 +613,24 @@ public class OrderController {
 
     private void printPrebillToPdf(String text) {
         PrintUtil.printTextToPdf(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
+    }
+
+    private void showInfoDialog(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.getButtonTypes().setAll(ButtonType.OK);
+        alert.showAndWait();
+    }
+
+    private void showErrorDialog(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+        alert.getButtonTypes().setAll(ButtonType.OK);
+        alert.showAndWait();
     }
 
     private record LineSelection(OrderLine line, CheckBox include, Spinner<Integer> qty) {

@@ -167,9 +167,9 @@ class OrderViewModelSendQueueTest {
     }
 
     private static Order buildOrder() {
-        Product bar = new Product(1, 1, "Cerveza", 300, Destination.BAR, "prod-dark");
-        Product cocina = new Product(2, 1, "Calamares", 900, Destination.COCINA, "prod-orange");
-        Product postre = new Product(3, 1, "Tarta", 550, Destination.POSTRES, "prod-green");
+        Product bar = new Product(1, 1, "Cerveza", 300, 2100, Destination.BAR, "prod-dark");
+        Product cocina = new Product(2, 1, "Calamares", 900, 1000, Destination.COCINA, "prod-orange");
+        Product postre = new Product(3, 1, "Tarta", 550, 1000, Destination.POSTRES, "prod-green");
 
         Order order = new Order(1001, 9, 4, Instant.now());
 
@@ -200,6 +200,36 @@ class OrderViewModelSendQueueTest {
 
         @Override
         public Product productById(long productId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Category createCategory(String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Category updateCategory(long id, String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void deleteCategory(long id) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Product createProduct(long categoryId, String name, int priceCents, int vatRateBps) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Product updateProduct(long productId, long categoryId, String name, int priceCents, int vatRateBps) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void deleteProduct(long productId) {
             throw new UnsupportedOperationException();
         }
     }

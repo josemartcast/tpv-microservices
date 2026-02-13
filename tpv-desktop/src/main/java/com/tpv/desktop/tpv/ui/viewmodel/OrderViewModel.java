@@ -278,9 +278,10 @@ public class OrderViewModel {
                 .filter(line -> isDestinationIncluded(line.getDestination(), destinations))
                 .toList();
         LinkedHashMap<String, String> printJobsByDestination = new LinkedHashMap<>();
+        String restaurantName = restaurantNameForPrint();
 
         StringBuilder out = new StringBuilder();
-        out.append("RESTAURANTE EL GUSTO").append('\n');
+        out.append(restaurantName).append('\n');
         out.append("ULTIMA COMANDA ENVIADA").append('\n');
         out.append("Mesa ").append(tableId.get()).append("  Ticket ").append(orderId.get()).append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
@@ -380,7 +381,7 @@ public class OrderViewModel {
     }
 
     private void appendPrintHeader(StringBuilder out) {
-        out.append("RESTAURANTE EL GUSTO").append('\n');
+        out.append(restaurantNameForPrint()).append('\n');
         out.append("ULTIMA COMANDA ENVIADA").append('\n');
         out.append("Mesa ").append(tableId.get()).append("  Ticket ").append(orderId.get()).append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
@@ -498,6 +499,14 @@ public class OrderViewModel {
         } catch (RuntimeException ex) {
             return "No se pudo liberar lock. Se limpiara por TTL.";
         }
+    }
+
+    private String restaurantNameForPrint() {
+        String value = appState.restaurantNameProperty().get();
+        if (value == null || value.isBlank()) {
+            return "RESTAURANTE";
+        }
+        return value.toUpperCase(Locale.ROOT);
     }
 
     private record PrintBatch(String lastComandaText, Map<String, String> printJobsByDestination) {}

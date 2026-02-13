@@ -12,6 +12,8 @@ public class FakeDataStore {
     final Map<Integer, Order> openOrdersByTable = new HashMap<>();
     final Map<Long, Order> ordersById = new HashMap<>();
     final Map<Integer, TableLock> locks = new HashMap<>();
+    final AtomicLong categorySeq = new AtomicLong(0);
+    final AtomicLong productSeq = new AtomicLong(0);
     final AtomicLong orderSeq = new AtomicLong(1000);
     final AtomicLong lineSeq = new AtomicLong(5000);
 
@@ -26,33 +28,83 @@ public class FakeDataStore {
     }
 
     private void seedCatalog() {
-        categories.add(new Category(1, "Entrantes"));
-        categories.add(new Category(2, "Bebidas"));
-        categories.add(new Category(3, "Pizzas"));
-        categories.add(new Category(4, "Postres"));
+        addCategory("Entrantes");
+        addCategory("Bebidas");
+        addCategory("Pizzas");
+        addCategory("Postres");
 
-        addProduct(1, "Bravas", 650, Destination.COCINA, "prod-dark");
-        addProduct(1, "Ensalada", 900, Destination.COCINA, "prod-green");
-        addProduct(1, "Calamares", 1200, Destination.COCINA, "prod-dark");
-        addProduct(1, "Entrecot", 2000, Destination.COCINA, "prod-orange");
+        addProduct(1, "Bravas", 650, 1000, Destination.COCINA, "prod-dark");
+        addProduct(1, "Ensalada", 900, 1000, Destination.COCINA, "prod-green");
+        addProduct(1, "Calamares", 1200, 1000, Destination.COCINA, "prod-dark");
+        addProduct(1, "Entrecot", 2000, 1000, Destination.COCINA, "prod-orange");
 
-        addProduct(2, "Cerveza", 250, Destination.BAR, "prod-teal");
-        addProduct(2, "Refresco", 300, Destination.BAR, "prod-orange");
-        addProduct(2, "Copa Vino", 450, Destination.BAR, "prod-dark");
-        addProduct(2, "Agua", 220, Destination.BAR, "prod-dark");
+        addProduct(2, "Cerveza", 250, 2100, Destination.BAR, "prod-teal");
+        addProduct(2, "Refresco", 300, 2100, Destination.BAR, "prod-orange");
+        addProduct(2, "Copa Vino", 450, 2100, Destination.BAR, "prod-dark");
+        addProduct(2, "Agua", 220, 1000, Destination.BAR, "prod-dark");
 
-        addProduct(3, "Pizza Margarita", 1600, Destination.COCINA, "prod-dark");
-        addProduct(3, "Cuatro Quesos", 1800, Destination.COCINA, "prod-dark");
-        addProduct(3, "Pepperoni", 1750, Destination.COCINA, "prod-dark");
+        addProduct(3, "Pizza Margarita", 1600, 1000, Destination.COCINA, "prod-dark");
+        addProduct(3, "Cuatro Quesos", 1800, 1000, Destination.COCINA, "prod-dark");
+        addProduct(3, "Pepperoni", 1750, 1000, Destination.COCINA, "prod-dark");
 
-        addProduct(4, "Tarta Queso", 600, Destination.POSTRES, "prod-green");
-        addProduct(4, "Brownie", 550, Destination.POSTRES, "prod-orange");
-        addProduct(4, "Helado", 500, Destination.POSTRES, "prod-teal");
+        addProduct(4, "Tarta Queso", 600, 1000, Destination.POSTRES, "prod-green");
+        addProduct(4, "Brownie", 550, 1000, Destination.POSTRES, "prod-orange");
+        addProduct(4, "Helado", 500, 1000, Destination.POSTRES, "prod-teal");
     }
 
-    private void addProduct(long categoryId, String name, int price, Destination destination, String colorClass) {
-        long id = products.size() + 1L;
-        products.put(id, new Product(id, categoryId, name, price, destination, colorClass));
+    private Category addCategory(String name) {
+        long id = categorySeq.incrementAndGet();
+        Category category = new Category(id, name);
+        categories.add(category);
+        return category;
+    }
+
+    synchronized Category createCategory(String name) {
+        return addCategory(name);
+    }
+
+    synchronized Category updateCategory(long id, String name) {
+        for (int i = 0; i < categories.size(); i++) {
+            Category current = categories.get(i);
+            if (current.id() == id) {
+                Category updated = new Category(id, name);
+                categories.set(i, updated);
+                return updated;
+            }
+        }
+        throw new IllegalArgumentException("Categoria no encontrada: " + id);
+    }
+
+    synchronized void deleteCategory(long id) {
+        products.entrySet().removeIf(entry -> entry.getValue().categoryId() == id);
+        categories.removeIf(c -> c.id() == id);
+    }
+
+    private Product addProduct(long categoryId, String name, int price, int vatRateBps, Destination destination, String colorClass) {
+        long id = productSeq.incrementAndGet();
+        Product product = new Product(id, categoryId, name, price, vatRateBps, destination, colorClass);
+        products.put(id, product);
+        return product;
+    }
+
+    synchronized Product createProduct(long categoryId, String name, int price, int vatRateBps, Destination destination, String colorClass) {
+        return addProduct(categoryId, name, price, vatRateBps, destination, colorClass);
+    }
+
+    synchronized Product updateProduct(long productId, long categoryId, String name, int price, int vatRateBps, Destination destination, String colorClass) {
+        if (!products.containsKey(productId)) {
+            throw new IllegalArgumentException("Producto no encontrado: " + productId);
+        }
+        Product product = new Product(productId, categoryId, name, price, vatRateBps, destination, colorClass);
+        products.put(productId, product);
+        return product;
+    }
+
+    synchronized void deleteProduct(long productId) {
+        Product removed = products.remove(productId);
+        if (removed == null) {
+            throw new IllegalArgumentException("Producto no encontrado: " + productId);
+        }
     }
 
     private void seedTables() {

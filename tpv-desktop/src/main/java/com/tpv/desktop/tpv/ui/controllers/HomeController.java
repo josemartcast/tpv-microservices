@@ -13,6 +13,8 @@ import javafx.animation.Timeline;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.FlowPane;
@@ -33,6 +35,9 @@ public class HomeController {
     @FXML
     public void initialize() {
         topBarController.setCenterTitle(AppContext.get().appState().restaurantNameProperty().get());
+        AppContext.get().appState().restaurantNameProperty().addListener(
+                (obs, oldV, newV) -> topBarController.setCenterTitle(newV)
+        );
         tablesPane.prefWrapLengthProperty().bind(homeScroll.widthProperty().subtract(28));
         AppContext.get().backendStatusService().statusProperty().addListener((obs, o, n) -> {
             offlineBanner.setVisible(n == com.tpv.desktop.tpv.domain.model.BackendStatus.OFFLINE);
@@ -77,6 +82,7 @@ public class HomeController {
     private void onTableClick(TableCardViewModel table) {
         if (AppContext.get().backendStatusService().statusProperty().get() == BackendStatus.OFFLINE) {
             feedbackLabel.setText("Backend offline: no se puede abrir mesa.");
+            showAlert(Alert.AlertType.WARNING, "Backend offline", "No se puede abrir la mesa mientras el backend esta offline.");
             return;
         }
         try {
@@ -85,15 +91,26 @@ public class HomeController {
         } catch (LockException e) {
             if (e.isOwnershipConflict()) {
                 feedbackLabel.setText("Mesa bloqueada por otro terminal.");
+                showAlert(Alert.AlertType.WARNING, "Mesa bloqueada", "La mesa esta en edicion en otro terminal.");
                 return;
             }
             if (e.isAuthIssue()) {
                 feedbackLabel.setText("Sesion expirada. Haz login de nuevo.");
+                showAlert(Alert.AlertType.ERROR, "Sesion expirada", "La sesion ha expirado. Vuelve a iniciar sesion.");
                 return;
             }
             feedbackLabel.setText("Error de lock: " + e.getMessage());
+            showAlert(Alert.AlertType.ERROR, "Error de bloqueo", e.getMessage());
         } catch (Exception e) {
-            feedbackLabel.setText("Bloqueada por Terminal: " + e.getMessage());
+            String raw = e.getMessage() == null ? "" : e.getMessage();
+            if (isCashSessionClosedError(raw)) {
+                String msg = "No hay caja abierta. Abre caja antes de abrir una mesa.";
+                feedbackLabel.setText(msg);
+                showAlert(Alert.AlertType.WARNING, "Caja cerrada", msg);
+                return;
+            }
+            feedbackLabel.setText("No se pudo abrir mesa: " + raw);
+            showAlert(Alert.AlertType.ERROR, "No se pudo abrir mesa", raw);
         }
     }
 
@@ -107,6 +124,21 @@ public class HomeController {
         } catch (Exception e) {
             feedbackLabel.setText("No se pudo sincronizar mesas: " + e.getMessage());
         }
+    }
+
+    private static boolean isCashSessionClosedError(String message) {
+        if (message == null) {
+            return false;
+        }
+        String m = message.toLowerCase();
+        return m.contains("cash session") || m.contains("caja");
+    }
+
+    private static void showAlert(Alert.AlertType type, String title, String message) {
+        Alert alert = new Alert(type, message, ButtonType.OK);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.showAndWait();
     }
 }
 

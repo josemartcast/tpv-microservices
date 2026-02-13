@@ -12,12 +12,13 @@ import javafx.collections.ObservableList;
 public class TopBarViewModel {
     private final AppState appState;
     private final BackendStatusService backendStatusService;
-    private final StringProperty centerTitle = new SimpleStringProperty("Restaurante EL GUSTO");
+    private final StringProperty centerTitle = new SimpleStringProperty();
 
     public TopBarViewModel() {
         AppContext ctx = AppContext.get();
         this.appState = ctx.appState();
         this.backendStatusService = ctx.backendStatusService();
+        this.centerTitle.set(appState.restaurantNameProperty().get());
     }
 
     public StringProperty centerTitleProperty() { return centerTitle; }

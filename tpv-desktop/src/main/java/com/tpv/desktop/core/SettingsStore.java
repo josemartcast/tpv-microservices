@@ -45,6 +45,26 @@ public final class SettingsStore {
     prefs.put("activeCustomer", customer.trim());
   }
 
+  public static String getBusinessName() {
+    return getRestaurantName();
+  }
+
+  public static void setBusinessName(String businessName) {
+    setRestaurantName(businessName);
+  }
+
+  public static String getRestaurantName() {
+    return prefs.get("restaurantName", "Restaurante EL GUSTO");
+  }
+
+  public static void setRestaurantName(String value) {
+    if (value == null || value.isBlank()) {
+      prefs.put("restaurantName", "Restaurante EL GUSTO");
+      return;
+    }
+    prefs.put("restaurantName", value.trim());
+  }
+
   private static String defaultTerminalId() {
     try {
       String host = InetAddress.getLocalHost().getHostName();

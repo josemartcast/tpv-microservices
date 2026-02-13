@@ -5,6 +5,7 @@ public record Product(
         long categoryId,
         String name,
         int priceCents,
+        int vatRateBps,
         Destination destination,
         String colorClass
 ) {

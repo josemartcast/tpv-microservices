@@ -133,7 +133,37 @@ class OrderViewModelLockFlowTest {
 
         @Override
         public Product productById(long productId) {
-            return new Product(1, 1, "Test", 100, Destination.COCINA, "prod-dark");
+            return new Product(1, 1, "Test", 100, 1000, Destination.COCINA, "prod-dark");
+        }
+
+        @Override
+        public Category createCategory(String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Category updateCategory(long id, String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void deleteCategory(long id) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Product createProduct(long categoryId, String name, int priceCents, int vatRateBps) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Product updateProduct(long productId, long categoryId, String name, int priceCents, int vatRateBps) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void deleteProduct(long productId) {
+            throw new UnsupportedOperationException();
         }
     }
 

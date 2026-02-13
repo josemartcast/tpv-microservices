@@ -10,6 +10,7 @@
   <Button text="Caja" onAction="#onCaja" styleClass="footer-btn"/>
   <Button text="Historial" onAction="#onHistorial" styleClass="footer-btn"/>
   <Button text="Productos" onAction="#onProductos" styleClass="footer-btn"/>
+  <Button text="Categorias" onAction="#onCategorias" styleClass="footer-btn"/>
   <Button text="Clientes" onAction="#onClientes" styleClass="footer-btn"/>
 </HBox>
 

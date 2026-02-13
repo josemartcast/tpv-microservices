@@ -9,18 +9,22 @@ import com.tpv.pos_service.dto.CategoryResponse;
 import com.tpv.pos_service.dto.CreateCategoryRequest;
 import com.tpv.pos_service.dto.UpdateCategoryRequest;
 import com.tpv.pos_service.domain.Category;
+import com.tpv.pos_service.domain.Product;
 import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.exception.NotFoundException;
 import com.tpv.pos_service.repository.CategoryRepository;
+import com.tpv.pos_service.repository.ProductRepository;
 
 @Service
 @SuppressWarnings("null")
 public class CategoryService {
 
     private final CategoryRepository repo;
+    private final ProductRepository productRepo;
 
-    public CategoryService(CategoryRepository repo) {
+    public CategoryService(CategoryRepository repo, ProductRepository productRepo) {
         this.repo = repo;
+        this.productRepo = productRepo;
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +81,7 @@ public class CategoryService {
         Category c = repo.findByIdAndActiveTrue(id)
             .orElseThrow(() -> new NotFoundException("Category not found: " + id));
 
+        deactivateActiveProductsByCategory(id);
         c.deactivate();
     }
 
@@ -96,8 +101,16 @@ public class CategoryService {
         Category c = repo.findByIdAndActiveTrue(id)
             .orElseThrow(() -> new NotFoundException("Category not found: " + id));
 
+        deactivateActiveProductsByCategory(id);
         c.deactivate();
         return toResponse(c);
+    }
+
+    private void deactivateActiveProductsByCategory(Long categoryId) {
+        List<Product> products = productRepo.findAllByActiveTrueAndCategory_IdOrderByNameAsc(categoryId);
+        for (Product product : products) {
+            product.deactivate();
+        }
     }
 
     private String normalize(String name) {

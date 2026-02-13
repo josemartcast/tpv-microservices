@@ -3,8 +3,9 @@ package com.tpv.desktop.tpv.ui.controllers.components;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.Product;
-import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.core.SettingsStore;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -25,6 +26,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.StringConverter;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -43,53 +45,366 @@ public class FooterBarController {
     @FXML
     public void onProductos() {
         try {
-            List<Category> categories = AppContext.get().catalogService().categories();
-            ObservableList<String> productRows = FXCollections.observableArrayList();
+            ObservableList<Category> categories = FXCollections.observableArrayList(AppContext.get().catalogService().categories());
+            ObservableList<Product> products = FXCollections.observableArrayList();
+            ObservableList<Integer> vatOptions = FXCollections.observableArrayList(400, 1000, 2100);
 
-            ComboBox<Category> categoryBox = new ComboBox<>(FXCollections.observableArrayList(categories));
+            ComboBox<Category> filterCategoryBox = new ComboBox<>(categories);
+            ComboBox<Category> editCategoryBox = new ComboBox<>(categories);
+            configureCategoryCombo(filterCategoryBox);
+            configureCategoryCombo(editCategoryBox);
             if (!categories.isEmpty()) {
-                categoryBox.getSelectionModel().selectFirst();
+                filterCategoryBox.getSelectionModel().selectFirst();
+                editCategoryBox.getSelectionModel().selectFirst();
             }
+
             TextField searchField = new TextField();
             searchField.setPromptText("Buscar producto...");
-            ListView<String> list = new ListView<>(productRows);
-            list.setPrefHeight(500);
+
+            TextField productNameField = new TextField();
+            productNameField.setPromptText("Nombre producto");
+            TextField productPriceField = new TextField();
+            productPriceField.setPromptText("Precio EUR (ej: 4.50)");
+            ComboBox<Integer> vatBox = new ComboBox<>(vatOptions);
+            vatBox.getSelectionModel().select(Integer.valueOf(1000));
+            vatBox.setConverter(new StringConverter<>() {
+                @Override
+                public String toString(Integer value) {
+                    if (value == null) return "";
+                    return (value / 100.0) + "%";
+                }
+
+                @Override
+                public Integer fromString(String string) {
+                    return null;
+                }
+            });
+
+            Button newProductBtn = new Button("Nuevo");
+            Button createProductBtn = new Button("Crear producto");
+            Button updateProductBtn = new Button("Guardar cambios");
+            Button deleteProductBtn = new Button("Eliminar");
+            updateProductBtn.setDisable(true);
+            deleteProductBtn.setDisable(true);
+
+            ListView<Product> list = new ListView<>(products);
+            list.setPrefHeight(430);
+            list.setCellFactory(lv -> new javafx.scene.control.ListCell<>() {
+                @Override
+                protected void updateItem(Product item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : formatProductRow(item));
+                }
+            });
 
             Runnable refresh = () -> {
-                Category selected = categoryBox.getValue();
+                Category selected = filterCategoryBox.getValue();
                 if (selected == null) {
-                    productRows.clear();
+                    products.clear();
                     return;
                 }
                 String filter = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
-                List<String> rows = new ArrayList<>();
-                for (Product p : AppContext.get().catalogService().productsByCategory(selected.id())) {
-                    if (!filter.isBlank() && !p.name().toLowerCase(Locale.ROOT).contains(filter)) {
+                List<Product> rows = new ArrayList<>();
+                for (Product product : AppContext.get().catalogService().productsByCategory(selected.id())) {
+                    if (!filter.isBlank() && !product.name().toLowerCase(Locale.ROOT).contains(filter)) {
                         continue;
                     }
-                    rows.add(String.format(Locale.US, "%-28s  %7.2f EUR  [%s]", p.name(), p.priceCents() / 100.0, p.destination().name()));
+                    rows.add(product);
                 }
-                productRows.setAll(rows);
+                products.setAll(rows);
             };
 
-            categoryBox.valueProperty().addListener((obs, oldV, newV) -> refresh.run());
+            Runnable clearProductForm = () -> {
+                list.getSelectionModel().clearSelection();
+                productNameField.clear();
+                productPriceField.clear();
+                if (editCategoryBox.getValue() == null && !categories.isEmpty()) {
+                    editCategoryBox.getSelectionModel().selectFirst();
+                }
+                vatBox.getSelectionModel().select(Integer.valueOf(1000));
+                createProductBtn.setDisable(false);
+                updateProductBtn.setDisable(true);
+                deleteProductBtn.setDisable(true);
+            };
+
+            filterCategoryBox.valueProperty().addListener((obs, oldV, newV) -> refresh.run());
             searchField.textProperty().addListener((obs, oldV, newV) -> refresh.run());
+            list.getSelectionModel().selectedItemProperty().addListener((obs, oldV, selected) -> {
+                if (selected == null) {
+                    createProductBtn.setDisable(false);
+                    updateProductBtn.setDisable(true);
+                    deleteProductBtn.setDisable(true);
+                    return;
+                }
+                productNameField.setText(selected.name());
+                productPriceField.setText(String.format(Locale.US, "%.2f", selected.priceCents() / 100.0));
+                vatBox.getSelectionModel().select(Integer.valueOf(selected.vatRateBps()));
+                categories.stream()
+                        .filter(c -> c.id() == selected.categoryId())
+                        .findFirst()
+                        .ifPresent(editCategoryBox::setValue);
+                createProductBtn.setDisable(true);
+                updateProductBtn.setDisable(false);
+                deleteProductBtn.setDisable(false);
+            });
+
+            createProductBtn.setOnAction(evt -> {
+                Category category = editCategoryBox.getValue();
+                if (category == null) {
+                    showError("Selecciona una categoria para el producto.");
+                    return;
+                }
+                String name = productNameField.getText() == null ? "" : productNameField.getText().trim();
+                if (name.length() < 2) {
+                    showError("Nombre de producto invalido (min 2 caracteres).");
+                    return;
+                }
+                int priceCents;
+                try {
+                    priceCents = parsePriceToCents(productPriceField.getText());
+                } catch (Exception ex) {
+                    showError("Precio invalido. Usa formato 4.50");
+                    return;
+                }
+                Integer vat = vatBox.getValue();
+                if (vat == null) {
+                    showError("Selecciona IVA (4, 10 o 21).");
+                    return;
+                }
+                AppContext.get().catalogService().createProduct(category.id(), name, priceCents, vat);
+                categories.setAll(AppContext.get().catalogService().categories());
+                filterCategoryBox.setItems(categories);
+                editCategoryBox.setItems(categories);
+                filterCategoryBox.setValue(category);
+                clearProductForm.run();
+                refresh.run();
+            });
+
+            updateProductBtn.setOnAction(evt -> {
+                Product selected = list.getSelectionModel().getSelectedItem();
+                if (selected == null) {
+                    showError("Selecciona un producto para editar.");
+                    return;
+                }
+                Category category = editCategoryBox.getValue();
+                if (category == null) {
+                    showError("Selecciona una categoria para el producto.");
+                    return;
+                }
+                String name = productNameField.getText() == null ? "" : productNameField.getText().trim();
+                if (name.length() < 2) {
+                    showError("Nombre de producto invalido (min 2 caracteres).");
+                    return;
+                }
+                int priceCents;
+                try {
+                    priceCents = parsePriceToCents(productPriceField.getText());
+                } catch (Exception ex) {
+                    showError("Precio invalido. Usa formato 4.50");
+                    return;
+                }
+                Integer vat = vatBox.getValue();
+                if (vat == null) {
+                    showError("Selecciona IVA (4, 10 o 21).");
+                    return;
+                }
+                AppContext.get().catalogService().updateProduct(selected.id(), category.id(), name, priceCents, vat);
+                categories.setAll(AppContext.get().catalogService().categories());
+                filterCategoryBox.setItems(categories);
+                editCategoryBox.setItems(categories);
+                filterCategoryBox.setValue(category);
+                clearProductForm.run();
+                refresh.run();
+            });
+
+            deleteProductBtn.setOnAction(evt -> {
+                Product selected = list.getSelectionModel().getSelectedItem();
+                if (selected == null) {
+                    showError("Selecciona un producto para eliminar.");
+                    return;
+                }
+                if (!showConfirm("Eliminar producto", "Se eliminara el producto '" + selected.name() + "'. Continuar?")) {
+                    return;
+                }
+                AppContext.get().catalogService().deleteProduct(selected.id());
+                clearProductForm.run();
+                refresh.run();
+            });
+
+            newProductBtn.setOnAction(evt -> clearProductForm.run());
             refresh.run();
 
-            HBox top = new HBox(8, new Label("Categoria"), categoryBox, searchField);
+            HBox filters = new HBox(8, new Label("Categoria"), filterCategoryBox, searchField);
             HBox.setHgrow(searchField, Priority.ALWAYS);
-            VBox root = new VBox(10, top, list);
+
+            HBox productEditor = new HBox(8,
+                    new Label("Producto"),
+                    productNameField,
+                    productPriceField,
+                    new Label("Categoria"),
+                    editCategoryBox,
+                    new Label("IVA"),
+                    vatBox,
+                    newProductBtn,
+                    createProductBtn,
+                    updateProductBtn,
+                    deleteProductBtn);
+            HBox.setHgrow(productNameField, Priority.ALWAYS);
+
+            VBox root = new VBox(10, filters, productEditor, list);
             root.setPadding(new Insets(12));
 
             Stage modal = new Stage();
             modal.initModality(Modality.APPLICATION_MODAL);
             modal.setTitle("Productos");
-            Scene scene = new Scene(root, 900, 620);
+            Scene scene = new Scene(root, 1180, 680);
             scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
             modal.setScene(scene);
             modal.showAndWait();
         } catch (Exception e) {
             showError("No se pudo abrir Productos: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    public void onCategorias() {
+        try {
+            ObservableList<Category> categories = FXCollections.observableArrayList(AppContext.get().catalogService().categories());
+            ObservableList<Category> rows = FXCollections.observableArrayList(categories);
+
+            TextField searchField = new TextField();
+            searchField.setPromptText("Buscar categoria...");
+
+            TextField newCategoryField = new TextField();
+            newCategoryField.setPromptText("Nueva categoria");
+            Button createCategoryBtn = new Button("Crear");
+
+            TextField renameCategoryField = new TextField();
+            renameCategoryField.setPromptText("Renombrar categoria seleccionada");
+            Button renameCategoryBtn = new Button("Guardar cambios");
+            Button deleteCategoryBtn = new Button("Eliminar");
+            renameCategoryBtn.setDisable(true);
+            deleteCategoryBtn.setDisable(true);
+
+            ListView<Category> list = new ListView<>(rows);
+            list.setPrefHeight(430);
+            list.setCellFactory(lv -> new javafx.scene.control.ListCell<>() {
+                @Override
+                protected void updateItem(Category item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.name());
+                }
+            });
+
+            Runnable refresh = () -> {
+                categories.setAll(AppContext.get().catalogService().categories());
+                String filter = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
+                if (filter.isBlank()) {
+                    rows.setAll(categories);
+                    return;
+                }
+                rows.setAll(categories.stream()
+                        .filter(c -> c.name().toLowerCase(Locale.ROOT).contains(filter))
+                        .toList());
+            };
+
+            searchField.textProperty().addListener((obs, oldV, newV) -> refresh.run());
+            list.getSelectionModel().selectedItemProperty().addListener((obs, oldV, selected) -> {
+                boolean enabled = selected != null;
+                renameCategoryBtn.setDisable(!enabled);
+                deleteCategoryBtn.setDisable(!enabled);
+                if (selected != null) {
+                    renameCategoryField.setText(selected.name());
+                } else {
+                    renameCategoryField.clear();
+                }
+            });
+
+            createCategoryBtn.setOnAction(evt -> {
+                String name = newCategoryField.getText() == null ? "" : newCategoryField.getText().trim();
+                if (name.length() < 2) {
+                    showError("Nombre de categoria invalido (min 2 caracteres).");
+                    return;
+                }
+                AppContext.get().catalogService().createCategory(name);
+                newCategoryField.clear();
+                refresh.run();
+            });
+
+            renameCategoryBtn.setOnAction(evt -> {
+                Category selected = list.getSelectionModel().getSelectedItem();
+                if (selected == null) {
+                    showError("Selecciona una categoria para editar.");
+                    return;
+                }
+                String name = renameCategoryField.getText() == null ? "" : renameCategoryField.getText().trim();
+                if (name.length() < 2) {
+                    showError("Nombre de categoria invalido (min 2 caracteres).");
+                    return;
+                }
+                AppContext.get().catalogService().updateCategory(selected.id(), name);
+                refresh.run();
+            });
+
+            deleteCategoryBtn.setOnAction(evt -> {
+                Category selected = list.getSelectionModel().getSelectedItem();
+                if (selected == null) {
+                    showError("Selecciona una categoria para eliminar.");
+                    return;
+                }
+                try {
+                    List<Product> affected = AppContext.get().catalogService().productsByCategory(selected.id());
+                    if (!affected.isEmpty()) {
+                        if (!showConfirm(
+                                "Productos afectados",
+                                buildAffectedProductsMessage(selected, affected)
+                        )) {
+                            return;
+                        }
+                    }
+
+                    if (!showConfirm(
+                            "Confirmacion final",
+                            "Estas seguro de borrar la categoria '" + selected.name()
+                                    + "' con todos los productos asociados?"
+                    )) {
+                        return;
+                    }
+
+                    for (Product product : affected) {
+                        AppContext.get().catalogService().deleteProduct(product.id());
+                    }
+                    AppContext.get().catalogService().deleteCategory(selected.id());
+                    renameCategoryField.clear();
+                    refresh.run();
+                } catch (Exception ex) {
+                    showError("No se pudo borrar categoria en cascada: " + ex.getMessage());
+                }
+            });
+
+            refresh.run();
+
+            HBox searchRow = new HBox(8, new Label("Buscar"), searchField);
+            HBox.setHgrow(searchField, Priority.ALWAYS);
+
+            HBox createRow = new HBox(8, new Label("Nueva"), newCategoryField, createCategoryBtn);
+            HBox.setHgrow(newCategoryField, Priority.ALWAYS);
+
+            HBox editRow = new HBox(8, new Label("Editar"), renameCategoryField, renameCategoryBtn, deleteCategoryBtn);
+            HBox.setHgrow(renameCategoryField, Priority.ALWAYS);
+
+            VBox root = new VBox(10, searchRow, createRow, editRow, list);
+            root.setPadding(new Insets(12));
+
+            Stage modal = new Stage();
+            modal.initModality(Modality.APPLICATION_MODAL);
+            modal.setTitle("Categorias");
+            Scene scene = new Scene(root, 760, 620);
+            scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
+            modal.setScene(scene);
+            modal.showAndWait();
+        } catch (Exception e) {
+            showError("No se pudo abrir Categorias: " + e.getMessage());
         }
     }
 
@@ -163,5 +478,74 @@ public class FooterBarController {
         Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK);
         alert.setHeaderText("Error");
         alert.showAndWait();
+    }
+
+    private boolean showConfirm(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+    }
+
+    private static void configureCategoryCombo(ComboBox<Category> combo) {
+        combo.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(Category category) {
+                return category == null ? "" : category.name();
+            }
+
+            @Override
+            public Category fromString(String string) {
+                return null;
+            }
+        });
+        combo.setCellFactory(listView -> new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(Category item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.name());
+            }
+        });
+    }
+
+    private static String formatProductRow(Product product) {
+        return String.format(
+                Locale.US,
+                "%-30s %8.2f EUR   IVA %4.1f%%   [%s]",
+                product.name(),
+                product.priceCents() / 100.0,
+                product.vatRateBps() / 100.0,
+                product.destination().name()
+        );
+    }
+
+    private static int parsePriceToCents(String raw) {
+        if (raw == null) {
+            throw new IllegalArgumentException("empty");
+        }
+        String normalized = raw.trim().replace(",", ".");
+        BigDecimal eur = new BigDecimal(normalized);
+        if (eur.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("negative");
+        }
+        return eur.multiply(BigDecimal.valueOf(100))
+                .setScale(0, RoundingMode.HALF_UP)
+                .intValueExact();
+    }
+
+    private static String buildAffectedProductsMessage(Category category, List<Product> affected) {
+        StringBuilder out = new StringBuilder();
+        out.append("La categoria '").append(category.name()).append("' tiene ")
+                .append(affected.size()).append(" producto(s) y se borraran en cascada:\n\n");
+        int maxLines = Math.min(20, affected.size());
+        for (int i = 0; i < maxLines; i++) {
+            Product product = affected.get(i);
+            out.append("- ").append(product.name()).append('\n');
+        }
+        if (affected.size() > maxLines) {
+            out.append("... y ").append(affected.size() - maxLines).append(" mas.");
+        }
+        out.append("\n\nQuieres continuar?");
+        return out.toString();
     }
 }

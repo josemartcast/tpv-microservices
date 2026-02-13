@@ -50,6 +50,64 @@ public class RealCatalogService implements CatalogService {
         }
     }
 
+    @Override
+    public Category createCategory(String name) {
+        try {
+            CategoryResponse response = CatalogApi.createCategory(name);
+            return new Category(response.id(), response.name());
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo crear categoria: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Category updateCategory(long id, String name) {
+        try {
+            CategoryResponse response = CatalogApi.updateCategory(id, name);
+            return new Category(response.id(), response.name());
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo actualizar categoria: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void deleteCategory(long id) {
+        try {
+            CatalogApi.deleteCategory(id);
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo borrar categoria: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Product createProduct(long categoryId, String name, int priceCents, int vatRateBps) {
+        try {
+            ProductResponse response = CatalogApi.createProduct(name, priceCents, categoryId, vatRateBps);
+            return toDomain(response);
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo crear producto: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Product updateProduct(long productId, long categoryId, String name, int priceCents, int vatRateBps) {
+        try {
+            ProductResponse response = CatalogApi.updateProduct(productId, name, priceCents, categoryId, vatRateBps);
+            return toDomain(response);
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo actualizar producto: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void deleteProduct(long productId) {
+        try {
+            CatalogApi.deleteProduct(productId);
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo borrar producto: " + e.getMessage(), e);
+        }
+    }
+
     private Product toDomain(ProductResponse p) {
         Destination destination = inferDestination(p.categoryName(), p.name());
         String colorClass = switch (destination) {
@@ -57,7 +115,7 @@ public class RealCatalogService implements CatalogService {
             case COCINA -> "prod-dark";
             case POSTRES -> "prod-orange";
         };
-        return new Product(p.id(), p.categoryId(), p.name(), p.priceCents(), destination, colorClass);
+        return new Product(p.id(), p.categoryId(), p.name(), p.priceCents(), p.vatRateBps(), destination, colorClass);
     }
 
     private static Destination inferDestination(String categoryName, String productName) {
@@ -68,4 +126,3 @@ public class RealCatalogService implements CatalogService {
         return Destination.COCINA;
     }
 }
-

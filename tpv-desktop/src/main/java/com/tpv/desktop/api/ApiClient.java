@@ -61,6 +61,18 @@ public final class ApiClient {
         return responseType == Void.class ? null : MAPPER.readValue(res.body(), responseType);
     }
 
+    public static <T> T put(String path, Object body, Class<T> responseType) throws Exception {
+        String json = body == null ? "" : MAPPER.writeValueAsString(body);
+
+        HttpResponse<String> res = HTTP.send(buildPut(path, json), HttpResponse.BodyHandlers.ofString());
+        if (isAuthRecoverable(path, res.statusCode()) && tryRecoverToken()) {
+            res = HTTP.send(buildPut(path, json), HttpResponse.BodyHandlers.ofString());
+        }
+        handleError(res);
+
+        return responseType == Void.class ? null : MAPPER.readValue(res.body(), responseType);
+    }
+
     public static <T> T delete(String path, Class<T> responseType) throws Exception {
         HttpResponse<String> res = HTTP.send(buildDelete(path), HttpResponse.BodyHandlers.ofString());
         if (isAuthRecoverable(path, res.statusCode()) && tryRecoverToken()) {
@@ -106,6 +118,17 @@ public final class ApiClient {
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .method("PATCH", HttpRequest.BodyPublishers.ofString(json));
+        addAuth(b);
+        return b.build();
+    }
+
+    private static HttpRequest buildPut(String path, String json) {
+        HttpRequest.Builder b = HttpRequest.newBuilder()
+                .uri(uri(path))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(json));
         addAuth(b);
         return b.build();
     }

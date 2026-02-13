@@ -22,6 +22,9 @@
       <Label text="Terminal ID"/>
       <TextField fx:id="terminalIdField" promptText="TERMINAL-BARRA" prefWidth="420"/>
 
+      <Label text="Nombre del negocio"/>
+      <TextField fx:id="restaurantNameField" promptText="Restaurante EL GUSTO" prefWidth="420"/>
+
       <HBox spacing="10">
         <Button text="Guardar" onAction="#onSave"/>
         <Button text="Test conexion" onAction="#onTest"/>

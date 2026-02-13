@@ -7,6 +7,7 @@ import com.tpv.desktop.api.pos.SalonTableResponse;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.Nav;
 import com.tpv.desktop.core.SettingsStore;
+import com.tpv.desktop.tpv.app.AppContext;
 import java.awt.Desktop;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -28,6 +29,7 @@ public class SettingsController {
 
   @FXML private TextField apiBaseUrlField;
   @FXML private TextField terminalIdField;
+  @FXML private TextField restaurantNameField;
   @FXML private TextArea connectivityLogArea;
   @FXML private Label statusLabel;
 
@@ -35,6 +37,7 @@ public class SettingsController {
   public void initialize() {
     apiBaseUrlField.setText(SettingsStore.getApiBaseUrl());
     terminalIdField.setText(SettingsStore.getTerminalId());
+    restaurantNameField.setText(SettingsStore.getRestaurantName());
     loadConnectivityLogsPreview();
   }
 
@@ -52,8 +55,16 @@ public class SettingsController {
       return;
     }
 
+    String restaurantName = restaurantNameField.getText() == null ? "" : restaurantNameField.getText().trim();
+    if (restaurantName.length() < 2) {
+      statusLabel.setText("Nombre de negocio no valido (min 2 caracteres).");
+      return;
+    }
+
     SettingsStore.setApiBaseUrl(url);
     SettingsStore.setTerminalId(terminalId);
+    SettingsStore.setRestaurantName(restaurantName);
+    AppContext.get().appState().restaurantNameProperty().set(restaurantName);
     loadConnectivityLogsPreview();
     statusLabel.setText("Guardado.");
   }
