@@ -35,12 +35,20 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Start backend services
+      - name: Run backend + smoke
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .ci-logs
           chmod +x services/auth-service/mvnw services/pos-service/mvnw gateway/mvnw
+
+          cleanup() {
+            set +e
+            if [ -f .ci-logs/auth-service.pid ]; then kill "$(cat .ci-logs/auth-service.pid)" >/dev/null 2>&1 || true; fi
+            if [ -f .ci-logs/pos-service.pid ]; then kill "$(cat .ci-logs/pos-service.pid)" >/dev/null 2>&1 || true; fi
+            if [ -f .ci-logs/gateway.pid ]; then kill "$(cat .ci-logs/gateway.pid)" >/dev/null 2>&1 || true; fi
+          }
+          trap cleanup EXIT
 
           (
             cd services/auth-service
@@ -71,10 +79,6 @@ jobs:
           ) > .ci-logs/gateway.log 2>&1 &
           echo $! > .ci-logs/gateway.pid
 
-      - name: Wait for services
-        shell: bash
-        run: |
-          set -euo pipefail
           for port in 8081 8082 8080; do
             echo "Waiting for port $port..."
             for _ in $(seq 1 180); do
@@ -90,14 +94,11 @@ jobs:
             fi
           done
 
-      - name: Run PDA E2E smoke
-        shell: pwsh
-        run: |
-          ./scripts/pda-e2e-smoke.ps1 `
-            -GatewayBaseUrl "http://127.0.0.1:8080" `
-            -Username "admin" `
-            -Password "admin123" `
-            -TerminalA "CI-A" `
+          pwsh -NoProfile -File ./scripts/pda-e2e-smoke.ps1 \
+            -GatewayBaseUrl "http://127.0.0.1:8080" \
+            -Username "admin" \
+            -Password "admin123" \
+            -TerminalA "CI-A" \
             -TerminalB "CI-B"
 
       - name: Print logs on failure
@@ -112,20 +113,10 @@ jobs:
           echo "=== gateway.log ==="
           tail -n 300 .ci-logs/gateway.log || true
 
-      - name: Stop backend services
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          for pid_file in .ci-logs/*.pid; do
-            [ -f "$pid_file" ] || continue
-            pid="$(cat "$pid_file")"
-            kill "$pid" >/dev/null 2>&1 || true
-          done
-
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pda-e2e-logs
           path: .ci-logs/
+          if-no-files-found: ignore
