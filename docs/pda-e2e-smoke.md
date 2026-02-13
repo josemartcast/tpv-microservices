@@ -5,6 +5,7 @@ Validar de extremo a extremo el flujo minimo de PDA contra backend real:
 - carga del frontend `/pda`
 - login
 - lock multi-terminal
+- conflicto de lock en paralelo (dos PDAs misma mesa)
 - apertura/reuso de ticket
 - alta de linea
 - envio de comanda

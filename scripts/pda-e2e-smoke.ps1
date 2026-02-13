@@ -97,6 +97,56 @@ function Assert-True {
   if (-not $Condition) { throw "ASSERT FAILED: $Message" }
 }
 
+function Invoke-LockRace {
+  param(
+    [Parameter(Mandatory = $true)][string]$GatewayBaseUrl,
+    [Parameter(Mandatory = $true)][string]$Token,
+    [Parameter(Mandatory = $true)][int]$TableNumber,
+    [Parameter(Mandatory = $true)][string]$TerminalA,
+    [Parameter(Mandatory = $true)][string]$TerminalB
+  )
+
+  $jobScript = {
+    param($baseUrl, $token, $tableNumber, $terminalId)
+    $headers = @{
+      Authorization = "Bearer $token"
+      'X-Terminal-Id' = $terminalId
+    }
+    $body = @{ terminalId = $terminalId } | ConvertTo-Json -Compress
+    $status = -1
+    $raw = ''
+    try {
+      $resp = Invoke-WebRequest -UseBasicParsing -Method 'POST' -Uri "$baseUrl/api/v1/pos/salon/tables/$tableNumber/lock" -Headers $headers -ContentType 'application/json' -Body $body
+      $status = [int]$resp.StatusCode
+      $raw = $resp.Content
+    } catch {
+      if ($_.Exception.Response) {
+        $status = [int]$_.Exception.Response.StatusCode
+      }
+      if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+        $raw = $_.ErrorDetails.Message
+      }
+    }
+    [PSCustomObject]@{
+      TerminalId = $terminalId
+      Status = $status
+      Raw = $raw
+    }
+  }
+
+  $jobA = Start-Job -ScriptBlock $jobScript -ArgumentList @($GatewayBaseUrl, $Token, $TableNumber, $TerminalA)
+  $jobB = Start-Job -ScriptBlock $jobScript -ArgumentList @($GatewayBaseUrl, $Token, $TableNumber, $TerminalB)
+  try {
+    Wait-Job -Job @($jobA, $jobB) | Out-Null
+    $results = @()
+    $results += Receive-Job -Job $jobA
+    $results += Receive-Job -Job $jobB
+    return $results
+  } finally {
+    Remove-Job -Job @($jobA, $jobB) -Force -ErrorAction SilentlyContinue
+  }
+}
+
 Write-Host '== PDA E2E smoke =='
 Write-Host "Gateway: $GatewayBaseUrl"
 
@@ -153,18 +203,32 @@ if (-not $candidate) {
 $tableNumber = [int]$candidate.tableNumber
 Write-Host "[INFO] using table $tableNumber"
 
-# 6) Lock A + collision B
-$lockA = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/lock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(200)
-Assert-True ($lockA.Json.terminalId -eq $TerminalA) 'lock owner should be terminal A'
-$lockB = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/lock" -Token $token -TerminalId $TerminalB -Body @{ terminalId = $TerminalB } -Expected @(409)
-Write-Host '[OK] lock collision A vs B'
+# 6) Lock race A vs B in parallel
+$raceResults = Invoke-LockRace -GatewayBaseUrl $GatewayBaseUrl -Token $token -TableNumber $tableNumber -TerminalA $TerminalA -TerminalB $TerminalB
+$race200 = @($raceResults | Where-Object { $_.Status -eq 200 })
+$race409 = @($raceResults | Where-Object { $_.Status -eq 409 })
+$raceStatuses = (@($raceResults | ForEach-Object { $_.Status } | Sort-Object) -join ',')
+Assert-True ($race200.Count -eq 1) "lock race should produce exactly one 200 (got: $raceStatuses)"
+Assert-True ($race409.Count -eq 1) "lock race should produce exactly one 409 (got: $raceStatuses)"
+$raceWinner = $race200[0].TerminalId
+Write-Host "[OK] lock race winner=$raceWinner loser=$((@($TerminalA,$TerminalB) | Where-Object { $_ -ne $raceWinner })[0])"
 
-# 7) Heartbeat A
+# cleanup after race to keep deterministic flow
+$unlockRace = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/unlock" -Token $token -TerminalId $raceWinner -Body @{ terminalId = $raceWinner } -Expected @(204,409)
+if ($unlockRace.Status -eq 204) { Write-Host '[OK] race cleanup unlock' } else { Write-Host '[INFO] race cleanup unlock returned 409' }
+
+# 7) Lock A + collision B (baseline deterministic for rest of test)
+$lockA = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/lock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(200)
+Assert-True ($lockA.Json.terminalId -eq $TerminalA) 'lock owner should be terminal A after race cleanup'
+$lockB = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/lock" -Token $token -TerminalId $TerminalB -Body @{ terminalId = $TerminalB } -Expected @(409)
+Write-Host '[OK] lock baseline A owner + B conflict'
+
+# 8) Heartbeat A
 $hbA = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/heartbeat" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(200)
 Assert-True ($hbA.Json.terminalId -eq $TerminalA) 'heartbeat should keep terminal A lock'
 Write-Host '[OK] heartbeat'
 
-# 8) Open or reuse ticket
+# 9) Open or reuse ticket
 $ticketId = $candidate.ticketId
 if (-not $ticketId) {
   $opened = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/open-ticket" -Token $token -TerminalId $TerminalA -Expected @(201,409)
@@ -181,19 +245,19 @@ if (-not $ticketId) {
 }
 Write-Host "[OK] ticket id=$ticketId"
 
-# 9) Add line
+# 10) Add line
 $ticketAfterAdd = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$ticketId/lines" -Token $token -TerminalId $TerminalA -Body @{ productId = $productId; qty = 1 } -Expected @(201)
 Assert-True ($ticketAfterAdd.Json.lines.Count -gt 0) 'ticket should have at least one line after add'
 Write-Host '[OK] add line'
 
-# 10) Send preview + send
+# 11) Send preview + send
 $preview = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$ticketId/send-preview" -Token $token -TerminalId $TerminalA -Expected @(200)
 Assert-True ($preview.Json.pendingLines.Count -gt 0) 'send-preview should include pending lines'
 $send = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$ticketId/send" -Token $token -TerminalId $TerminalA -Body @{ destination = 'ALL' } -Expected @(200)
 Assert-True ($send.Json.sentCount -ge 1) 'send should report at least one sent line'
 Write-Host '[OK] send comanda'
 
-# 11) Payment summary and payment (full pending)
+# 12) Payment summary and payment (full pending)
 $summary = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$ticketId/payment-summary" -Token $token -TerminalId $TerminalA -Expected @(200)
 $pending = [int]$summary.Json.pendingCents
 if ($pending -gt 0) {
@@ -204,7 +268,7 @@ if ($pending -gt 0) {
   Write-Host '[INFO] pending already 0, skipping payment'
 }
 
-# 12) Unlock cleanup
+# 13) Unlock cleanup
 $unlock = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/unlock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(204,409)
 if ($unlock.Status -eq 204) { Write-Host '[OK] unlock cleanup' } else { Write-Host '[INFO] unlock cleanup returned 409 (already released/expired)' }
 
