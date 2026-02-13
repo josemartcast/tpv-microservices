@@ -44,7 +44,7 @@ class PaymentServiceTest {
         CashSession cashSession = new CashSession(0, "admin", null);
         Ticket ticket = new Ticket(cashSession);
 
-        when(ticketRepo.findById(1L)).thenReturn(Optional.of(ticket));
+        when(ticketRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(ticket));
         when(lineRepo.sumGrossByTicketId(1L)).thenReturn(1_000);
         when(paymentRepo.sumAmountCentsByTicketId(1L)).thenReturn(0);
         when(paymentRepo.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -62,7 +62,7 @@ class PaymentServiceTest {
 
         AtomicReference<Payment> saved = new AtomicReference<>();
 
-        when(ticketRepo.findById(1L)).thenReturn(Optional.of(ticket));
+        when(ticketRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(ticket));
         when(lineRepo.sumGrossByTicketId(1L)).thenReturn(1_000);
         when(paymentRepo.sumAmountCentsByTicketId(1L)).thenReturn(0);
         when(paymentRepo.findByTicketIdAndIdempotencyKey(1L, key)).thenAnswer(invocation -> Optional.ofNullable(saved.get()));
@@ -84,7 +84,7 @@ class PaymentServiceTest {
         Ticket ticket = new Ticket(cashSession);
         ticket.markPaid();
 
-        when(ticketRepo.findById(1L)).thenReturn(Optional.of(ticket));
+        when(ticketRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(ticket));
         when(paymentRepo.sumAmountCentsByTicketId(1L)).thenReturn(1_000);
         when(lineRepo.sumGrossByTicketId(1L)).thenReturn(1_000);
         when(paymentRepo.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -100,7 +100,7 @@ class PaymentServiceTest {
         Ticket ticket = new Ticket(cashSession);
         ticket.markPaid();
 
-        when(ticketRepo.findById(1L)).thenReturn(Optional.of(ticket));
+        when(ticketRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(ticket));
         when(paymentRepo.sumAmountCentsByTicketId(1L)).thenReturn(200);
 
         assertThrows(ConflictException.class,
@@ -116,7 +116,7 @@ class PaymentServiceTest {
         String key = "refund-idem-1";
         AtomicReference<Payment> saved = new AtomicReference<>();
 
-        when(ticketRepo.findById(1L)).thenReturn(Optional.of(ticket));
+        when(ticketRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(ticket));
         when(lineRepo.sumGrossByTicketId(1L)).thenReturn(1_000);
         when(paymentRepo.sumAmountCentsByTicketId(1L)).thenReturn(1_000);
         when(paymentRepo.findByTicketIdAndIdempotencyKey(1L, key)).thenAnswer(inv -> Optional.ofNullable(saved.get()));

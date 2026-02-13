@@ -32,7 +32,7 @@ public class PaymentService {
             }
         }
 
-        Ticket ticket = ticketRepo.findById(ticketId)
+        Ticket ticket = ticketRepo.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
 
         if (ticket.getCashSession().getStatus() != CashSessionStatus.OPEN) {
@@ -93,7 +93,7 @@ public class PaymentService {
             }
         }
 
-        Ticket ticket = ticketRepo.findById(ticketId)
+        Ticket ticket = ticketRepo.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
 
         if (ticket.getCashSession().getStatus() != CashSessionStatus.OPEN) {
