@@ -2,6 +2,7 @@
 
 Automatizacion disponible:
 - Smoke E2E PDA: `scripts/pda-e2e-smoke.ps1` (ver `docs/pda-e2e-smoke.md`)
+- Informe QA final: `docs/qa-final-report.md`
 
 ## Goal
 Validate lock consistency and conflict handling when two terminals operate at the same time.
