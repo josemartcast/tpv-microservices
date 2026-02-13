@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.tpv.pos_service.domain.Product;
 import com.tpv.pos_service.domain.Ticket;
@@ -201,16 +203,33 @@ public class TicketService {
         boolean releaseMutexAfterMove = activeLock == null;
 
         tableLockService.lock(newTableNumber, moverTerminal, moverActor);
+        boolean unlockRegistered = false;
         try {
+            if (releaseMutexAfterMove && TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        try {
+                            tableLockService.unlock(newTableNumber, moverTerminal, moverActor);
+                        } catch (RuntimeException _ignored) {
+                            // best-effort unlock for transient move mutex
+                        }
+                    }
+                });
+                unlockRegistered = true;
+            }
+
             boolean targetInUse = ticketRepo.existsByTableNumberAndStatus(newTableNumber, TicketStatus.OPEN);
             if (targetInUse) {
                 throw new ConflictException("Target table already has an OPEN ticket: " + newTableNumber);
             }
+
             t.setTableNumber(newTableNumber);
             List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
             return toResponse(t, lines);
         } finally {
-            if (releaseMutexAfterMove) {
+            // Fallback path if no Spring transaction synchronization is active.
+            if (releaseMutexAfterMove && !unlockRegistered) {
                 try {
                     tableLockService.unlock(newTableNumber, moverTerminal, moverActor);
                 } catch (RuntimeException _ignored) {

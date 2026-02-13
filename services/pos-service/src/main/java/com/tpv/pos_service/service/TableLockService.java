@@ -3,6 +3,8 @@ package com.tpv.pos_service.service;
 import com.tpv.pos_service.domain.TableLock;
 import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.repository.TableLockRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -15,6 +17,8 @@ public class TableLockService {
     private static final long LOCK_TTL_SECONDS = 90;
 
     private final TableLockRepository repo;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public TableLockService(TableLockRepository repo) {
         this.repo = repo;
@@ -31,6 +35,8 @@ public class TableLockService {
                 return repo.save(new TableLock(tableNumber, terminalId, username, expiresAt));
             } catch (DataIntegrityViolationException duplicate) {
                 // Concurrent insert for same table_number
+                // Reset persistence context after failed insert in this transaction.
+                entityManager.clear();
                 TableLock concurrent = repo.findByTableNumber(tableNumber).orElseThrow(() -> duplicate);
                 if (!concurrent.getTerminalId().equalsIgnoreCase(terminalId)) {
                     throw new ConflictException("Table " + tableNumber + " is locked by " + concurrent.getLockedBy()
