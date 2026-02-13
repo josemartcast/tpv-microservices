@@ -23,21 +23,30 @@
         <Label text="Efectivo inicial:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
         <Label fx:id="openingLabel" text="-" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
 
-        <Label text="Ventas en efectivo:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+        <Label text="Ventas efectivo (neto):" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
         <Label fx:id="cashSalesLabel" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
 
-        <Label text="Efectivo esperado:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
-        <Label fx:id="expectedLabel" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+        <Label text="Incidencias IN:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+        <Label fx:id="incidentsInLabel" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+        <Label text="Incidencias OUT:" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+        <Label fx:id="incidentsOutLabel" text="-" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+        <Label text="Incidencias neto:" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+        <Label fx:id="incidentsNetLabel" text="-" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+
+        <Label text="Efectivo esperado:" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+        <Label fx:id="expectedLabel" text="-" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
       </GridPane>
 
       <Separator/>
 
       <GridPane hgap="14" vgap="12">
         <Label text="Efectivo contado:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-        <TextField fx:id="countedCashField" promptText="€"/>
+        <TextField fx:id="countedCashField" promptText="EUR" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
 
         <Label text="Diferencia:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-        <Label fx:id="diffLabel" text="-" />
+        <Label fx:id="diffLabel" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
       </GridPane>
 
       <Label text="Nota (opcional)"/>
@@ -45,11 +54,10 @@
 
       <HBox spacing="10">
         <Region HBox.hgrow="ALWAYS"/>
-        <Button text="Cerrar caja" onAction="#onCloseCash" />
+        <Button text="Cerrar caja" onAction="#onCloseCash"/>
       </HBox>
 
       <Label fx:id="statusLabel" text="" style="-fx-text-fill: red;"/>
-
     </VBox>
   </center>
 

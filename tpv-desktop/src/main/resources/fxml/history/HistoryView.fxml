@@ -19,7 +19,6 @@
   <center>
     <SplitPane dividerPositions="0.45">
 
-      <!-- LISTA -->
       <VBox spacing="10" style="-fx-padding: 12;">
         <TableView fx:id="ticketsTable" prefHeight="600">
           <columns>
@@ -31,13 +30,13 @@
         <Label fx:id="listErrorLabel" text="" style="-fx-text-fill: red;"/>
       </VBox>
 
-      <!-- DETALLE -->
       <VBox spacing="10" style="-fx-padding: 12;">
         <HBox spacing="10" alignment="CENTER_LEFT">
           <Label fx:id="detailTitle"
                  text="Selecciona un ticket"
                  style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
           <Region HBox.hgrow="ALWAYS"/>
+          <Button fx:id="refundBtn" text="Devolver pago" onAction="#onRefundSelectedPayment"/>
           <Button fx:id="openInSalesBtn" text="Abrir en Sales" onAction="#onOpenInSales"/>
         </HBox>
 
@@ -50,12 +49,12 @@
           <Label fx:id="detailRemaining" text="-"/>
         </HBox>
 
-        <Label text="Líneas" style="-fx-font-weight: bold;"/>
+        <Label text="Lineas" style="-fx-font-weight: bold;"/>
         <TableView fx:id="linesTable" prefHeight="280">
           <columns>
             <TableColumn fx:id="colLineName" text="Producto" prefWidth="240"/>
             <TableColumn fx:id="colLineQty" text="Qty" prefWidth="70"/>
-            <TableColumn fx:id="colLineUnit" text="€/u" prefWidth="90"/>
+            <TableColumn fx:id="colLineUnit" text="EUR/u" prefWidth="90"/>
             <TableColumn fx:id="colLineTotal" text="Total" prefWidth="90"/>
           </columns>
         </TableView>
@@ -63,7 +62,7 @@
         <Label text="Pagos" style="-fx-font-weight: bold;"/>
         <TableView fx:id="paymentsTable" prefHeight="220">
           <columns>
-            <TableColumn fx:id="colPayMethod" text="Método" prefWidth="120"/>
+            <TableColumn fx:id="colPayMethod" text="Metodo" prefWidth="120"/>
             <TableColumn fx:id="colPayAmount" text="Importe" prefWidth="120"/>
             <TableColumn fx:id="colPayDate" text="Fecha" prefWidth="200"/>
           </columns>

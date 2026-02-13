@@ -17,4 +17,12 @@ public final class PaymentApi {
         idempotencyKey == null ? null : Map.of("Idempotency-Key", idempotencyKey)
     );
   }
+
+  public static void addRefund(long ticketId, String method, int amountCents, String idempotencyKey) throws Exception {
+    ApiClient.post("/api/v1/pos/tickets/" + ticketId + "/refunds",
+        new CreateRefundRequest(method, amountCents),
+        Object.class,
+        idempotencyKey == null ? null : Map.of("Idempotency-Key", idempotencyKey)
+    );
+  }
 }

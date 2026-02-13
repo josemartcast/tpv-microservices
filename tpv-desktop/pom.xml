@@ -13,6 +13,11 @@
         <javafx.version>21.0.4</javafx.version>
         <jackson.version>2.17.2</jackson.version>
         <junit.version>5.10.2</junit.version>
+        <tpv.mode>auto</tpv.mode>
+        <tpv.auto.login>false</tpv.auto.login>
+        <tpv.auth.user>admin</tpv.auth.user>
+        <tpv.auth.pass>admin123</tpv.auth.pass>
+        <tpv.kiosk.mode>false</tpv.kiosk.mode>
     </properties>
 
     <dependencies>
@@ -58,6 +63,13 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>com.tpv.desktop.App</mainClass>
+                    <options>
+                        <option>-Dtpv.mode=${tpv.mode}</option>
+                        <option>-Dtpv.auto.login=${tpv.auto.login}</option>
+                        <option>-Dtpv.auth.user=${tpv.auth.user}</option>
+                        <option>-Dtpv.auth.pass=${tpv.auth.pass}</option>
+                        <option>-Dtpv.kiosk.mode=${tpv.kiosk.mode}</option>
+                    </options>
                 </configuration>
             </plugin>
         </plugins>

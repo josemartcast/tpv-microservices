@@ -1,7 +1,9 @@
-package com.tpv.pos_service.dto;
+package com.tpv.desktop.api.pos;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.Instant;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record CashSessionCloseSummaryResponse(
         long cashSessionId,
         Instant openedAt,
@@ -15,5 +17,5 @@ public record CashSessionCloseSummaryResponse(
         int incidentsOutCents,
         int incidentsNetCents,
         FiscalSummaryResponse fiscal
-) {}
-
+) {
+}

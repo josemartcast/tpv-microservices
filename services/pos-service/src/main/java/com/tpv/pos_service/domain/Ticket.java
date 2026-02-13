@@ -108,6 +108,10 @@ public class Ticket {
         this.status = TicketStatus.PAID;
     }
 
+    public void reopen() {
+        this.status = TicketStatus.OPEN;
+    }
+
     public void cancel() {
         this.status = TicketStatus.CANCELLED;
     }

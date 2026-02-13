@@ -84,6 +84,59 @@ public class PaymentService {
     }
 
     @Transactional
+    public PaymentResponse addRefund(Long ticketId, CreateRefundRequest req, String idempotencyKey) {
+        String key = normalizeIdempotencyKey(idempotencyKey);
+        if (key != null) {
+            var existing = paymentRepo.findByTicketIdAndIdempotencyKey(ticketId, key).orElse(null);
+            if (existing != null) {
+                return toResponse(existing);
+            }
+        }
+
+        Ticket ticket = ticketRepo.findById(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+
+        if (ticket.getCashSession().getStatus() != CashSessionStatus.OPEN) {
+            throw new ConflictException("Cash session is CLOSED. Cannot process refunds.");
+        }
+        if (ticket.getStatus() == TicketStatus.CANCELLED) {
+            throw new ConflictException("Cannot refund a CANCELLED ticket");
+        }
+        if (req.amountCents() <= 0) {
+            throw new ConflictException("Refund amount must be > 0");
+        }
+
+        int paidNet = paymentRepo.sumAmountCentsByTicketId(ticketId);
+        if (paidNet <= 0) {
+            throw new ConflictException("Ticket has no net paid amount to refund");
+        }
+        if (req.amountCents() > paidNet) {
+            throw new ConflictException("Refund exceeds net paid amount");
+        }
+
+        Payment refund = new Payment(ticket, req.method(), -req.amountCents(), key);
+        try {
+            paymentRepo.save(refund);
+        } catch (DataIntegrityViolationException duplicate) {
+            if (key == null) {
+                throw duplicate;
+            }
+            var existing = paymentRepo.findByTicketIdAndIdempotencyKey(ticketId, key).orElseThrow(() -> duplicate);
+            return toResponse(existing);
+        }
+
+        int gross = lineRepo.sumGrossByTicketId(ticketId);
+        int discount = Math.max(0, Math.min(ticket.getDiscountCents(), gross));
+        int total = Math.max(0, gross - discount);
+        int paidAfterRefund = paidNet - req.amountCents();
+        if (paidAfterRefund < total) {
+            ticket.reopen();
+        }
+
+        return toResponse(refund);
+    }
+
+    @Transactional
     public PaymentResponse addPayment(Long ticketId, CreatePaymentRequest req) {
         return addPayment(ticketId, req, null);
     }

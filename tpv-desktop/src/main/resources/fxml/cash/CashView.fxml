@@ -3,52 +3,75 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox xmlns="http://javafx.com/javafx/21"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="com.tpv.desktop.ui.cash.CashController"
-      spacing="14" style="-fx-padding: 16;">
+<ScrollPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.tpv.desktop.ui.cash.CashController"
+            fitToWidth="true"
+            hbarPolicy="NEVER"
+            vbarPolicy="AS_NEEDED"
+            pannable="true">
+  <content>
+    <VBox spacing="14" style="-fx-padding: 16;" fillWidth="true">
 
-  <Label text="Cash Register" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
+      <Label text="Cash Register" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
 
-  <!-- Estado -->
-  <VBox spacing="6" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
-    <Label text="Estado actual" style="-fx-font-weight: bold;"/>
-    <Label fx:id="statusLabel" text="Cargando..."/>
-    <Label fx:id="detailsLabel" text="" wrapText="true" style="-fx-opacity: 0.85;"/>
-    <Label fx:id="errorLabel" text="" style="-fx-text-fill: red;"/>
-    <Button text="Refrescar" onAction="#onRefresh" maxWidth="140"/>
-  </VBox>
+      <VBox spacing="6" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
+        <Label text="Estado actual" style="-fx-font-weight: bold;"/>
+        <Label fx:id="statusLabel" text="Cargando..."/>
+        <Label fx:id="detailsLabel" text="" wrapText="true" style="-fx-opacity: 0.85;"/>
+        <Label fx:id="errorLabel" text="" style="-fx-text-fill: red;"/>
+        <HBox spacing="8">
+          <Button text="Refrescar" onAction="#onRefresh" maxWidth="140"/>
+          <Button fx:id="resolveOpenTicketsBtn" text="Resolver tickets abiertos" onAction="#onResolveOpenTickets" maxWidth="220"/>
+        </HBox>
+      </VBox>
 
-  <Separator/>
+      <Separator/>
 
-  <!-- Abrir caja -->
-  <VBox spacing="8" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
-    <Label text="Abrir caja" style="-fx-font-weight: bold;"/>
-    <GridPane hgap="10" vgap="10">
-      <Label text="Efectivo inicial (€):" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-      <TextField fx:id="openingEurosField" promptText="Ej: 100.00" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+      <VBox spacing="8" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
+        <Label text="Abrir caja" style="-fx-font-weight: bold;"/>
+        <GridPane hgap="10" vgap="10">
+          <Label text="Efectivo inicial (EUR):" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+          <TextField fx:id="openingEurosField" promptText="Ej: 100.00" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
 
-      <Label text="Nota:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-      <TextField fx:id="openNoteField" promptText="Opcional" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
-    </GridPane>
+          <Label text="Nota:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+          <TextField fx:id="openNoteField" promptText="Opcional" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+        </GridPane>
 
-    <Button fx:id="openBtn" text="Abrir caja" onAction="#onOpen" maxWidth="160"/>
-  </VBox>
+        <Button fx:id="openBtn" text="Abrir caja" onAction="#onOpen" maxWidth="160"/>
+      </VBox>
 
-  <Separator/>
+      <Separator/>
 
-  <!-- Cerrar caja -->
-  <VBox spacing="8" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
-    <Label text="Cerrar caja" style="-fx-font-weight: bold;"/>
-    <GridPane hgap="10" vgap="10">
-      <Label text="Efectivo contado (€):" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-      <TextField fx:id="closingEurosField" promptText="Ej: 245.50" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+      <VBox spacing="8" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
+        <Label text="Registrar incidencia de caja" style="-fx-font-weight: bold;"/>
+        <GridPane hgap="10" vgap="10">
+          <Label text="Direccion:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+          <ChoiceBox fx:id="incidentDirectionChoice" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
 
-      <Label text="Nota:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-      <TextField fx:id="closeNoteField" promptText="Opcional" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
-    </GridPane>
+          <Label text="Importe (EUR):" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+          <TextField fx:id="incidentEurosField" promptText="Ej: 20.00" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
 
-    <Button fx:id="closeBtn" text="Cerrar caja" onAction="#onClose" maxWidth="160"/>
-  </VBox>
+          <Label text="Nota:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+          <TextField fx:id="incidentNoteField" promptText="Ej: cambio, retirada, descuadre" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+        </GridPane>
+        <Button fx:id="addIncidentBtn" text="Registrar incidencia" onAction="#onAddIncident" maxWidth="220"/>
+      </VBox>
 
-</VBox>
+      <Separator/>
+
+      <VBox spacing="8" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
+        <Label text="Cerrar caja" style="-fx-font-weight: bold;"/>
+        <GridPane hgap="10" vgap="10">
+          <Label text="Efectivo contado (EUR):" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+          <TextField fx:id="closingEurosField" promptText="Ej: 245.50" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+          <Label text="Nota:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+          <TextField fx:id="closeNoteField" promptText="Opcional" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+        </GridPane>
+
+        <Button fx:id="closeBtn" text="Cerrar caja" onAction="#onClose" maxWidth="160"/>
+      </VBox>
+    </VBox>
+  </content>
+</ScrollPane>

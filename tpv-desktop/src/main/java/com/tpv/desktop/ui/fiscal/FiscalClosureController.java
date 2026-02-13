@@ -1,6 +1,9 @@
 package com.tpv.desktop.ui.fiscal;
 
-import com.tpv.desktop.api.pos.*;
+import com.tpv.desktop.api.pos.CashApi;
+import com.tpv.desktop.api.pos.CashSessionCloseSummaryResponse;
+import com.tpv.desktop.api.pos.CashSessionResponse;
+import com.tpv.desktop.api.pos.CloseCashSessionRequest;
 import com.tpv.desktop.core.MoneyUtil;
 import java.util.UUID;
 import javafx.fxml.FXML;
@@ -12,6 +15,9 @@ public class FiscalClosureController {
 
   @FXML private Label openingLabel;
   @FXML private Label cashSalesLabel;
+  @FXML private Label incidentsInLabel;
+  @FXML private Label incidentsOutLabel;
+  @FXML private Label incidentsNetLabel;
   @FXML private Label expectedLabel;
   @FXML private Label diffLabel;
 
@@ -33,18 +39,26 @@ public class FiscalClosureController {
   public void onRefresh() {
     statusLabel.setText("");
     diffLabel.setText("-");
+    openingLabel.setText("-");
+    cashSalesLabel.setText("-");
+    incidentsInLabel.setText("-");
+    incidentsOutLabel.setText("-");
+    incidentsNetLabel.setText("-");
+    expectedLabel.setText("-");
 
     try {
-      CashSessionResponse cs = CashApi.current();
-      cashSessionId = cs.id();
+      CashSessionResponse current = CashApi.current();
+      cashSessionId = current.id();
 
-      FiscalClosureResponse c = FiscalApi.closure(cashSessionId);
+      CashSessionCloseSummaryResponse summary = CashApi.closeSummary(cashSessionId);
+      expectedCashCents = summary.expectedCashCents();
 
-      openingLabel.setText(MoneyUtil.centsToEuros(c.openingCashCents()) + " €");
-      cashSalesLabel.setText(MoneyUtil.centsToEuros(c.cashPaymentsCents()) + " €");
-      expectedCashCents = c.expectedCashCents();
-      expectedLabel.setText(MoneyUtil.centsToEuros(expectedCashCents) + " €");
-
+      openingLabel.setText(MoneyUtil.centsToEuros(summary.openingCashCents()) + " EUR");
+      cashSalesLabel.setText(MoneyUtil.centsToEuros(summary.cashPaymentsNetCents()) + " EUR");
+      incidentsInLabel.setText(MoneyUtil.centsToEuros(summary.incidentsInCents()) + " EUR");
+      incidentsOutLabel.setText(MoneyUtil.centsToEuros(summary.incidentsOutCents()) + " EUR");
+      incidentsNetLabel.setText(MoneyUtil.centsToEuros(summary.incidentsNetCents()) + " EUR");
+      expectedLabel.setText(MoneyUtil.centsToEuros(expectedCashCents) + " EUR");
     } catch (Exception e) {
       statusLabel.setText("No se pudo cargar cierre: " + e.getMessage());
     }
@@ -56,11 +70,15 @@ public class FiscalClosureController {
 
     try {
       int counted = MoneyUtil.eurosToCents(countedCashField.getText());
-      int diff = counted - expectedCashCents;
-      diffLabel.setText(MoneyUtil.centsToEuros(diff) + " €");
+      if (counted < 0) {
+        statusLabel.setText("El efectivo contado no puede ser negativo.");
+        return;
+      }
 
-      CloseCashSessionRequest req =
-          new CloseCashSessionRequest(counted, noteArea.getText());
+      int diff = counted - expectedCashCents;
+      diffLabel.setText(MoneyUtil.centsToEuros(diff) + " EUR");
+
+      CloseCashSessionRequest req = new CloseCashSessionRequest(counted, noteArea.getText());
 
       String note = noteArea.getText() == null ? "" : noteArea.getText().trim();
       String signature = cashSessionId + "|" + counted + "|" + note;
@@ -76,12 +94,8 @@ public class FiscalClosureController {
       CashApi.close(cashSessionId, req, key);
       lastCloseAttemptSignature = null;
       lastCloseAttemptKey = null;
-
       statusLabel.setText("Caja cerrada correctamente.");
-
-      // Opcional: bloquear UI o volver a pantalla caja
-      // Nav.goToCash();
-
+      onRefresh();
     } catch (Exception e) {
       statusLabel.setText("Error al cerrar caja: " + e.getMessage());
     }

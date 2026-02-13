@@ -1,6 +1,7 @@
 package com.tpv.pos_service.controller;
 
 import com.tpv.pos_service.dto.CreatePaymentRequest;
+import com.tpv.pos_service.dto.CreateRefundRequest;
 import com.tpv.pos_service.dto.PaymentResponse;
 import com.tpv.pos_service.service.AuditService;
 import com.tpv.pos_service.service.PaymentService;
@@ -39,6 +40,27 @@ public class PaymentController {
             return response;
         } catch (RuntimeException e) {
             auditService.recordFailure("PAYMENT_ADD", "TICKET", ticketId, actor, term, req, e);
+            throw e;
+        }
+    }
+
+    @PostMapping("/tickets/{ticketId}/refunds")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PaymentResponse addRefund(
+            @PathVariable Long ticketId,
+            @Valid @RequestBody CreateRefundRequest req,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId,
+            Authentication auth
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            PaymentResponse response = service.addRefund(ticketId, req, idempotencyKey);
+            auditService.recordSuccess("PAYMENT_REFUND", "TICKET", ticketId, actor, term, req, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("PAYMENT_REFUND", "TICKET", ticketId, actor, term, req, e);
             throw e;
         }
     }
