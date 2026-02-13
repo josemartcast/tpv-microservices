@@ -13,17 +13,29 @@ function ConvertTo-JsonBody([object]$Body) {
   return ($Body | ConvertTo-Json -Depth 10 -Compress)
 }
 
-function Read-ResponseBody([System.Net.WebResponse]$Response) {
+function Read-ResponseBody([object]$Response) {
   if ($null -eq $Response) { return '' }
-  $stream = $Response.GetResponseStream()
-  if ($null -eq $stream) { return '' }
-  $reader = New-Object System.IO.StreamReader($stream)
-  try {
-    return $reader.ReadToEnd()
-  } finally {
-    $reader.Dispose()
-    $stream.Dispose()
+
+  # PowerShell 7 / GitHub Actions: HttpResponseMessage
+  if ($Response -is [System.Net.Http.HttpResponseMessage]) {
+    if ($null -eq $Response.Content) { return '' }
+    return $Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
   }
+
+  # Windows PowerShell: WebResponse
+  if ($Response -is [System.Net.WebResponse]) {
+    $stream = $Response.GetResponseStream()
+    if ($null -eq $stream) { return '' }
+    $reader = New-Object System.IO.StreamReader($stream)
+    try {
+      return $reader.ReadToEnd()
+    } finally {
+      $reader.Dispose()
+      $stream.Dispose()
+    }
+  }
+
+  return ''
 }
 
 function Invoke-Api {
