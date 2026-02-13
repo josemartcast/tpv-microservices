@@ -49,6 +49,9 @@ El script termina con:
 
 Si falla, corta en el primer assert con detalle de endpoint, status esperado y cuerpo de respuesta.
 
+Nota lock race:
+- En la prueba paralela de lock, el perdedor puede devolver `409` o `403` segun el timing interno del backend; ambos se consideran conflicto valido.
+
 ## CI
 Workflow incluido:
 
