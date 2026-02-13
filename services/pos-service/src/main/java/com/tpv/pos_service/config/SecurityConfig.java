@@ -24,6 +24,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/v1/pos/categories/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/categories/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/categories/**").hasRole("ADMIN")
+                // business profile
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/business-profile").hasAnyRole("USER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/pos/business-profile").hasRole("ADMIN")
                 //products
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/products/**").hasAnyRole("USER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/products").hasRole("ADMIN")

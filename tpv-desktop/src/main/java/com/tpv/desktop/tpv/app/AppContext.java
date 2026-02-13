@@ -1,6 +1,8 @@
 package com.tpv.desktop.tpv.app;
 
 import com.tpv.desktop.api.auth.AuthApi;
+import com.tpv.desktop.api.pos.BusinessProfileApi;
+import com.tpv.desktop.api.pos.BusinessProfileResponse;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.domain.model.User;
@@ -59,6 +61,7 @@ public class AppContext {
                 this.tableService = new RealTableService();
                 this.backendStatusService = new FakeBackendStatusService(apiClient);
                 this.printQueueService = new LocalPrintQueueService();
+                syncBusinessProfileFromBackend();
                 return;
             }
             if (mode == RuntimeMode.REAL) {
@@ -150,6 +153,38 @@ public class AppContext {
             if (!kioskPass.isBlank()) return kioskPass;
         }
         return readConfig("TPV_AUTH_PASS", "tpv.auth.pass", "admin123");
+    }
+
+    private void syncBusinessProfileFromBackend() {
+        try {
+            BusinessProfileResponse profile = BusinessProfileApi.get();
+            if (profile == null) {
+                return;
+            }
+            String businessName = normalizeOrDefault(profile.businessName(), "Restaurante EL GUSTO");
+            SettingsStore.setRestaurantName(businessName);
+            SettingsStore.setFiscalLegalName(normalizeOrDefault(profile.legalName(), businessName));
+            SettingsStore.setFiscalTaxId(normalize(profile.taxId()).toUpperCase());
+            SettingsStore.setFiscalAddress(normalize(profile.address()));
+            SettingsStore.setFiscalPostalCode(normalize(profile.postalCode()));
+            SettingsStore.setFiscalCity(normalize(profile.city()));
+            SettingsStore.setFiscalProvince(normalize(profile.province()));
+            SettingsStore.setFiscalCountry(normalizeOrDefault(profile.country(), "ES").toUpperCase());
+            SettingsStore.setFiscalPhone(normalize(profile.phone()));
+            SettingsStore.setFiscalEmail(normalize(profile.email()).toLowerCase());
+            this.appState.restaurantNameProperty().set(businessName);
+        } catch (Exception ignored) {
+            // Keep local settings as fallback when backend profile is unavailable.
+        }
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static String normalizeOrDefault(String value, String fallback) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? fallback : normalized;
     }
 
     private enum RuntimeMode {

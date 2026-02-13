@@ -11,6 +11,7 @@
   const QUEUE_RETRY_LIMIT = 8;
   const TOAST_MS = 3000;
   const PRODUCT_COLORS = ["#323f5f", "#2f3f66", "#589040", "#d0822c", "#2f7f82", "#6b417e", "#4f687f"];
+  const DEFAULT_BRAND = "TPV PDA";
 
   const state = {
     apiBase: "",
@@ -52,6 +53,7 @@
     tablesScreen: byId("tablesScreen"),
     orderScreen: byId("orderScreen"),
     loginForm: byId("loginForm"),
+    brandLabel: byId("brandLabel"),
     usernameInput: byId("usernameInput"),
     passwordInput: byId("passwordInput"),
     terminalInput: byId("terminalInput"),
@@ -140,6 +142,7 @@
 
   function recoverOrShowLogin() {
     if (!state.token || !state.username || !state.terminalId || !state.apiBase) {
+      setBrand(DEFAULT_BRAND);
       showScreen("login");
       return;
     }
@@ -154,6 +157,7 @@
     refreshTablesSafe();
     startTablesPolling();
     processQueue();
+    refreshBusinessBrand();
   }
 
   function loadSession() {
@@ -311,6 +315,7 @@
       await refreshTables();
       startTablesPolling();
       processQueue();
+      await refreshBusinessBrand();
       toast("Sesion iniciada en " + terminalId);
     } catch (err) {
       pushError(err);
@@ -1345,8 +1350,31 @@
     state.queueConflicts = [];
     saveConflicts();
     clearSession();
+    setBrand(DEFAULT_BRAND);
     showScreen("login");
     toast("Sesion cerrada");
+  }
+
+  async function refreshBusinessBrand() {
+    if (!state.token) {
+      setBrand(DEFAULT_BRAND);
+      return;
+    }
+    try {
+      const profile = await apiJson("/api/v1/pos/business-profile", { method: "GET" });
+      const name = profile && profile.businessName ? String(profile.businessName).trim() : "";
+      setBrand(name || DEFAULT_BRAND);
+    } catch (_err) {
+      setBrand(DEFAULT_BRAND);
+    }
+  }
+
+  function setBrand(name) {
+    if (!els.brandLabel) {
+      return;
+    }
+    const value = String(name || "").trim();
+    els.brandLabel.textContent = value || DEFAULT_BRAND;
   }
 
   function leaveTableQuick() {

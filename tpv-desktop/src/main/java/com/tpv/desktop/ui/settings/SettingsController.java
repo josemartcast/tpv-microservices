@@ -1,9 +1,12 @@
 package com.tpv.desktop.ui.settings;
 
 import com.tpv.desktop.api.ApiClient.ApiException;
+import com.tpv.desktop.api.pos.BusinessProfileApi;
+import com.tpv.desktop.api.pos.BusinessProfileResponse;
 import com.tpv.desktop.api.pos.CashApi;
 import com.tpv.desktop.api.pos.SalonApi;
 import com.tpv.desktop.api.pos.SalonTableResponse;
+import com.tpv.desktop.api.pos.UpdateBusinessProfileRequest;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.Nav;
 import com.tpv.desktop.core.SettingsStore;
@@ -40,6 +43,8 @@ public class SettingsController {
   @FXML private TextField fiscalCityField;
   @FXML private TextField fiscalProvinceField;
   @FXML private TextField fiscalCountryField;
+  @FXML private TextField fiscalPhoneField;
+  @FXML private TextField fiscalEmailField;
   @FXML private TextArea connectivityLogArea;
   @FXML private Label statusLabel;
 
@@ -55,7 +60,10 @@ public class SettingsController {
     fiscalCityField.setText(SettingsStore.getFiscalCity());
     fiscalProvinceField.setText(SettingsStore.getFiscalProvince());
     fiscalCountryField.setText(SettingsStore.getFiscalCountry());
+    fiscalPhoneField.setText(SettingsStore.getFiscalPhone());
+    fiscalEmailField.setText(SettingsStore.getFiscalEmail());
     loadConnectivityLogsPreview();
+    loadBusinessProfileFromServerIfRealMode();
   }
 
   @FXML
@@ -85,6 +93,8 @@ public class SettingsController {
     String fiscalCity = valueOf(fiscalCityField);
     String fiscalProvince = valueOf(fiscalProvinceField);
     String fiscalCountry = valueOf(fiscalCountryField).toUpperCase(Locale.ROOT);
+    String fiscalPhone = valueOf(fiscalPhoneField);
+    String fiscalEmail = valueOf(fiscalEmailField).toLowerCase(Locale.ROOT);
 
     boolean hasAnyFiscalData = !fiscalLegalName.isBlank()
             || !fiscalTaxId.isBlank()
@@ -116,6 +126,14 @@ public class SettingsController {
         return;
       }
     }
+    if (!fiscalPhone.isBlank() && !fiscalPhone.matches("[0-9+()\\-\\s]{6,24}")) {
+      showValidationError("Telefono fiscal no valido.");
+      return;
+    }
+    if (!fiscalEmail.isBlank() && !fiscalEmail.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) {
+      showValidationError("Email fiscal no valido.");
+      return;
+    }
 
     if (fiscalCountry.isBlank()) {
       fiscalCountry = "ES";
@@ -134,6 +152,8 @@ public class SettingsController {
     SettingsStore.setFiscalCity(fiscalCity);
     SettingsStore.setFiscalProvince(fiscalProvince);
     SettingsStore.setFiscalCountry(fiscalCountry);
+    SettingsStore.setFiscalPhone(fiscalPhone);
+    SettingsStore.setFiscalEmail(fiscalEmail);
 
     if (fiscalLegalNameField != null && fiscalLegalNameField.getText() != null) {
       fiscalLegalNameField.setText(fiscalLegalName);
@@ -144,10 +164,25 @@ public class SettingsController {
     if (fiscalCountryField != null && fiscalCountryField.getText() != null) {
       fiscalCountryField.setText(fiscalCountry);
     }
+    if (fiscalEmailField != null && fiscalEmailField.getText() != null) {
+      fiscalEmailField.setText(fiscalEmail);
+    }
 
     AppContext.get().appState().restaurantNameProperty().set(restaurantName);
+    boolean remoteSaved = saveBusinessProfileToServerIfRealMode(
+            restaurantName,
+            fiscalLegalName,
+            fiscalTaxId,
+            fiscalAddress,
+            fiscalPostalCode,
+            fiscalCity,
+            fiscalProvince,
+            fiscalCountry,
+            fiscalPhone,
+            fiscalEmail
+    );
     loadConnectivityLogsPreview();
-    statusLabel.setText("Guardado.");
+    statusLabel.setText(remoteSaved ? "Guardado." : "Guardado local. Perfil remoto no actualizado.");
   }
 
   private static String valueOf(TextField field) {
@@ -163,6 +198,115 @@ public class SettingsController {
     alert.setTitle("Validacion");
     alert.setHeaderText("Revisa los datos");
     alert.showAndWait();
+  }
+
+  private void loadBusinessProfileFromServerIfRealMode() {
+    if (!isRealMode()) {
+      return;
+    }
+    try {
+      BusinessProfileResponse profile = BusinessProfileApi.get();
+      applyBusinessProfile(profile);
+      statusLabel.setText("Perfil de negocio cargado desde servidor.");
+    } catch (Exception e) {
+      statusLabel.setText("No se pudo cargar perfil remoto. Usando configuracion local.");
+    }
+  }
+
+  private boolean saveBusinessProfileToServerIfRealMode(
+          String businessName,
+          String legalName,
+          String taxId,
+          String address,
+          String postalCode,
+          String city,
+          String province,
+          String country,
+          String phone,
+          String email
+  ) {
+    if (!isRealMode()) {
+      return true;
+    }
+    try {
+      BusinessProfileResponse profile = BusinessProfileApi.update(new UpdateBusinessProfileRequest(
+              businessName,
+              legalName,
+              taxId,
+              address,
+              postalCode,
+              city,
+              province,
+              country,
+              phone,
+              email
+      ));
+      applyBusinessProfile(profile);
+      return true;
+    } catch (Exception e) {
+      Alert alert = new Alert(
+              Alert.AlertType.WARNING,
+              "No se pudo guardar perfil fiscal en backend. Se guardo solo en local.\nDetalle: " + e.getMessage(),
+              ButtonType.OK
+      );
+      alert.setTitle("Backend no disponible");
+      alert.setHeaderText("Guardado parcial");
+      alert.showAndWait();
+      return false;
+    }
+  }
+
+  private void applyBusinessProfile(BusinessProfileResponse profile) {
+    if (profile == null) {
+      return;
+    }
+    String businessName = normalizeOrDefault(profile.businessName(), "Restaurante EL GUSTO");
+    String legalName = normalizeOrDefault(profile.legalName(), businessName);
+    String taxId = normalize(profile.taxId()).toUpperCase(Locale.ROOT);
+    String address = normalize(profile.address());
+    String postalCode = normalize(profile.postalCode());
+    String city = normalize(profile.city());
+    String province = normalize(profile.province());
+    String country = normalizeOrDefault(profile.country(), "ES").toUpperCase(Locale.ROOT);
+    String phone = normalize(profile.phone());
+    String email = normalize(profile.email()).toLowerCase(Locale.ROOT);
+
+    restaurantNameField.setText(businessName);
+    fiscalLegalNameField.setText(legalName);
+    fiscalTaxIdField.setText(taxId);
+    fiscalAddressField.setText(address);
+    fiscalPostalCodeField.setText(postalCode);
+    fiscalCityField.setText(city);
+    fiscalProvinceField.setText(province);
+    fiscalCountryField.setText(country);
+    fiscalPhoneField.setText(phone);
+    fiscalEmailField.setText(email);
+
+    SettingsStore.setRestaurantName(businessName);
+    SettingsStore.setFiscalLegalName(legalName);
+    SettingsStore.setFiscalTaxId(taxId);
+    SettingsStore.setFiscalAddress(address);
+    SettingsStore.setFiscalPostalCode(postalCode);
+    SettingsStore.setFiscalCity(city);
+    SettingsStore.setFiscalProvince(province);
+    SettingsStore.setFiscalCountry(country);
+    SettingsStore.setFiscalPhone(phone);
+    SettingsStore.setFiscalEmail(email);
+    AppContext.get().appState().restaurantNameProperty().set(businessName);
+  }
+
+  private static String normalize(String value) {
+    return value == null ? "" : value.trim();
+  }
+
+  private static String normalizeOrDefault(String value, String fallback) {
+    String normalized = normalize(value);
+    return normalized.isBlank() ? fallback : normalized;
+  }
+
+  private static boolean isRealMode() {
+    String mode = AppContext.get().appState().runtimeModeProperty().get();
+    return "REAL".equalsIgnoreCase(mode);
   }
 
   @FXML

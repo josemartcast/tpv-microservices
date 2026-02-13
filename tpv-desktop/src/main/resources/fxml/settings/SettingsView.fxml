@@ -75,6 +75,20 @@
                      GridPane.rowIndex="6"
                      GridPane.columnIndex="1"
                      prefWidth="80"/>
+
+          <Label text="Telefono fiscal" GridPane.rowIndex="7" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalPhoneField"
+                     promptText="+34 600 000 000"
+                     GridPane.rowIndex="7"
+                     GridPane.columnIndex="1"
+                     prefWidth="180"/>
+
+          <Label text="Email fiscal" GridPane.rowIndex="8" GridPane.columnIndex="0"/>
+          <TextField fx:id="fiscalEmailField"
+                     promptText="facturacion@negocio.com"
+                     GridPane.rowIndex="8"
+                     GridPane.columnIndex="1"
+                     prefWidth="280"/>
         </GridPane>
       </TitledPane>
 

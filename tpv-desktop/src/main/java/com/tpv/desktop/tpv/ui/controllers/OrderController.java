@@ -587,6 +587,8 @@ public class OrderController {
         String fiscalCity = SettingsStore.getFiscalCity();
         String fiscalProvince = SettingsStore.getFiscalProvince();
         String fiscalCountry = SettingsStore.getFiscalCountry();
+        String fiscalPhone = SettingsStore.getFiscalPhone();
+        String fiscalEmail = SettingsStore.getFiscalEmail();
 
         String headerName = (restaurantName == null || restaurantName.isBlank() ? "RESTAURANTE" : restaurantName);
         if (legalName != null && !legalName.isBlank()) {
@@ -616,6 +618,12 @@ public class OrderController {
             if (fiscalCountry != null && !fiscalCountry.isBlank()) {
                 out.append(fiscalCountry.trim().toUpperCase(Locale.ROOT)).append('\n');
             }
+        }
+        if (fiscalPhone != null && !fiscalPhone.isBlank()) {
+            out.append("TEL ").append(clip(fiscalPhone, 36)).append('\n');
+        }
+        if (fiscalEmail != null && !fiscalEmail.isBlank()) {
+            out.append(clip(fiscalEmail, 42)).append('\n');
         }
         out.append("PRECUENTA").append('\n');
         out.append("Mesa ").append(vm.tableIdProperty().get())

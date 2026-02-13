@@ -129,6 +129,22 @@ public final class SettingsStore {
     prefs.put("fiscalCountry", value.trim().toUpperCase());
   }
 
+  public static String getFiscalPhone() {
+    return prefs.get("fiscalPhone", "");
+  }
+
+  public static void setFiscalPhone(String value) {
+    prefs.put("fiscalPhone", value == null ? "" : value.trim());
+  }
+
+  public static String getFiscalEmail() {
+    return prefs.get("fiscalEmail", "");
+  }
+
+  public static void setFiscalEmail(String value) {
+    prefs.put("fiscalEmail", value == null ? "" : value.trim().toLowerCase());
+  }
+
   private static String defaultTerminalId() {
     try {
       String host = InetAddress.getLocalHost().getHostName();
