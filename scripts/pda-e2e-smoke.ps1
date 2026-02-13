@@ -215,6 +215,63 @@ function Invoke-MoveRace {
   }
 }
 
+function Invoke-PaymentRace {
+  param(
+    [Parameter(Mandatory = $true)][string]$GatewayBaseUrl,
+    [Parameter(Mandatory = $true)][string]$Token,
+    [Parameter(Mandatory = $true)][int64]$TicketId,
+    [Parameter(Mandatory = $true)][int]$AmountCents,
+    [Parameter(Mandatory = $true)][string]$TerminalA,
+    [Parameter(Mandatory = $true)][string]$TerminalB
+  )
+
+  $jobScript = {
+    param($baseUrl, $token, $ticketId, $amountCents, $terminalId)
+    $headers = @{
+      Authorization = "Bearer $token"
+      'X-Terminal-Id' = $terminalId
+      'Content-Type' = 'application/json'
+    }
+    $body = @{ method = 'CARD'; amountCents = $amountCents } | ConvertTo-Json -Compress
+    $status = -1
+    $raw = ''
+    $json = $null
+    try {
+      $resp = Invoke-WebRequest -UseBasicParsing -Method 'POST' -Uri "$baseUrl/api/v1/pos/tickets/$ticketId/payments" -Headers $headers -Body $body
+      $status = [int]$resp.StatusCode
+      $raw = $resp.Content
+    } catch {
+      if ($_.Exception.Response) {
+        $status = [int]$_.Exception.Response.StatusCode
+      }
+      if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+        $raw = $_.ErrorDetails.Message
+      }
+    }
+    if ($raw) {
+      try { $json = $raw | ConvertFrom-Json } catch { $json = $null }
+    }
+    [PSCustomObject]@{
+      TerminalId = $terminalId
+      Status = $status
+      Raw = $raw
+      Json = $json
+    }
+  }
+
+  $jobA = Start-Job -ScriptBlock $jobScript -ArgumentList @($GatewayBaseUrl, $Token, $TicketId, $AmountCents, $TerminalA)
+  $jobB = Start-Job -ScriptBlock $jobScript -ArgumentList @($GatewayBaseUrl, $Token, $TicketId, $AmountCents, $TerminalB)
+  try {
+    Wait-Job -Job @($jobA, $jobB) | Out-Null
+    $results = @()
+    $results += Receive-Job -Job $jobA
+    $results += Receive-Job -Job $jobB
+    return $results
+  } finally {
+    Remove-Job -Job @($jobA, $jobB) -Force -ErrorAction SilentlyContinue
+  }
+}
+
 Write-Host '== PDA E2E smoke =='
 Write-Host "Gateway: $GatewayBaseUrl"
 
@@ -282,7 +339,8 @@ $raceStatuses = (@($raceResults | ForEach-Object { $_.Status } | Sort-Object) -j
 Assert-True ($race200.Count -eq 1) "lock race should produce exactly one 200 (got: $raceStatuses)"
 Assert-True ($raceDenied.Count -eq 1) "lock race should produce exactly one denied status (403/409) (got: $raceStatuses)"
 $raceWinner = $race200[0].TerminalId
-Write-Host "[OK] lock race winner=$raceWinner loser=$((@($TerminalA,$TerminalB) | Where-Object { $_ -ne $raceWinner })[0])"
+$raceLoser = (@((@($TerminalA,$TerminalB) | Where-Object { $_ -ne $raceWinner }))[0])
+Write-Host "[OK] lock race winner=$raceWinner loser=$raceLoser"
 
 # cleanup after race to keep deterministic flow
 $unlockRace = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/unlock" -Token $token -TerminalId $raceWinner -Body @{ terminalId = $raceWinner } -Expected @(204,409)
@@ -448,6 +506,39 @@ if ($cancelWinner.Status -eq 200 -and $cancelLoser.Status -eq 200) {
 } else {
   Write-Host '[INFO] cleanup move race tickets returned conflict on one ticket'
 }
+
+# 16) Partial payment race (same pending amount in parallel)
+$tablesPayRace = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
+$payRaceCandidate = $tablesPayRace.Json | Where-Object { $_.status -eq 'FREE' -and -not $_.lockedTerminalId -and -not $_.ticketId } | Select-Object -First 1
+if (-not $payRaceCandidate) {
+  throw 'No free table without ticket available for payment race'
+}
+$payRaceTable = [int]$payRaceCandidate.tableNumber
+Write-Host "[INFO] payment race table=$payRaceTable"
+
+$openPayRace = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$payRaceTable/open-ticket" -Token $token -TerminalId $TerminalA -Expected @(201)
+$payRaceTicketId = [int64]$openPayRace.Json.id
+$ticketPayRaceAdded = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$payRaceTicketId/lines" -Token $token -TerminalId $TerminalA -Body @{ productId = $productId; qty = 1 } -Expected @(201)
+Assert-True ($ticketPayRaceAdded.Json.lines.Count -gt 0) 'payment race ticket should have lines'
+
+$payRaceSummaryBefore = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$payRaceTicketId/payment-summary" -Token $token -TerminalId $TerminalA -Expected @(200)
+$payRacePending = [int]$payRaceSummaryBefore.Json.pendingCents
+Assert-True ($payRacePending -gt 0) 'payment race ticket should have pending amount'
+
+$payRaceResults = Invoke-PaymentRace -GatewayBaseUrl $GatewayBaseUrl -Token $token -TicketId $payRaceTicketId -AmountCents $payRacePending -TerminalA $TerminalA -TerminalB $TerminalB
+$payRace201 = @($payRaceResults | Where-Object { $_.Status -eq 201 })
+$payRaceDenied = @($payRaceResults | Where-Object { @(403,409) -contains $_.Status })
+$payRaceStatuses = (@($payRaceResults | ForEach-Object { $_.Status } | Sort-Object) -join ',')
+Assert-True ($payRace201.Count -eq 1) "payment race should produce exactly one 201 (got: $payRaceStatuses)"
+Assert-True ($payRaceDenied.Count -eq 1) "payment race should produce exactly one denied status (403/409) (got: $payRaceStatuses)"
+
+$payRaceSummaryAfter = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$payRaceTicketId/payment-summary" -Token $token -TerminalId $TerminalA -Expected @(200)
+Assert-True ([int]$payRaceSummaryAfter.Json.pendingCents -eq 0) 'payment race ticket should end with pending=0'
+$payRaceTicketSummary = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$payRaceTicketId/summary" -Token $token -TerminalId $TerminalA -Expected @(200)
+$payRacePayments = @($payRaceTicketSummary.Json.payments)
+Assert-True ($payRacePayments.Count -eq 1) "payment race ticket should persist exactly one payment (got $($payRacePayments.Count))"
+Assert-True ([int]$payRacePayments[0].amountCents -eq $payRacePending) "payment race persisted amount should match pending ($payRacePending)"
+Write-Host '[OK] partial payment race guarded against double charge'
 
 Write-Host ''
 Write-Host 'PDA E2E smoke PASSED' -ForegroundColor Green
