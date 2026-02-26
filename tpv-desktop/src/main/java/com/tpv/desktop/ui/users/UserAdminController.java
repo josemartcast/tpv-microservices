@@ -53,8 +53,8 @@ public class UserAdminController {
         activeCol.setCellValueFactory(data -> new SimpleBooleanProperty(data.getValue().active()));
 
         usersTable.setItems(users);
-        createRoleBox.setItems(FXCollections.observableArrayList("ADMIN", "USER"));
-        editRoleBox.setItems(FXCollections.observableArrayList("ADMIN", "USER"));
+        createRoleBox.setItems(FXCollections.observableArrayList("ADMIN", "ENCARGADO", "USER"));
+        editRoleBox.setItems(FXCollections.observableArrayList("ADMIN", "ENCARGADO", "USER"));
         createRoleBox.setValue("USER");
         editRoleBox.setValue("USER");
         installUsernameAutoNormalization();

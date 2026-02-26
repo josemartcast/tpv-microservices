@@ -18,6 +18,14 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("""
         select p.method, coalesce(sum(p.amountCents),0)
         from Payment p
+        where p.ticket.id = :ticketId
+        group by p.method
+        """)
+    List<Object[]> sumByTicketGroupedByMethod(@Param("ticketId") Long ticketId);
+
+    @Query("""
+        select p.method, coalesce(sum(p.amountCents),0)
+        from Payment p
         where p.ticket.cashSession.id = :cashSessionId
         and p.ticket.status = com.tpv.pos_service.domain.TicketStatus.PAID
         group by p.method

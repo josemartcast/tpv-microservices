@@ -15,6 +15,12 @@
 
       <Label text="Cash Register" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
 
+      <VBox spacing="8" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
+        <Label text="Ejercicio fiscal anual" style="-fx-font-weight: bold;"/>
+        <Label fx:id="fiscalStatusLabel" text="Cargando ejercicio fiscal..."/>
+        <Label text="Gestion automatica: se abre con la primera apertura de caja y hace rollover cuando comienza el nuevo ano fiscal." wrapText="true"/>
+      </VBox>
+
       <VBox spacing="6" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
         <Label text="Estado actual" style="-fx-font-weight: bold;"/>
         <Label fx:id="statusLabel" text="Cargando..."/>

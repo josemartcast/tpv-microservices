@@ -10,6 +10,7 @@ import com.tpv.pos_service.dto.ApplyDiscountRequest;
 import com.tpv.pos_service.dto.CreateTicketRequest;
 import com.tpv.pos_service.dto.MoveTableRequest;
 import com.tpv.pos_service.dto.PaymentSummaryResponse;
+import com.tpv.pos_service.dto.ReopenPaidTicketRequest;
 import com.tpv.pos_service.dto.SetBillRequestedRequest;
 import com.tpv.pos_service.dto.TicketResponse;
 import com.tpv.pos_service.dto.UpdateLineQtyRequest;
@@ -202,6 +203,25 @@ public class TicketController {
             return response;
         } catch (RuntimeException e) {
             auditService.recordFailure("TICKET_APPLY_DISCOUNT", "TICKET", id, actor, term, req, e);
+            throw e;
+        }
+    }
+
+    @PostMapping("/{id}/reopen-paid")
+    public TicketResponse reopenPaid(
+            @PathVariable Long id,
+            @Valid @RequestBody ReopenPaidTicketRequest req,
+            Authentication auth,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            TicketResponse response = service.reopenPaid(id, req.reason());
+            auditService.recordSuccess("TICKET_REOPEN_PAID", "TICKET", id, actor, term, req, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("TICKET_REOPEN_PAID", "TICKET", id, actor, term, req, e);
             throw e;
         }
     }

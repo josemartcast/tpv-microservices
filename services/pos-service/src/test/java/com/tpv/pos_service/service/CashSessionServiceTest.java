@@ -2,14 +2,18 @@ package com.tpv.pos_service.service;
 
 import com.tpv.pos_service.domain.CashSession;
 import com.tpv.pos_service.domain.CashSessionStatus;
+import com.tpv.pos_service.domain.FiscalExercise;
+import com.tpv.pos_service.domain.FiscalExerciseStatus;
 import com.tpv.pos_service.domain.PaymentMethod;
 import com.tpv.pos_service.domain.Ticket;
 import com.tpv.pos_service.domain.TicketStatus;
 import com.tpv.pos_service.dto.CloseCashSessionRequest;
 import com.tpv.pos_service.dto.FiscalSummaryResponse;
+import com.tpv.pos_service.dto.OpenCashSessionRequest;
 import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.exception.NotFoundException;
 import com.tpv.pos_service.repository.CashSessionRepository;
+import com.tpv.pos_service.repository.FiscalExerciseRepository;
 import com.tpv.pos_service.repository.PaymentRepository;
 import com.tpv.pos_service.repository.TicketRepository;
 import java.util.List;
@@ -25,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -39,6 +44,8 @@ class CashSessionServiceTest {
     private PaymentRepository paymentRepository;
     @Mock
     private TicketRepository ticketRepository;
+    @Mock
+    private FiscalExerciseRepository fiscalExerciseRepository;
     @Mock
     private CashIncidentService cashIncidentService;
     @Mock
@@ -203,5 +210,88 @@ class CashSessionServiceTest {
         when(cashSessionRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () -> cashSessionService.resolveOpenTickets(999L));
+    }
+
+    @Test
+    void open_autoCreatesFiscalExerciseWhenMissing() {
+        when(cashSessionRepository.existsByStatus(CashSessionStatus.OPEN)).thenReturn(false);
+        when(fiscalExerciseRepository.findFirstByStatusOrderByFiscalYearDesc(FiscalExerciseStatus.OPEN))
+                .thenReturn(Optional.empty());
+        when(fiscalExerciseRepository.findByFiscalYear(anyInt()))
+                .thenReturn(Optional.empty());
+        when(fiscalExerciseRepository.save(any(FiscalExercise.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(cashSessionRepository.save(any(CashSession.class)))
+                .thenAnswer(invocation -> {
+                    CashSession cs = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(cs, "id", 1L);
+                    return cs;
+                });
+
+        var response = cashSessionService.open(new OpenCashSessionRequest(10_000, "inicio"), "admin");
+
+        assertEquals(CashSessionStatus.OPEN, response.status());
+        assertEquals(10_000, response.openingCashCents());
+    }
+
+    @Test
+    void open_usesCurrentFiscalExercise() {
+        when(cashSessionRepository.existsByStatus(CashSessionStatus.OPEN)).thenReturn(false);
+        FiscalExercise exercise = new FiscalExercise(2026, "admin", "ejercicio anual");
+        ReflectionTestUtils.setField(exercise, "id", 10L);
+        when(fiscalExerciseRepository.findFirstByStatusOrderByFiscalYearDesc(FiscalExerciseStatus.OPEN))
+                .thenReturn(Optional.of(exercise));
+        when(cashSessionRepository.save(any(CashSession.class)))
+                .thenAnswer(invocation -> {
+                    CashSession cs = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(cs, "id", 1L);
+                    return cs;
+                });
+
+        var response = cashSessionService.open(new OpenCashSessionRequest(10_000, "inicio"), "admin");
+
+        assertEquals(CashSessionStatus.OPEN, response.status());
+        assertEquals(10_000, response.openingCashCents());
+    }
+
+    @Test
+    void open_reopensClosedFiscalExerciseForCurrentYear() {
+        int currentYear = java.time.Year.now().getValue();
+        when(cashSessionRepository.existsByStatus(CashSessionStatus.OPEN)).thenReturn(false);
+        when(fiscalExerciseRepository.findFirstByStatusOrderByFiscalYearDesc(FiscalExerciseStatus.OPEN))
+                .thenReturn(Optional.empty());
+
+        FiscalExercise closedCurrent = new FiscalExercise(currentYear, "admin", "cierre accidental");
+        closedCurrent.close("admin", "manual close");
+        when(fiscalExerciseRepository.findByFiscalYear(currentYear)).thenReturn(Optional.of(closedCurrent));
+        when(cashSessionRepository.save(any(CashSession.class)))
+                .thenAnswer(invocation -> {
+                    CashSession cs = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(cs, "id", 1L);
+                    return cs;
+                });
+
+        var response = cashSessionService.open(new OpenCashSessionRequest(10_000, "inicio"), "admin");
+
+        assertEquals(CashSessionStatus.OPEN, response.status());
+        assertEquals(FiscalExerciseStatus.OPEN, closedCurrent.getStatus());
+    }
+
+    @Test
+    void open_rolloverRejectsWhenPastExerciseHasOpenTickets() {
+        int currentYear = java.time.Year.now().getValue();
+        when(cashSessionRepository.existsByStatus(CashSessionStatus.OPEN)).thenReturn(false);
+
+        FiscalExercise pastOpen = new FiscalExercise(currentYear - 1, "admin", "old year open");
+        when(fiscalExerciseRepository.findFirstByStatusOrderByFiscalYearDesc(FiscalExerciseStatus.OPEN))
+                .thenReturn(Optional.of(pastOpen));
+        when(ticketRepository.existsByStatus(TicketStatus.OPEN)).thenReturn(true);
+
+        var ex = assertThrows(
+                ConflictException.class,
+                () -> cashSessionService.open(new OpenCashSessionRequest(10_000, "inicio"), "admin")
+        );
+        assertTrue(ex.getMessage().contains("OPEN tickets"));
+        assertEquals(FiscalExerciseStatus.OPEN, pastOpen.getStatus());
     }
 }

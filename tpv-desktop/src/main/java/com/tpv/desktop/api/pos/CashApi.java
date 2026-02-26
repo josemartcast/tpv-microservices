@@ -81,4 +81,29 @@ public final class CashApi {
                 ResolveOpenTicketsResponse.class
         );
     }
+
+    public static FiscalExerciseResponse currentFiscalExercise() throws Exception {
+        return ApiClient.get("/api/v1/pos/fiscal-exercises/current", FiscalExerciseResponse.class);
+    }
+
+    public static List<FiscalExerciseResponse> listFiscalExercises() throws Exception {
+        FiscalExerciseResponse[] arr = ApiClient.get("/api/v1/pos/fiscal-exercises", FiscalExerciseResponse[].class);
+        return arr == null ? List.of() : java.util.Arrays.asList(arr);
+    }
+
+    public static FiscalExerciseResponse openFiscalExercise(int fiscalYear, String note) throws Exception {
+        return ApiClient.post(
+                "/api/v1/pos/fiscal-exercises/open",
+                new OpenFiscalExerciseRequest(fiscalYear, note),
+                FiscalExerciseResponse.class
+        );
+    }
+
+    public static FiscalExerciseResponse closeFiscalExercise(long id, String note) throws Exception {
+        return ApiClient.post(
+                "/api/v1/pos/fiscal-exercises/" + id + "/close",
+                new CloseFiscalExerciseRequest(note),
+                FiscalExerciseResponse.class
+        );
+    }
 }

@@ -182,6 +182,50 @@ public class TicketService {
     }
 
     @Transactional
+    public TicketResponse reopenPaid(Long ticketId, String reason) {
+        if (reason == null || reason.isBlank() || reason.trim().length() < 6) {
+            throw new ConflictException("Reason is required to reopen a paid ticket");
+        }
+
+        Ticket t = ticketRepo.findByIdForUpdate(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+
+        if (t.getStatus() != TicketStatus.PAID) {
+            throw new ConflictException("Ticket is not PAID: " + ticketId);
+        }
+        if (t.getCashSession().getStatus() != CashSessionStatus.OPEN) {
+            throw new ConflictException("Cash session is CLOSED. Cannot reopen paid ticket.");
+        }
+
+        int revertedTotal = 0;
+        for (Object[] row : paymentRepo.sumByTicketGroupedByMethod(ticketId)) {
+            if (row == null || row.length < 2 || !(row[0] instanceof com.tpv.pos_service.domain.PaymentMethod method)) {
+                continue;
+            }
+            int netAmount = row[1] == null ? 0 : ((Number) row[1]).intValue();
+            if (netAmount <= 0) {
+                continue;
+            }
+
+            paymentRepo.save(new Payment(t, method, -netAmount, null));
+            if (method == com.tpv.pos_service.domain.PaymentMethod.CASH) {
+                t.getCashSession().registerSale(-netAmount);
+            }
+            revertedTotal += netAmount;
+        }
+
+        if (revertedTotal <= 0) {
+            throw new ConflictException("Paid ticket has no positive net payments to reopen");
+        }
+
+        t.setBillRequested(false);
+        t.reopen();
+
+        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+        return toResponse(t, lines);
+    }
+
+    @Transactional
     public TicketResponse moveTable(Long ticketId, Integer newTableNumber) {
         return moveTable(ticketId, newTableNumber, null, "system");
     }

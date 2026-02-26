@@ -1,12 +1,18 @@
-package com.tpv.desktop.ui.cash;
+﻿package com.tpv.desktop.ui.cash;
 
 import com.tpv.desktop.api.ApiClient.ApiException;
 import com.tpv.desktop.api.pos.CashApi;
 import com.tpv.desktop.api.pos.CashSessionCloseSummaryResponse;
 import com.tpv.desktop.api.pos.CashSessionOpenTicketResponse;
 import com.tpv.desktop.api.pos.CashSessionResponse;
+import com.tpv.desktop.api.pos.FiscalExerciseResponse;
 import com.tpv.desktop.api.pos.ResolveOpenTicketsResponse;
 import com.tpv.desktop.core.MoneyUtil;
+import java.time.Year;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Collectors;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -15,15 +21,11 @@ import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.stream.Collectors;
-
 public class CashController {
 
   @FXML private Label statusLabel;
   @FXML private Label detailsLabel;
+  @FXML private Label fiscalStatusLabel;
   @FXML private Label errorLabel;
 
   @FXML private TextField openingEurosField;
@@ -41,6 +43,7 @@ public class CashController {
   @FXML private Button addIncidentBtn;
 
   private CashSessionResponse current;
+  private FiscalExerciseResponse currentFiscalExercise;
 
   private static final DateTimeFormatter DT =
       DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
@@ -58,12 +61,17 @@ public class CashController {
     errorLabel.setText("");
     statusLabel.setText("Cargando...");
     detailsLabel.setText("");
+    if (fiscalStatusLabel != null) {
+      fiscalStatusLabel.setText("Cargando ejercicio fiscal...");
+    }
     openBtn.setDisable(true);
     closeBtn.setDisable(true);
     addIncidentBtn.setDisable(true);
     if (resolveOpenTicketsBtn != null) {
       resolveOpenTicketsBtn.setDisable(true);
     }
+
+    refreshFiscalExerciseBlock();
 
     try {
       current = CashApi.current();
@@ -85,6 +93,9 @@ public class CashController {
   @FXML
   public void onOpen() {
     errorLabel.setText("");
+    FiscalExerciseResponse before = currentFiscalExercise;
+    int currentYear = Year.now().getValue();
+
     try {
       int openingCents = MoneyUtil.eurosToCents(openingEurosField.getText());
       if (openingCents < 0) {
@@ -94,7 +105,30 @@ public class CashController {
       String note = openNoteField.getText();
 
       current = CashApi.open(openingCents, note);
-      renderCurrent(current);
+      onRefresh();
+
+      if (currentFiscalExercise != null && "OPEN".equalsIgnoreCase(currentFiscalExercise.status())) {
+        if (before == null) {
+          showInfoDialog(
+              "Ejercicio fiscal",
+              "Se ha abierto automaticamente el ejercicio fiscal " + currentFiscalExercise.fiscalYear() + "."
+          );
+        } else if (!"OPEN".equalsIgnoreCase(before.status())
+            && before.fiscalYear() == currentYear
+            && currentFiscalExercise.fiscalYear() == currentYear) {
+          showInfoDialog(
+              "Ejercicio fiscal",
+              "Se ha reabierto automaticamente el ejercicio fiscal " + currentYear + "."
+          );
+        } else if (before.fiscalYear() < currentYear && currentFiscalExercise.fiscalYear() == currentYear) {
+          showInfoDialog(
+              "Ejercicio fiscal",
+              "El ejercicio fiscal " + before.fiscalYear()
+                  + " se ha cerrado automaticamente.\n"
+                  + "Se ha abierto el nuevo ejercicio fiscal " + currentYear + "."
+          );
+        }
+      }
     } catch (ApiException e) {
       errorLabel.setText("No se pudo abrir caja: " + e.getMessage());
     } catch (Exception e) {
@@ -259,10 +293,47 @@ public class CashController {
     }
   }
 
+  private void refreshFiscalExerciseBlock() {
+    try {
+      currentFiscalExercise = CashApi.currentFiscalExercise();
+      String openedBy = currentFiscalExercise.openedBy() == null ? "-" : currentFiscalExercise.openedBy();
+      String openedAt = currentFiscalExercise.openedAt() == null ? "-" : DT.format(currentFiscalExercise.openedAt());
+      if (fiscalStatusLabel != null) {
+        fiscalStatusLabel.setText(
+            "Ejercicio " + currentFiscalExercise.fiscalYear()
+                + " - " + currentFiscalExercise.status()
+                + " (abierto " + openedAt + " por " + openedBy + ")"
+        );
+      }
+    } catch (ApiException e) {
+      if (e.getStatus() == 404) {
+        currentFiscalExercise = null;
+        if (fiscalStatusLabel != null) {
+          fiscalStatusLabel.setText("Sin ejercicio fiscal abierto. Se creara automaticamente al abrir caja.");
+        }
+        return;
+      }
+      currentFiscalExercise = null;
+      if (fiscalStatusLabel != null) {
+        fiscalStatusLabel.setText("No se pudo cargar ejercicio fiscal: " + e.getMessage());
+      }
+    } catch (Exception e) {
+      currentFiscalExercise = null;
+      if (fiscalStatusLabel != null) {
+        fiscalStatusLabel.setText("No se pudo cargar ejercicio fiscal: " + e.getMessage());
+      }
+    }
+  }
+
   private void renderNoSession() {
     statusLabel.setText("CERRADA / SIN SESION ABIERTA");
-    detailsLabel.setText("No hay sesion de caja abierta. Abre caja para empezar a vender.");
-    openBtn.setDisable(false);
+    if (currentFiscalExercise == null || !"OPEN".equalsIgnoreCase(currentFiscalExercise.status())) {
+      detailsLabel.setText("No hay sesion de caja abierta. Debes abrir caja y se creara/recuperara automaticamente el ejercicio fiscal.");
+      openBtn.setDisable(false);
+    } else {
+      detailsLabel.setText("No hay sesion de caja abierta. Abre caja para empezar a vender.");
+      openBtn.setDisable(false);
+    }
     closeBtn.setDisable(true);
     addIncidentBtn.setDisable(true);
   }

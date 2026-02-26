@@ -22,7 +22,7 @@ public class SecurityConfig {
 
                 // endpoints de prueba por roles
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/v1/user/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers("/api/v1/user/**").hasAnyRole("USER", "ENCARGADO", "ADMIN")
 
                 .anyRequest().denyAll()
             )

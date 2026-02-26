@@ -21,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -91,6 +92,26 @@ class SecurityAuthorizationTest {
                 .content("{\"method\":\"CASH\",\"amountCents\":100}")
                 .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void reopenPaid_deniesUserRole() throws Exception {
+        mockMvc.perform(post("/api/v1/pos/tickets/1/reopen-paid")
+                .contentType("application/json")
+                .content("{\"reason\":\"Correccion manual\"}")
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void reopenPaid_allowsEncargadoRole() throws Exception {
+        when(ticketService.reopenPaid(anyLong(), anyString())).thenReturn(sampleTicket());
+
+        mockMvc.perform(post("/api/v1/pos/tickets/1/reopen-paid")
+                .contentType("application/json")
+                .content("{\"reason\":\"Correccion manual\"}")
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ENCARGADO"))))
+                .andExpect(status().isOk());
     }
 
     private TicketResponse sampleTicket() {

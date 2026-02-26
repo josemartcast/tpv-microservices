@@ -15,6 +15,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Ticket> findAllByStatusOrderByCreatedAtDesc(TicketStatus status);
     int countByCashSession_IdAndStatus(Long cashSessionId, TicketStatus status);
     List<Ticket> findAllByCashSession_IdAndStatus(Long cashSessionId, TicketStatus status);
+    boolean existsByStatus(TicketStatus status);
     boolean existsByCashSession_IdAndStatus(Long cashSessionId, TicketStatus status);
     boolean existsByTableNumberAndStatus(Integer tableNumber, TicketStatus status);
     java.util.Optional<Ticket> findByTableNumberAndStatus(Integer tableNumber, TicketStatus status);

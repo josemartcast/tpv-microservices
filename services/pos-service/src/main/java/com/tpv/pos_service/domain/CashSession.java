@@ -49,6 +49,13 @@ public class CashSession {
     @Column(nullable = false)
     private int cashDifferenceCents = 0;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "fiscal_exercise_id",
+            foreignKey = @ForeignKey(name = "fk_cash_session_fiscal_exercise")
+    )
+    private FiscalExercise fiscalExercise;
+
     protected CashSession() {
     }
 
@@ -57,6 +64,11 @@ public class CashSession {
         this.openedBy = openedBy;
         this.note = note;
         this.status = CashSessionStatus.OPEN;
+    }
+
+    public CashSession(int openingCashCents, String openedBy, String note, FiscalExercise fiscalExercise) {
+        this(openingCashCents, openedBy, note);
+        this.fiscalExercise = fiscalExercise;
     }
 
     @PrePersist
@@ -130,6 +142,10 @@ public class CashSession {
 
     public int getCashDifferenceCents() {
         return cashDifferenceCents;
+    }
+
+    public FiscalExercise getFiscalExercise() {
+        return fiscalExercise;
     }
 
     public void close(int closingCashCents, String closedBy, String note) {

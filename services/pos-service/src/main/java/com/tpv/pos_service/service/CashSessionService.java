@@ -2,6 +2,8 @@ package com.tpv.pos_service.service;
 
 import com.tpv.pos_service.domain.CashSession;
 import com.tpv.pos_service.domain.CashSessionStatus;
+import com.tpv.pos_service.domain.FiscalExercise;
+import com.tpv.pos_service.domain.FiscalExerciseStatus;
 import com.tpv.pos_service.domain.PaymentMethod;
 import com.tpv.pos_service.domain.TicketStatus;
 import com.tpv.pos_service.dto.CashSessionOpenTicketResponse;
@@ -13,10 +15,12 @@ import com.tpv.pos_service.dto.ResolveOpenTicketsResponse;
 import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.exception.NotFoundException;
 import com.tpv.pos_service.repository.CashSessionRepository;
+import com.tpv.pos_service.repository.FiscalExerciseRepository;
 import com.tpv.pos_service.repository.PaymentRepository;
 import com.tpv.pos_service.repository.TicketRepository;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Year;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +31,7 @@ public class CashSessionService {
     private final CashSessionRepository repo;
     private final PaymentRepository paymentRepo;
     private final TicketRepository ticketRepo;
+    private final FiscalExerciseRepository fiscalExerciseRepo;
     private final CashIncidentService cashIncidentService;
     private final FiscalService fiscalService;
     private final IdempotencyService idempotencyService;
@@ -35,6 +40,7 @@ public class CashSessionService {
             CashSessionRepository repo,
             PaymentRepository paymentRepo,
             TicketRepository ticketRepo,
+            FiscalExerciseRepository fiscalExerciseRepo,
             CashIncidentService cashIncidentService,
             FiscalService fiscalService,
             IdempotencyService idempotencyService
@@ -42,6 +48,7 @@ public class CashSessionService {
         this.repo = repo;
         this.paymentRepo = paymentRepo;
         this.ticketRepo = ticketRepo;
+        this.fiscalExerciseRepo = fiscalExerciseRepo;
         this.cashIncidentService = cashIncidentService;
         this.fiscalService = fiscalService;
         this.idempotencyService = idempotencyService;
@@ -65,11 +72,48 @@ public class CashSessionService {
         if (req.openingCashCents() < 0) {
             throw new ConflictException("openingCashCents must be >= 0");
         }
-        CashSession cs = new CashSession(req.openingCashCents(), openedBy, req.note());
+        FiscalExercise currentExercise = ensureOpenFiscalExerciseForCurrentYear(openedBy);
+
+        CashSession cs = new CashSession(req.openingCashCents(), openedBy, req.note(), currentExercise);
         int expected = req.openingCashCents();
         cs.setExpectedCashCents(expected);
         cs = repo.save(cs);
         return toResponse(cs, expected);
+    }
+
+    private FiscalExercise ensureOpenFiscalExerciseForCurrentYear(String actor) {
+        int currentYear = Year.now().getValue();
+        FiscalExercise open = fiscalExerciseRepo
+                .findFirstByStatusOrderByFiscalYearDesc(FiscalExerciseStatus.OPEN)
+                .orElse(null);
+
+        if (open != null) {
+            if (open.getFiscalYear() == currentYear) {
+                return open;
+            }
+            if (open.getFiscalYear() > currentYear) {
+                throw new ConflictException("Open fiscal exercise is in future year: " + open.getFiscalYear());
+            }
+            if (ticketRepo.existsByStatus(TicketStatus.OPEN)) {
+                throw new ConflictException("Cannot rollover fiscal exercise with OPEN tickets");
+            }
+            open.close(actor, "Auto-close due fiscal year rollover to " + currentYear);
+        }
+
+        FiscalExercise byYear = fiscalExerciseRepo.findByFiscalYear(currentYear).orElse(null);
+        if (byYear != null) {
+            if (byYear.getStatus() == FiscalExerciseStatus.OPEN) {
+                return byYear;
+            }
+            byYear.reopen(actor, "Auto-reopen fiscal exercise " + currentYear + " on cash open");
+            return byYear;
+        }
+
+        return fiscalExerciseRepo.save(new FiscalExercise(
+                currentYear,
+                actor,
+                "Auto-opened on first cash session of fiscal year " + currentYear
+        ));
     }
 
     @Transactional

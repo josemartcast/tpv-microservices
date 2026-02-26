@@ -48,4 +48,12 @@ public final class TicketApi {
     return ApiClient.post("/api/v1/pos/tickets/" + ticketId + "/discount",
         new ApplyDiscountRequest(percent, amountCents), TicketResponse.class);
   }
+
+  public static TicketResponse reopenPaid(long ticketId, String reason) throws Exception {
+    return ApiClient.post(
+        "/api/v1/pos/tickets/" + ticketId + "/reopen-paid",
+        new ReopenPaidTicketRequest(reason),
+        TicketResponse.class
+    );
+  }
 }
