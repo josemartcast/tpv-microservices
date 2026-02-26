@@ -4,6 +4,8 @@ import java.time.Instant;
 
 public record SalonTableResponse(
         int tableNumber,
+        String salonName,
+        String tableAlias,
         String status,
         Long ticketId,
         int totalCents,

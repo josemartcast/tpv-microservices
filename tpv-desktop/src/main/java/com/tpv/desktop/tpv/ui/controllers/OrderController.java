@@ -63,8 +63,8 @@ public class OrderController {
     private final OrderViewModel vm = new OrderViewModel();
     private Timeline heartbeat;
 
-    public void bind(long orderId, int tableId) {
-        vm.bindOrder(orderId, tableId);
+    public void bind(long orderId, int tableId, String tableLabel) {
+        vm.bindOrder(orderId, tableId, tableLabel);
         setupBindings();
         loadProducts(vm.categories().isEmpty() ? null : vm.categories().getFirst());
     }
@@ -120,7 +120,10 @@ public class OrderController {
         ticketList.setItems(vm.lines());
         subtotalLabel.textProperty().bind(vm.subtotalTextProperty());
         feedbackLabel.textProperty().bind(vm.feedbackProperty());
-        orderHeader.setText("Mesa " + vm.tableIdProperty().get() + " - " + vm.peopleProperty().get() + " Personas / " + vm.elapsedProperty().get());
+        vm.tableLabelProperty().addListener((obs, oldV, newV) -> refreshOrderHeader());
+        vm.peopleProperty().addListener((obs, oldV, newV) -> refreshOrderHeader());
+        vm.elapsedProperty().addListener((obs, oldV, newV) -> refreshOrderHeader());
+        refreshOrderHeader();
         topBarController.setCenterTitle(AppContext.get().appState().restaurantNameProperty().get());
         AppContext.get().appState().restaurantNameProperty().addListener(
                 (obs, oldV, newV) -> topBarController.setCenterTitle(newV)
@@ -324,7 +327,7 @@ public class OrderController {
             try {
                 int newTable = Integer.parseInt(value.trim());
                 vm.moveToTable(newTable);
-                orderHeader.setText("Mesa " + vm.tableIdProperty().get() + " - " + vm.peopleProperty().get() + " Personas / " + vm.elapsedProperty().get());
+                refreshOrderHeader();
             } catch (NumberFormatException e) {
                 String msg = "Mesa destino invalida.";
                 feedbackLabel.setText(msg);
@@ -654,6 +657,19 @@ public class OrderController {
             return "";
         }
         return value.length() <= max ? value : value.substring(0, max - 1) + ".";
+    }
+
+    private void refreshOrderHeader() {
+        String tableLabel = tableLabelOrFallback();
+        orderHeader.setText(tableLabel + " - " + vm.peopleProperty().get() + " Personas / " + vm.elapsedProperty().get());
+    }
+
+    private String tableLabelOrFallback() {
+        String value = vm.tableLabelProperty().get();
+        if (value == null || value.isBlank()) {
+            return "Mesa " + vm.tableIdProperty().get();
+        }
+        return value;
     }
 
     private void printPrebillToPdf(String text) {

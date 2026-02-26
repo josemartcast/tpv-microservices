@@ -6,6 +6,7 @@ import javafx.beans.property.*;
 public class TableCardViewModel {
     private final IntegerProperty tableId = new SimpleIntegerProperty();
     private final LongProperty orderId = new SimpleLongProperty();
+    private final StringProperty salonName = new SimpleStringProperty("Salon");
     private final StringProperty title = new SimpleStringProperty();
     private final StringProperty totalText = new SimpleStringProperty("-");
     private final StringProperty elapsedText = new SimpleStringProperty("-");
@@ -19,6 +20,7 @@ public class TableCardViewModel {
 
     public IntegerProperty tableIdProperty() { return tableId; }
     public LongProperty orderIdProperty() { return orderId; }
+    public StringProperty salonNameProperty() { return salonName; }
     public StringProperty titleProperty() { return title; }
     public StringProperty totalTextProperty() { return totalText; }
     public StringProperty elapsedTextProperty() { return elapsedText; }

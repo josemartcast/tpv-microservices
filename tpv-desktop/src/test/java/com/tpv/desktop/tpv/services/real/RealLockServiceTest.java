@@ -56,8 +56,8 @@ class RealLockServiceTest {
     void activeLock_returnsLockWhenPresentAndNotExpired() {
         StubGateway gateway = new StubGateway();
         gateway.tablesResponse = new SalonTableResponse[] {
-                new SalonTableResponse(1, "FREE", null, 0, 0, 0, null, null, null),
-                new SalonTableResponse(2, "LOCKED", 100L, 1000, 3, 1, "admin", "T-002", Instant.now().plusSeconds(40))
+                new SalonTableResponse(1, "Salon", "", "FREE", null, 0, 0, 0, null, null, null),
+                new SalonTableResponse(2, "Salon", "VENTANA", "LOCKED", 100L, 1000, 3, 1, "admin", "T-002", Instant.now().plusSeconds(40))
         };
         RealLockService service = new RealLockService(gateway);
 
@@ -72,7 +72,7 @@ class RealLockServiceTest {
     void activeLock_returnsNullWhenExpired() {
         StubGateway gateway = new StubGateway();
         gateway.tablesResponse = new SalonTableResponse[] {
-                new SalonTableResponse(2, "LOCKED", 100L, 1000, 3, 1, "admin", "T-002", Instant.now().minusSeconds(2))
+                new SalonTableResponse(2, "Salon", "", "LOCKED", 100L, 1000, 3, 1, "admin", "T-002", Instant.now().minusSeconds(2))
         };
         RealLockService service = new RealLockService(gateway);
 

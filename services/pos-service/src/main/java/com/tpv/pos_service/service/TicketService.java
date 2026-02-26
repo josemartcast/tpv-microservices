@@ -18,6 +18,7 @@ import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.exception.NotFoundException;
 import com.tpv.pos_service.repository.PaymentRepository;
 import com.tpv.pos_service.repository.ProductRepository;
+import com.tpv.pos_service.repository.SalonAreaRepository;
 import com.tpv.pos_service.repository.TicketLineRepository;
 import com.tpv.pos_service.repository.TicketRepository;
 import com.tpv.pos_service.domain.Payment;
@@ -27,6 +28,7 @@ import com.tpv.pos_service.domain.CashSessionStatus;
 import com.tpv.pos_service.repository.CashSessionRepository;
 import com.tpv.pos_service.dto.ApplyDiscountRequest;
 import com.tpv.pos_service.domain.TableLock;
+import com.tpv.pos_service.domain.SalonArea;
 
 @Service
 @SuppressWarnings("null")
@@ -38,14 +40,16 @@ public class TicketService {
     private final PaymentRepository paymentRepo;
     private final CashSessionRepository cashSessionRepo;
     private final TableLockService tableLockService;
+    private final SalonAreaRepository salonAreaRepo;
 
-    public TicketService(TicketRepository ticketRepo, TicketLineRepository lineRepo, ProductRepository productRepo, PaymentRepository paymentRepo, CashSessionRepository cashSessionRepo, TableLockService tableLockService) {
+    public TicketService(TicketRepository ticketRepo, TicketLineRepository lineRepo, ProductRepository productRepo, PaymentRepository paymentRepo, CashSessionRepository cashSessionRepo, TableLockService tableLockService, SalonAreaRepository salonAreaRepo) {
         this.ticketRepo = ticketRepo;
         this.lineRepo = lineRepo;
         this.productRepo = productRepo;
         this.paymentRepo = paymentRepo;
         this.cashSessionRepo = cashSessionRepo;
         this.tableLockService = tableLockService;
+        this.salonAreaRepo = salonAreaRepo;
     }
 
     @Transactional
@@ -184,8 +188,11 @@ public class TicketService {
 
     @Transactional
     public TicketResponse moveTable(Long ticketId, Integer newTableNumber, String terminalId, String actor) {
-        if (newTableNumber == null || newTableNumber < 1 || newTableNumber > 200) {
+        if (newTableNumber == null || newTableNumber < 1 || newTableNumber > 500) {
             throw new ConflictException("Target table out of range: " + newTableNumber);
+        }
+        if (!tableExistsInActiveSalons(newTableNumber)) {
+            throw new ConflictException("Target table is not configured in active salons: " + newTableNumber);
         }
         Ticket t = getOpenTicket(ticketId);
         Integer currentTable = t.getTableNumber();
@@ -237,6 +244,19 @@ public class TicketService {
                 }
             }
         }
+    }
+
+    private boolean tableExistsInActiveSalons(int tableNumber) {
+        List<SalonArea> salons = salonAreaRepo.findAllByActiveTrueOrderByFirstTableNumberAsc();
+        if (salons.isEmpty()) {
+            return tableNumber <= 12;
+        }
+        for (SalonArea salon : salons) {
+            if (salon.containsTable(tableNumber)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Transactional

@@ -18,6 +18,8 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.util.Duration;
 
 import java.io.IOException;
@@ -25,11 +27,13 @@ import java.io.IOException;
 public class HomeController {
     @FXML private TopBarController topBarController;
     @FXML private FlowPane tablesPane;
+    @FXML private FlowPane salonTabsPane;
     @FXML private ScrollPane homeScroll;
     @FXML private Label feedbackLabel;
     @FXML private Label offlineBanner;
 
     private final HomeViewModel vm = new HomeViewModel();
+    private final ToggleGroup salonTabsGroup = new ToggleGroup();
     private Timeline refreshTimeline;
 
     @FXML
@@ -87,7 +91,7 @@ public class HomeController {
         }
         try {
             long orderId = vm.openOrEnter(table);
-            Navigator.get().goOrder(orderId, table.getTableId());
+            Navigator.get().goOrder(orderId, table.getTableId(), table.titleProperty().get());
         } catch (LockException e) {
             if (e.isOwnershipConflict()) {
                 feedbackLabel.setText("Mesa bloqueada por otro terminal.");
@@ -117,6 +121,7 @@ public class HomeController {
     private void refreshTables() {
         try {
             vm.refresh();
+            renderSalonTabs();
             renderTables();
             if (feedbackLabel.getText() != null && feedbackLabel.getText().startsWith("No se pudo")) {
                 feedbackLabel.setText("");
@@ -139,6 +144,22 @@ public class HomeController {
         alert.setTitle(title);
         alert.setHeaderText(title);
         alert.showAndWait();
+    }
+
+    private void renderSalonTabs() {
+        salonTabsPane.getChildren().clear();
+        String selectedSalon = vm.selectedSalonProperty().get();
+        for (String salon : vm.salons()) {
+            ToggleButton btn = new ToggleButton(salon);
+            btn.getStyleClass().add("home-salon-tab");
+            btn.setToggleGroup(salonTabsGroup);
+            btn.setSelected(salon.equals(selectedSalon));
+            btn.setOnAction(e -> {
+                vm.selectSalon(salon);
+                renderTables();
+            });
+            salonTabsPane.getChildren().add(btn);
+        }
     }
 }
 

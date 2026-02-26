@@ -25,9 +25,15 @@ public class RealTableService implements TableService {
 
     private static TableSnapshot toDomain(SalonTableResponse t, String terminalId) {
         TableStatus status = mapStatus(t.status(), t.lockedTerminalId(), terminalId, t.pendingLines(), t.ticketId());
+        String salonName = t.salonName() == null || t.salonName().isBlank() ? "Salon" : t.salonName().trim();
+        String alias = t.tableAlias() == null ? "" : t.tableAlias().trim();
+        String label = salonName + " - Mesa " + t.tableNumber();
+        if (!alias.isBlank()) {
+            label = label + " \"" + alias + "\"";
+        }
         return new TableSnapshot(
                 t.tableNumber(),
-                "Mesa " + t.tableNumber(),
+                label,
                 status,
                 t.totalCents(),
                 t.elapsedMinutes(),

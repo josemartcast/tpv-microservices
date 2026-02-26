@@ -79,6 +79,27 @@
     -fx-text-fill: #20273b;
 }
 
+.home-filter-label {
+    -fx-font-size: 16px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #2a3552;
+}
+
+.home-salon-tab {
+    -fx-background-color: #e7e8ef;
+    -fx-text-fill: #27304a;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-pref-height: 36px;
+    -fx-pref-width: 120px;
+    -fx-cursor: hand;
+}
+
+.home-salon-tab:selected {
+    -fx-background-color: #2f69b8;
+    -fx-text-fill: #ffffff;
+}
+
 .home-scroll {
     -fx-background-color: transparent;
     -fx-border-color: transparent;

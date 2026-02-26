@@ -8,6 +8,7 @@ import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.services.LockService;
 import com.tpv.desktop.tpv.services.OrderService;
 import com.tpv.desktop.tpv.services.PrintQueueService;
+import com.tpv.desktop.tpv.services.TableService;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -32,10 +33,12 @@ public class OrderViewModel {
     private final OrderService orderService;
     private final LockService lockService;
     private final PrintQueueService printQueueService;
+    private final TableService tableService;
     private final AppState appState;
 
     private final LongProperty orderId = new SimpleLongProperty();
     private final IntegerProperty tableId = new SimpleIntegerProperty();
+    private final StringProperty tableLabel = new SimpleStringProperty("Mesa");
     private final IntegerProperty people = new SimpleIntegerProperty(4);
     private final StringProperty elapsed = new SimpleStringProperty("0 min");
     private final StringProperty subtotalText = new SimpleStringProperty("0.00 EUR");
@@ -52,6 +55,7 @@ public class OrderViewModel {
         orderService = ctx.orderService();
         lockService = ctx.lockService();
         printQueueService = ctx.printQueueService();
+        tableService = ctx.tableService();
         appState = ctx.appState();
     }
 
@@ -62,16 +66,33 @@ public class OrderViewModel {
             PrintQueueService printQueueService,
             AppState appState
     ) {
+        this(catalogService, orderService, lockService, printQueueService, null, appState);
+    }
+
+    OrderViewModel(
+            CatalogService catalogService,
+            OrderService orderService,
+            LockService lockService,
+            PrintQueueService printQueueService,
+            TableService tableService,
+            AppState appState
+    ) {
         this.catalogService = catalogService;
         this.orderService = orderService;
         this.lockService = lockService;
         this.printQueueService = printQueueService;
+        this.tableService = tableService;
         this.appState = appState;
     }
 
     public void bindOrder(long orderId, int tableId) {
+        bindOrder(orderId, tableId, null);
+    }
+
+    public void bindOrder(long orderId, int tableId, String initialTableLabel) {
         this.orderId.set(orderId);
         this.tableId.set(tableId);
+        this.tableLabel.set(normalizeTableLabel(initialTableLabel, tableId));
         categories.setAll(catalogService.categories());
         if (!categories.isEmpty()) {
             loadProducts(categories.getFirst());
@@ -87,6 +108,7 @@ public class OrderViewModel {
         subtotalText.set(money(order.totalCents()));
         long minutes = Math.max(0, Duration.between(openedAt, Instant.now()).toMinutes());
         elapsed.set(minutes + " min");
+        refreshTableLabel();
     }
 
     public void loadProducts(Category category) {
@@ -259,6 +281,7 @@ public class OrderViewModel {
 
     public LongProperty orderIdProperty() { return orderId; }
     public IntegerProperty tableIdProperty() { return tableId; }
+    public StringProperty tableLabelProperty() { return tableLabel; }
     public IntegerProperty peopleProperty() { return people; }
     public StringProperty elapsedProperty() { return elapsed; }
     public StringProperty subtotalTextProperty() { return subtotalText; }
@@ -283,7 +306,7 @@ public class OrderViewModel {
         StringBuilder out = new StringBuilder();
         out.append(restaurantName).append('\n');
         out.append("ULTIMA COMANDA ENVIADA").append('\n');
-        out.append("Mesa ").append(tableId.get()).append("  Ticket ").append(orderId.get()).append('\n');
+        out.append(tableLabelForPrint()).append("  Ticket ").append(orderId.get()).append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
         out.append(THERMAL_SEPARATOR).append('\n');
         if (pendingLines.isEmpty()) {
@@ -383,7 +406,7 @@ public class OrderViewModel {
     private void appendPrintHeader(StringBuilder out) {
         out.append(restaurantNameForPrint()).append('\n');
         out.append("ULTIMA COMANDA ENVIADA").append('\n');
-        out.append("Mesa ").append(tableId.get()).append("  Ticket ").append(orderId.get()).append('\n');
+        out.append(tableLabelForPrint()).append("  Ticket ").append(orderId.get()).append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
     }
 
@@ -507,6 +530,49 @@ public class OrderViewModel {
             return "RESTAURANTE";
         }
         return value.toUpperCase(Locale.ROOT);
+    }
+
+    private String tableLabelForPrint() {
+        String value = tableLabel.get();
+        if (value == null || value.isBlank()) {
+            return "Mesa " + tableId.get();
+        }
+        return value;
+    }
+
+    private void refreshTableLabel() {
+        if (tableService == null) {
+            if (tableLabel.get() == null || tableLabel.get().isBlank()) {
+                tableLabel.set("Mesa " + tableId.get());
+            }
+            return;
+        }
+
+        try {
+            String resolved = tableService.tables().stream()
+                    .filter(t -> t.tableId() == tableId.get())
+                    .map(TableSnapshot::label)
+                    .filter(v -> v != null && !v.isBlank())
+                    .findFirst()
+                    .orElse(null);
+            if (resolved != null) {
+                tableLabel.set(resolved.trim());
+                return;
+            }
+        } catch (Exception ignored) {
+            // Keep current label when tables sync is temporarily unavailable.
+        }
+
+        if (tableLabel.get() == null || tableLabel.get().isBlank()) {
+            tableLabel.set("Mesa " + tableId.get());
+        }
+    }
+
+    private static String normalizeTableLabel(String value, int tableId) {
+        if (value == null || value.isBlank()) {
+            return "Mesa " + tableId;
+        }
+        return value.trim();
     }
 
     private record PrintBatch(String lastComandaText, Map<String, String> printJobsByDestination) {}

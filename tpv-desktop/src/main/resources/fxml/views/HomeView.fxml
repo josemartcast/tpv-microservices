@@ -17,6 +17,10 @@
 
       <Label text="Mapa de Mesas" styleClass="section-title"/>
       <Label fx:id="offlineBanner" text="Backend OFFLINE: acciones pausadas" visible="false" managed="false" styleClass="offline-banner"/>
+      <HBox spacing="8" alignment="CENTER_LEFT">
+        <Label text="Zona:" styleClass="home-filter-label"/>
+        <FlowPane fx:id="salonTabsPane" hgap="6" vgap="6"/>
+      </HBox>
 
       <ScrollPane fx:id="homeScroll" fitToWidth="true" fitToHeight="true" styleClass="home-scroll">
         <content>

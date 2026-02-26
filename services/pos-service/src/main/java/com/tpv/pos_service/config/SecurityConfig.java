@@ -76,6 +76,16 @@ public class SecurityConfig {
                 // admin tools
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/admin/seed-catalog")
                 .hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/admin/salons")
+                .hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/admin/salons/**")
+                .hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/admin/salons")
+                .hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/pos/admin/salons/**")
+                .hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/admin/salons/**")
+                .hasRole("ADMIN")
                 // salon
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/salon/tables")
                 .hasAnyRole("USER", "ADMIN")

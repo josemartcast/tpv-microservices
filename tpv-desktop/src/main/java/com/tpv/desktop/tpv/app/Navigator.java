@@ -35,11 +35,15 @@ public class Navigator {
     }
 
     public void goOrder(long orderId, int tableId) {
+        goOrder(orderId, tableId, null);
+    }
+
+    public void goOrder(long orderId, int tableId, String tableLabel) {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/views/OrderView.fxml"));
             Parent root = loader.load();
             OrderController controller = loader.getController();
-            controller.bind(orderId, tableId);
+            controller.bind(orderId, tableId, tableLabel);
             setRoot(root, Math.max(stage.getWidth(), 1366), Math.max(stage.getHeight(), 768));
         } catch (IOException e) {
             throw new RuntimeException("No se pudo abrir comanda", e);
