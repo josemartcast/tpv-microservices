@@ -46,10 +46,7 @@ public class OrderController {
     @FXML private Label feedbackLabel;
     @FXML private Label orderHeader;
     @FXML private ToggleGroup categoryTabs;
-    @FXML private ToggleButton tabEntrantes;
-    @FXML private ToggleButton tabBebidas;
-    @FXML private ToggleButton tabPizzas;
-    @FXML private ToggleButton tabPostres;
+    @FXML private HBox categoryTabsBox;
     @FXML private FlowPane productsPane;
     @FXML private Button sendBtn;
     @FXML private Button payBtn;
@@ -65,8 +62,11 @@ public class OrderController {
 
     public void bind(long orderId, int tableId, String tableLabel) {
         vm.bindOrder(orderId, tableId, tableLabel);
+        rebuildCategoryTabs(selectedCategoryId());
         setupBindings();
-        loadProducts(vm.categories().isEmpty() ? null : vm.categories().getFirst());
+        if (categoryTabs.getSelectedToggle() == null && !categoryTabs.getToggles().isEmpty()) {
+            categoryTabs.getToggles().getFirst().setSelected(true);
+        }
     }
 
     @FXML
@@ -92,17 +92,14 @@ public class OrderController {
         });
 
         categoryTabs.selectedToggleProperty().addListener((obs, o, n) -> {
-            if (n == null || vm.categories().isEmpty()) return;
-            Category selected = switch (((ToggleButton) n).getText()) {
-                case "Entrantes" -> byName("Entrantes");
-                case "Bebidas" -> byName("Bebidas");
-                case "Pizzas" -> byName("Pizzas");
-                case "Postres" -> byName("Postres");
-                default -> vm.categories().getFirst();
-            };
-            loadProducts(selected);
+            if (n == null) {
+                return;
+            }
+            Object data = n.getUserData();
+            if (data instanceof Category selected) {
+                loadProducts(selected);
+            }
         });
-        tabEntrantes.setSelected(true);
 
         heartbeat = new Timeline(new KeyFrame(Duration.seconds(20), e -> onHeartbeatTick()));
         heartbeat.setCycleCount(Timeline.INDEFINITE);
@@ -110,10 +107,6 @@ public class OrderController {
 
         vm.lines().addListener((ListChangeListener<OrderLine>) change -> updateActionState());
         updateActionState();
-    }
-
-    private Category byName(String name) {
-        return vm.categories().stream().filter(c -> c.name().equalsIgnoreCase(name)).findFirst().orElse(vm.categories().getFirst());
     }
 
     private void setupBindings() {
@@ -412,6 +405,9 @@ public class OrderController {
     private void onHeartbeatTick() {
         try {
             vm.heartbeatLock();
+            if (vm.refreshCategories()) {
+                rebuildCategoryTabs(selectedCategoryId());
+            }
         } catch (LockException ex) {
             if (ex.isRecoverableWithReacquire()) {
                 return;
@@ -432,6 +428,48 @@ public class OrderController {
         } catch (RuntimeException ex) {
             vm.feedbackProperty().set("Error renovando lock: " + ex.getMessage());
         }
+    }
+
+    private void rebuildCategoryTabs(Long preferredCategoryId) {
+        categoryTabs.getToggles().clear();
+        categoryTabsBox.getChildren().clear();
+
+        if (vm.categories().isEmpty()) {
+            Label empty = new Label("Sin categorias");
+            empty.getStyleClass().add("home-filter-label");
+            categoryTabsBox.getChildren().add(empty);
+            productsPane.getChildren().clear();
+            return;
+        }
+
+        ToggleButton toSelect = null;
+        for (Category category : vm.categories()) {
+            ToggleButton button = new ToggleButton(category.name());
+            button.setToggleGroup(categoryTabs);
+            button.setUserData(category);
+            button.getStyleClass().add("category-tab");
+            categoryTabsBox.getChildren().add(button);
+            if (preferredCategoryId != null && preferredCategoryId == category.id()) {
+                toSelect = button;
+            }
+        }
+
+        if (toSelect == null) {
+            toSelect = (ToggleButton) categoryTabs.getToggles().getFirst();
+        }
+        toSelect.setSelected(true);
+    }
+
+    private Long selectedCategoryId() {
+        Toggle selected = categoryTabs.getSelectedToggle();
+        if (selected == null) {
+            return null;
+        }
+        Object data = selected.getUserData();
+        if (data instanceof Category category) {
+            return category.id();
+        }
+        return null;
     }
 
     private void updateActionState() {

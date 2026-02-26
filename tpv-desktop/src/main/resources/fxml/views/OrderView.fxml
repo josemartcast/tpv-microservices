@@ -43,12 +43,7 @@
       </VBox>
 
       <VBox HBox.hgrow="ALWAYS" spacing="10" styleClass="catalog-panel">
-        <HBox spacing="6">
-          <ToggleButton fx:id="tabEntrantes" text="Entrantes" toggleGroup="$categoryTabs" styleClass="category-tab"/>
-          <ToggleButton fx:id="tabBebidas" text="Bebidas" toggleGroup="$categoryTabs" styleClass="category-tab"/>
-          <ToggleButton fx:id="tabPizzas" text="Pizzas" toggleGroup="$categoryTabs" styleClass="category-tab"/>
-          <ToggleButton fx:id="tabPostres" text="Postres" toggleGroup="$categoryTabs" styleClass="category-tab"/>
-        </HBox>
+        <HBox fx:id="categoryTabsBox" spacing="6"/>
 
         <ScrollPane fitToWidth="true" styleClass="catalog-scroll" VBox.vgrow="ALWAYS">
           <content>

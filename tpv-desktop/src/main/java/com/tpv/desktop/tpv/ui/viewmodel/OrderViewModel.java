@@ -115,6 +115,15 @@ public class OrderViewModel {
         products.setAll(catalogService.productsByCategory(category.id()));
     }
 
+    public boolean refreshCategories() {
+        List<Category> latest = catalogService.categories();
+        if (categories.equals(latest)) {
+            return false;
+        }
+        categories.setAll(latest);
+        return true;
+    }
+
     public void addProduct(Product product) {
         orderService.addProduct(orderId.get(), product.id());
         refreshOrder();
