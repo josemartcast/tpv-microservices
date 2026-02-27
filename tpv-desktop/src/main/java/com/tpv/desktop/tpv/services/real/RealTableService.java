@@ -33,6 +33,7 @@ public class RealTableService implements TableService {
         }
         return new TableSnapshot(
                 t.tableNumber(),
+                salonName,
                 label,
                 status,
                 t.totalCents(),

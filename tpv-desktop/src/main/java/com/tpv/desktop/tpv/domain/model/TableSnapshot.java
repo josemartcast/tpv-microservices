@@ -2,6 +2,7 @@ package com.tpv.desktop.tpv.domain.model;
 
 public record TableSnapshot(
         int tableId,
+        String salonName,
         String label,
         TableStatus status,
         int totalCents,

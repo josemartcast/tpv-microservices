@@ -4,6 +4,7 @@ Fecha base: 2026-02-13
 Objetivo: pasar de piloto controlado a operacion estable con riesgo acotado.
 
 ## 1) Pre-release tecnico
+Estado: COMPLETADO (2026-02-27)
 - Confirmar `PDA E2E Smoke` en verde en el ultimo commit de `main`.
 - Confirmar version/tag de release definida (ejemplo: `v1.0.0`).
 - Congelar cambios no criticos durante ventana de despliegue.

@@ -110,7 +110,8 @@ public class HomeViewModel {
         vm.tableIdProperty().set(s.tableId());
         vm.orderIdProperty().set(s.orderId());
         vm.titleProperty().set(s.label());
-        vm.salonNameProperty().set(extractSalonName(s.label()));
+        String salonName = s.salonName() == null || s.salonName().isBlank() ? "Salon" : s.salonName().trim();
+        vm.salonNameProperty().set(salonName);
         vm.totalTextProperty().set(s.totalCents() > 0 ? money(s.totalCents()) : "-");
         vm.elapsedTextProperty().set(s.elapsedMinutes() > 0 ? s.elapsedMinutes() + " min" : "-");
         vm.statusProperty().set(s.status());
@@ -151,26 +152,6 @@ public class HomeViewModel {
 
     private static String money(int cents) {
         return String.format(java.util.Locale.US, "%.2f EUR", cents / 100.0);
-    }
-
-    private static String extractSalonName(String label) {
-        if (label == null || label.isBlank()) {
-            return "Salon";
-        }
-        String value = label.trim();
-        String needle = " - mesa ";
-        int idx = value.toLowerCase(Locale.ROOT).indexOf(needle);
-        if (idx > 0) {
-            return value.substring(0, idx).trim();
-        }
-        if (value.toLowerCase(Locale.ROOT).startsWith("mesa ")) {
-            return "Salon";
-        }
-        int dash = value.indexOf('-');
-        if (dash > 0) {
-            return value.substring(0, dash).trim();
-        }
-        return "Salon";
     }
 
     private boolean cleanupOwnOrphanLocks(List<TableSnapshot> snapshots) {
