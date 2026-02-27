@@ -33,9 +33,9 @@ class AuditSecurityTest {
     private JwtDecoder jwtDecoder;
 
     @Test
-    void auditEvents_deniesUserRole() throws Exception {
+    void auditEvents_deniesCamareroRole() throws Exception {
         mockMvc.perform(get("/api/v1/pos/audit/events")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isForbidden());
     }
 

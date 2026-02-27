@@ -48,9 +48,9 @@ class SecurityAuthorizationTest {
     private JwtDecoder jwtDecoder;
 
     @Test
-    void payTicket_deniesUserRole() throws Exception {
+    void payTicket_deniesCamareroRole() throws Exception {
         mockMvc.perform(post("/api/v1/pos/tickets/1/pay")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -62,44 +62,44 @@ class SecurityAuthorizationTest {
     }
 
     @Test
-    void addLine_allowsUserRole() throws Exception {
+    void addLine_allowsCamareroRole() throws Exception {
         when(ticketService.addLine(anyLong(), anyLong(), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(sampleTicket());
 
         mockMvc.perform(post("/api/v1/pos/tickets/1/lines")
                 .contentType("application/json")
                 .content("{\"productId\":10,\"qty\":1}")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isCreated());
     }
 
     @Test
-    void addPayment_deniesUserRole() throws Exception {
+    void addPayment_deniesCamareroRole() throws Exception {
         mockMvc.perform(post("/api/v1/pos/tickets/1/payments")
                 .contentType("application/json")
                 .content("{\"method\":\"CASH\",\"amountCents\":100}")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void addPayment_allowsAdminRole() throws Exception {
+    void addPayment_allowsCamareroRole() throws Exception {
         when(paymentService.addPayment(anyLong(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new PaymentResponse(1L, com.tpv.pos_service.domain.PaymentMethod.CASH, 100, Instant.now()));
 
         mockMvc.perform(post("/api/v1/pos/tickets/1/payments")
                 .contentType("application/json")
                 .content("{\"method\":\"CASH\",\"amountCents\":100}")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isCreated());
     }
 
     @Test
-    void reopenPaid_deniesUserRole() throws Exception {
+    void reopenPaid_deniesCamareroRole() throws Exception {
         mockMvc.perform(post("/api/v1/pos/tickets/1/reopen-paid")
                 .contentType("application/json")
                 .content("{\"reason\":\"Correccion manual\"}")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isForbidden());
     }
 

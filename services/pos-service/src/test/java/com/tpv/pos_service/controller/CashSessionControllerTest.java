@@ -110,10 +110,9 @@ class CashSessionControllerTest {
                 .thenThrow(new NotFoundException("Cash session not found: 99"));
 
         mockMvc.perform(get("/api/v1/pos/cash-sessions/99/open-tickets")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAJERO"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Not Found"))
                 .andExpect(jsonPath("$.message").value("Cash session not found: 99"));
     }
 }
-

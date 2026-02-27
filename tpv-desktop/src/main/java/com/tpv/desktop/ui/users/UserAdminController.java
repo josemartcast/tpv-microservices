@@ -53,10 +53,10 @@ public class UserAdminController {
         activeCol.setCellValueFactory(data -> new SimpleBooleanProperty(data.getValue().active()));
 
         usersTable.setItems(users);
-        createRoleBox.setItems(FXCollections.observableArrayList("ADMIN", "ENCARGADO", "USER"));
-        editRoleBox.setItems(FXCollections.observableArrayList("ADMIN", "ENCARGADO", "USER"));
-        createRoleBox.setValue("USER");
-        editRoleBox.setValue("USER");
+        createRoleBox.setItems(FXCollections.observableArrayList("ADMIN", "ENCARGADO", "CAJERO", "CAMARERO"));
+        editRoleBox.setItems(FXCollections.observableArrayList("ADMIN", "ENCARGADO", "CAJERO", "CAMARERO"));
+        createRoleBox.setValue("CAMARERO");
+        editRoleBox.setValue("CAMARERO");
         installUsernameAutoNormalization();
 
         usersTable.getSelectionModel().selectedItemProperty().addListener((obs, oldV, selected) -> bindSelectedUser(selected));
@@ -123,7 +123,7 @@ public class UserAdminController {
             AuthApi.createUser(username, password, role);
             createUsernameField.clear();
             createPasswordField.clear();
-            createRoleBox.setValue("USER");
+            createRoleBox.setValue("CAMARERO");
             usernameAutoNormalizedPendingNotice = false;
             onRefresh();
             statusLabel.setText("Usuario creado correctamente.");
@@ -246,7 +246,7 @@ public class UserAdminController {
     private void bindSelectedUser(AdminUserResponse selected) {
         if (selected == null) {
             selectedUserLabel.setText("Usuario seleccionado: -");
-            editRoleBox.setValue("USER");
+            editRoleBox.setValue("CAMARERO");
             activeCheck.setSelected(false);
             return;
         }

@@ -14,7 +14,20 @@ public class DataBootstrap {
    
     @Bean
     CommandLineRunner initAdmin (UserRepository repo, PasswordEncoder encoder){
-        return args -> repo.findByUsername("admin").orElseGet(() -> repo.save(new User ("admin", encoder.encode("admin123"), Role.ADMIN)));
+        return args -> {
+            repo.findByUsername("admin").orElseGet(() -> repo.save(new User("admin", encoder.encode("admin123"), Role.ADMIN)));
+            migrateLegacyUserRole(repo);
+        };
     }
-    
+
+    private static void migrateLegacyUserRole(UserRepository repo) {
+        var legacyUsers = repo.findAllByRole(Role.USER);
+        if (legacyUsers.isEmpty()) {
+            return;
+        }
+        for (User user : legacyUsers) {
+            user.setRole(Role.CAMARERO);
+        }
+        repo.saveAll(legacyUsers);
+    }
 }

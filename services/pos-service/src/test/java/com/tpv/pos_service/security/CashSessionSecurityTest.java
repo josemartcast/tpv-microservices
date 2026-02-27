@@ -54,12 +54,12 @@ class CashSessionSecurityTest {
     private JwtDecoder jwtDecoder;
 
     @Test
-    void openTickets_allowsUserRole() throws Exception {
+    void openTickets_allowsCajeroRole() throws Exception {
         when(cashSessionService.openTickets(1L))
                 .thenReturn(List.of(new CashSessionOpenTicketResponse(10L, 4, 1_250, Instant.now())));
 
         mockMvc.perform(get("/api/v1/pos/cash-sessions/1/open-tickets")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAJERO"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].ticketId").value(10))
                 .andExpect(jsonPath("$[0].tableNumber").value(4))
@@ -67,9 +67,9 @@ class CashSessionSecurityTest {
     }
 
     @Test
-    void resolveOpenTickets_deniesUserRole() throws Exception {
+    void resolveOpenTickets_deniesCamareroRole() throws Exception {
         mockMvc.perform(post("/api/v1/pos/cash-sessions/1/resolve-open-tickets")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -97,11 +97,11 @@ class CashSessionSecurityTest {
     }
 
     @Test
-    void close_deniesUserRole() throws Exception {
+    void close_deniesCamareroRole() throws Exception {
         mockMvc.perform(post("/api/v1/pos/cash-sessions/1/close")
                         .contentType("application/json")
                         .content("{\"closingCashCents\":12000,\"note\":\"cierre\"}")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -148,4 +148,3 @@ class CashSessionSecurityTest {
                 .andExpect(jsonPath("$.message").value("Cannot close cash session with OPEN tickets"));
     }
 }
-
