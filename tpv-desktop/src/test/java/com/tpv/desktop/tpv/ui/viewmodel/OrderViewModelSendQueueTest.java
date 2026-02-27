@@ -325,6 +325,11 @@ class OrderViewModelSendQueueTest {
         }
 
         @Override
+        public Order addProduct(long orderId, long productId, int qty) {
+            return order;
+        }
+
+        @Override
         public void removeLastPendingLine(long orderId) {
         }
 

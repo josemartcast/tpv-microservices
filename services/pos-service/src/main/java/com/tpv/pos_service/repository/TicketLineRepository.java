@@ -11,6 +11,7 @@ public interface TicketLineRepository extends JpaRepository<TicketLine, Long> {
 
     List<TicketLine> findAllByTicketIdOrderByIdAsc(Long ticketId);
     List<TicketLine> findAllByTicketIdAndSentFalseOrderByIdAsc(Long ticketId);
+    Optional<TicketLine> findFirstByTicketIdAndProduct_IdAndSentFalseOrderByIdAsc(Long ticketId, Long productId);
 
     Optional<TicketLine> findByIdAndTicketId(Long id, Long ticketId);
 

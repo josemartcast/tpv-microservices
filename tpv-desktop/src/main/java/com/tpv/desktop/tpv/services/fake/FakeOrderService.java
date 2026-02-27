@@ -39,6 +39,12 @@ public class FakeOrderService implements OrderService {
 
     @Override
     public Order addProduct(long orderId, long productId) {
+        return addProduct(orderId, productId, 1);
+    }
+
+    @Override
+    public Order addProduct(long orderId, long productId, int qty) {
+        int safeQty = qty <= 0 ? 1 : qty;
         Order order = getById(orderId);
         Product p = catalogService.productById(productId);
         OrderLine existingPending = order.getLines().stream()
@@ -46,9 +52,9 @@ public class FakeOrderService implements OrderService {
                 .findFirst()
                 .orElse(null);
         if (existingPending != null) {
-            existingPending.addQty(1);
+            existingPending.addQty(safeQty);
         } else {
-            order.getLines().add(new OrderLine(store.lineSeq.incrementAndGet(), p, 1));
+            order.getLines().add(new OrderLine(store.lineSeq.incrementAndGet(), p, safeQty));
         }
         return order;
     }

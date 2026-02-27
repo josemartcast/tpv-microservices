@@ -127,8 +127,16 @@ public class TicketService {
             throw new ConflictException("Product is inactive: " + productId);
         }
 
-        TicketLine line = new TicketLine(t, p, qty);
-        lineRepo.save(line);
+        int safeQty = qty <= 0 ? 1 : qty;
+        TicketLine line = lineRepo.findFirstByTicketIdAndProduct_IdAndSentFalseOrderByIdAsc(ticketId, productId)
+                .orElse(null);
+        if (line != null) {
+            line.changeQty(line.getQty() + safeQty);
+            lineRepo.save(line);
+        } else {
+            line = new TicketLine(t, p, safeQty);
+            lineRepo.save(line);
+        }
 
         recalcTotal(t.getId());
         // refrescamos

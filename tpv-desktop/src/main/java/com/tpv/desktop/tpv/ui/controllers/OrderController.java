@@ -13,6 +13,7 @@ import com.tpv.desktop.tpv.ui.controllers.components.ProductButtonController;
 import com.tpv.desktop.tpv.ui.controllers.components.TicketLineCellController;
 import com.tpv.desktop.tpv.ui.controllers.components.TopBarController;
 import com.tpv.desktop.tpv.ui.viewmodel.OrderViewModel;
+import com.tpv.desktop.ui.components.NumericPadController;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.collections.ListChangeListener;
@@ -48,6 +49,8 @@ public class OrderController {
     @FXML private Label orderHeader;
     @FXML private ToggleGroup categoryTabs;
     @FXML private HBox categoryTabsBox;
+    @FXML private TextField qtyField;
+    @FXML private NumericPadController orderPadController;
     @FXML private FlowPane productsPane;
     @FXML private Button sendBtn;
     @FXML private Button payBtn;
@@ -106,6 +109,13 @@ public class OrderController {
         heartbeat.setCycleCount(Timeline.INDEFINITE);
         heartbeat.play();
 
+        if (qtyField != null) {
+            qtyField.setText("");
+        }
+        if (orderPadController != null && qtyField != null) {
+            orderPadController.bindTargets(qtyField);
+        }
+
         vm.lines().addListener((ListChangeListener<OrderLine>) change -> updateActionState());
         updateActionState();
     }
@@ -134,13 +144,38 @@ public class OrderController {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/components/ProductButton.fxml"));
                 Node node = loader.load();
                 ProductButtonController controller = loader.getController();
-                controller.bind(product, () -> vm.addProduct(product));
+                controller.bind(product, () -> onProductClicked(product));
                 productsPane.getChildren().add(node);
             } catch (IOException e) {
                 Button fallback = new Button(product.name());
-                fallback.setOnAction(evt -> vm.addProduct(product));
+                fallback.setOnAction(evt -> onProductClicked(product));
                 productsPane.getChildren().add(fallback);
             }
+        }
+    }
+
+    private void onProductClicked(Product product) {
+        int qty = parseQtyOrDefault();
+        vm.addProduct(product, qty);
+        if (qtyField != null) {
+            qtyField.setText("");
+        }
+    }
+
+    private int parseQtyOrDefault() {
+        if (qtyField == null) {
+            return 1;
+        }
+        String raw = qtyField.getText();
+        if (raw == null || raw.isBlank()) {
+            return 1;
+        }
+        try {
+            int value = Integer.parseInt(raw.trim());
+            return Math.max(1, value);
+        } catch (NumberFormatException ex) {
+            qtyField.setText("1");
+            return 1;
         }
     }
 

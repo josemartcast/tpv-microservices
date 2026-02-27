@@ -57,8 +57,14 @@ public class RealOrderService implements OrderService {
 
     @Override
     public Order addProduct(long orderId, long productId) {
+        return addProduct(orderId, productId, 1);
+    }
+
+    @Override
+    public Order addProduct(long orderId, long productId, int qty) {
+        int safeQty = qty <= 0 ? 1 : qty;
         try {
-            return toDomain(TicketApi.addLine(orderId, productId, 1));
+            return toDomain(TicketApi.addLine(orderId, productId, safeQty));
         } catch (Exception e) {
             throw new RuntimeException("No se pudo anadir producto: " + e.getMessage(), e);
         }

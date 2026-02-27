@@ -125,7 +125,12 @@ public class OrderViewModel {
     }
 
     public void addProduct(Product product) {
-        orderService.addProduct(orderId.get(), product.id());
+        addProduct(product, 1);
+    }
+
+    public void addProduct(Product product, int qty) {
+        int safeQty = Math.max(1, qty);
+        orderService.addProduct(orderId.get(), product.id(), safeQty);
         refreshOrder();
     }
 

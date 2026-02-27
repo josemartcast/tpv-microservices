@@ -9,6 +9,7 @@ public interface OrderService {
     Order openOrGetByTable(int tableId);
     Order getById(long orderId);
     Order addProduct(long orderId, long productId);
+    Order addProduct(long orderId, long productId, int qty);
     void removeLastPendingLine(long orderId);
     void setLastLineNote(long orderId, String note);
     Map<Destination, Integer> pendingByDestination(long orderId);

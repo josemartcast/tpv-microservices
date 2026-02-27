@@ -15,6 +15,14 @@
 
       <Label text="Cash Register" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
 
+      <HBox spacing="16" alignment="TOP_LEFT">
+        <VBox spacing="6" HBox.hgrow="ALWAYS">
+          <Label text="Teclado numerico" style="-fx-font-weight: bold;"/>
+          <Label text="Toca los campos de importe y usa el teclado para escribir." wrapText="true" style="-fx-opacity: 0.8;"/>
+        </VBox>
+        <fx:include source="../components/NumericPad.fxml" fx:id="cashPad"/>
+      </HBox>
+
       <VBox spacing="8" style="-fx-padding: 12; -fx-border-color: #d1d5db; -fx-border-radius: 8; -fx-background-radius: 8;">
         <Label text="Ejercicio fiscal anual" style="-fx-font-weight: bold;"/>
         <Label fx:id="fiscalStatusLabel" text="Cargando ejercicio fiscal..."/>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.tpv.desktop.ui.components.NumericPadController"
+      spacing="6" styleClass="num-pad">
+  <GridPane hgap="6" vgap="6">
+    <Button text="1" onAction="#onDigit" userData="1" styleClass="num-pad-btn" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+    <Button text="2" onAction="#onDigit" userData="2" styleClass="num-pad-btn" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+    <Button text="3" onAction="#onDigit" userData="3" styleClass="num-pad-btn" GridPane.rowIndex="0" GridPane.columnIndex="2"/>
+
+    <Button text="4" onAction="#onDigit" userData="4" styleClass="num-pad-btn" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+    <Button text="5" onAction="#onDigit" userData="5" styleClass="num-pad-btn" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+    <Button text="6" onAction="#onDigit" userData="6" styleClass="num-pad-btn" GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+
+    <Button text="7" onAction="#onDigit" userData="7" styleClass="num-pad-btn" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+    <Button text="8" onAction="#onDigit" userData="8" styleClass="num-pad-btn" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+    <Button text="9" onAction="#onDigit" userData="9" styleClass="num-pad-btn" GridPane.rowIndex="2" GridPane.columnIndex="2"/>
+
+    <Button text="." onAction="#onDigit" userData="." styleClass="num-pad-btn" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+    <Button text="0" onAction="#onDigit" userData="0" styleClass="num-pad-btn" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+    <Button text="⌫" onAction="#onBackspace" styleClass="num-pad-btn num-pad-fn" GridPane.rowIndex="3" GridPane.columnIndex="2"/>
+
+    <Button text="C" onAction="#onClear" styleClass="num-pad-btn num-pad-fn" GridPane.rowIndex="4" GridPane.columnIndex="0" GridPane.columnSpan="3"/>
+  </GridPane>
+</VBox>

@@ -10,6 +10,7 @@ import com.tpv.desktop.api.pos.CashIncidentResponse;
 import com.tpv.desktop.api.pos.FiscalExerciseResponse;
 import com.tpv.desktop.api.pos.ResolveOpenTicketsResponse;
 import com.tpv.desktop.core.MoneyUtil;
+import com.tpv.desktop.ui.components.NumericPadController;
 import java.time.Year;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -32,6 +33,7 @@ public class CashController {
   @FXML private TextField openingEurosField;
   @FXML private TextField openNoteField;
   @FXML private Button openBtn;
+  @FXML private NumericPadController cashPadController;
 
   @FXML private TextField closingEurosField;
   @FXML private TextField closeNoteField;
@@ -54,6 +56,9 @@ public class CashController {
   public void initialize() {
     incidentDirectionChoice.getItems().setAll("IN", "OUT");
     incidentDirectionChoice.setValue("OUT");
+    if (cashPadController != null) {
+      cashPadController.bindTargets(openingEurosField, incidentEurosField, closingEurosField);
+    }
     onRefresh();
   }
 

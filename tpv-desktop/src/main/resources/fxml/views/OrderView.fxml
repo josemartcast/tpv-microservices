@@ -53,6 +53,14 @@
       </VBox>
 
       <VBox prefWidth="320" maxWidth="340" spacing="10" styleClass="actions-panel">
+        <VBox spacing="8">
+          <HBox spacing="10" alignment="CENTER_LEFT">
+            <Label text="Cantidad" styleClass="home-filter-label"/>
+            <TextField fx:id="qtyField" prefWidth="80"/>
+            <Region HBox.hgrow="ALWAYS"/>
+          </HBox>
+          <fx:include source="../components/NumericPad.fxml" fx:id="orderPad"/>
+        </VBox>
         <Button fx:id="sendBtn" text="ENVIAR" onAction="#onSend" styleClass="action-btn-primary-major"/>
         <Button fx:id="payBtn" text="COBRAR" onAction="#onPay" styleClass="action-btn-success-major"/>
         <Button fx:id="splitBtn" text="DIVIDIR" onAction="#onSplit" styleClass="action-btn-teal"/>

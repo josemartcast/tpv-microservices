@@ -349,6 +349,33 @@
 .send-btn-dark { -fx-background-color: #35405a; }
 .send-btn-green { -fx-background-color: #5c8d52; }
 
+.num-pad {
+    -fx-padding: 6;
+    -fx-background-color: #eceef4;
+    -fx-border-color: #cfd4e3;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.num-pad-btn {
+    -fx-pref-width: 56;
+    -fx-pref-height: 46;
+    -fx-background-color: #f6f7fb;
+    -fx-border-color: #c7cddd;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-font-size: 18px;
+    -fx-font-weight: 700;
+}
+
+.num-pad-btn:hover {
+    -fx-background-color: #e8ebf4;
+}
+
+.num-pad-fn {
+    -fx-background-color: #dfe4f0;
+}
+
 .kiosk-mode {
     -fx-font-smoothing-type: lcd;
 }
