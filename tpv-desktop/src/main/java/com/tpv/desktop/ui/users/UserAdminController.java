@@ -12,8 +12,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
+import com.tpv.desktop.ui.UiDialogs;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -79,7 +78,7 @@ public class UserAdminController {
         } catch (Exception e) {
             String msg = "No se pudo cargar usuarios: " + renderError(e);
             statusLabel.setText(msg);
-            showError("Usuarios", msg);
+            UiDialogs.error("Usuarios", msg);
         }
     }
 
@@ -91,7 +90,7 @@ public class UserAdminController {
         String role = createRoleBox.getValue();
 
         if (usernameAutoNormalizedPendingNotice) {
-            boolean proceed = confirm(
+            boolean proceed = UiDialogs.confirm(
                     "Crear usuario",
                     "Se detectaron espacios en el usuario y se reemplazaron por '_'.\n"
                             + "Usuario final: " + username + "\n\n"
@@ -104,18 +103,18 @@ public class UserAdminController {
         }
 
         if (!username.matches("[A-Za-z0-9._@\\-]{3,50}")) {
-            showWarn(
+            UiDialogs.warn(
                     "Crear usuario",
                     "Usuario invalido. Usa 3-50 caracteres sin espacios (letras, numeros, . _ - @)."
             );
             return;
         }
         if (password.length() < 6) {
-            showWarn("Crear usuario", "La contraseña debe tener al menos 6 caracteres.");
+            UiDialogs.warn("Crear usuario", "La contraseña debe tener al menos 6 caracteres.");
             return;
         }
         if (role == null || role.isBlank()) {
-            showWarn("Crear usuario", "Selecciona un rol.");
+            UiDialogs.warn("Crear usuario", "Selecciona un rol.");
             return;
         }
 
@@ -130,7 +129,7 @@ public class UserAdminController {
         } catch (Exception e) {
             String msg = "No se pudo crear usuario: " + renderError(e);
             statusLabel.setText(msg);
-            showError("Crear usuario", msg);
+            UiDialogs.error("Crear usuario", msg);
         }
     }
 
@@ -138,12 +137,12 @@ public class UserAdminController {
     public void onSaveRole() {
         AdminUserResponse selected = usersTable.getSelectionModel().getSelectedItem();
         if (selected == null) {
-            showWarn("Rol", "Selecciona un usuario.");
+            UiDialogs.warn("Rol", "Selecciona un usuario.");
             return;
         }
         String role = editRoleBox.getValue();
         if (role == null || role.isBlank()) {
-            showWarn("Rol", "Selecciona un rol.");
+            UiDialogs.warn("Rol", "Selecciona un rol.");
             return;
         }
 
@@ -154,7 +153,7 @@ public class UserAdminController {
         } catch (Exception e) {
             String msg = "No se pudo actualizar rol: " + renderError(e);
             statusLabel.setText(msg);
-            showError("Rol", msg);
+            UiDialogs.error("Rol", msg);
         }
     }
 
@@ -162,12 +161,12 @@ public class UserAdminController {
     public void onResetPassword() {
         AdminUserResponse selected = usersTable.getSelectionModel().getSelectedItem();
         if (selected == null) {
-            showWarn("Contraseña", "Selecciona un usuario.");
+            UiDialogs.warn("Contraseña", "Selecciona un usuario.");
             return;
         }
         String password = value(resetPasswordField);
         if (password.length() < 6) {
-            showWarn("Contraseña", "La nueva contraseña debe tener al menos 6 caracteres.");
+            UiDialogs.warn("Contraseña", "La nueva contraseña debe tener al menos 6 caracteres.");
             return;
         }
 
@@ -175,11 +174,11 @@ public class UserAdminController {
             AuthApi.updatePassword(selected.id(), password);
             resetPasswordField.clear();
             statusLabel.setText("Contraseña actualizada.");
-            showInfo("Contraseña", "Contraseña actualizada para '" + selected.username() + "'.");
+            UiDialogs.info("Contraseña", "Contraseña actualizada para '" + selected.username() + "'.");
         } catch (Exception e) {
             String msg = "No se pudo actualizar contraseña: " + renderError(e);
             statusLabel.setText(msg);
-            showError("Contraseña", msg);
+            UiDialogs.error("Contraseña", msg);
         }
     }
 
@@ -187,7 +186,7 @@ public class UserAdminController {
     public void onSaveActive() {
         AdminUserResponse selected = usersTable.getSelectionModel().getSelectedItem();
         if (selected == null) {
-            showWarn("Estado", "Selecciona un usuario.");
+            UiDialogs.warn("Estado", "Selecciona un usuario.");
             return;
         }
 
@@ -195,7 +194,7 @@ public class UserAdminController {
         String message = active
                 ? "Se activará el usuario '" + selected.username() + "'."
                 : "Se desactivará el usuario '" + selected.username() + "'.";
-        if (!confirm("Confirmar estado", message)) {
+        if (!UiDialogs.confirm("Confirmar estado", message)) {
             return;
         }
 
@@ -206,7 +205,7 @@ public class UserAdminController {
         } catch (Exception e) {
             String msg = "No se pudo actualizar estado: " + renderError(e);
             statusLabel.setText(msg);
-            showError("Estado", msg);
+            UiDialogs.error("Estado", msg);
         }
     }
 
@@ -214,18 +213,18 @@ public class UserAdminController {
     public void onDeleteUser() {
         AdminUserResponse selected = usersTable.getSelectionModel().getSelectedItem();
         if (selected == null) {
-            showWarn("Eliminar usuario", "Selecciona un usuario.");
+            UiDialogs.warn("Eliminar usuario", "Selecciona un usuario.");
             return;
         }
 
-        if (!confirm(
+        if (!UiDialogs.confirm(
                 "Eliminar usuario",
                 "Vas a eliminar el usuario '" + selected.username() + "'.\n"
                         + "Esta accion es permanente."
         )) {
             return;
         }
-        if (!confirm(
+        if (!UiDialogs.confirm(
                 "Confirmacion final",
                 "No se puede deshacer.\nConfirmas eliminar '" + selected.username() + "'?"
         )) {
@@ -239,7 +238,7 @@ public class UserAdminController {
         } catch (Exception e) {
             String msg = "No se pudo eliminar usuario: " + renderError(e);
             statusLabel.setText(msg);
-            showError("Eliminar usuario", msg);
+            UiDialogs.error("Eliminar usuario", msg);
         }
     }
 
@@ -304,31 +303,4 @@ public class UserAdminController {
         return e.getMessage() == null ? e.toString() : e.getMessage();
     }
 
-    private static void showInfo(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION, message, ButtonType.OK);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.showAndWait();
-    }
-
-    private static void showWarn(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.WARNING, message, ButtonType.OK);
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        alert.showAndWait();
-    }
-
-    private static void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK);
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        alert.showAndWait();
-    }
-
-    private static boolean confirm(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL);
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
-    }
 }

@@ -32,6 +32,7 @@ import static org.mockito.Mockito.verify;
 import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class TicketServiceTest {
 
     @Mock

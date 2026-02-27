@@ -13,7 +13,6 @@ import javafx.collections.ObservableList;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public class HomeViewModel {
     private static final String ALL_SALONS = "Todos";

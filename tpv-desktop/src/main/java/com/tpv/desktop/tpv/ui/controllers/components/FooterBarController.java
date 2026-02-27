@@ -1,6 +1,7 @@
 package com.tpv.desktop.tpv.ui.controllers.components;
 
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.Product;
 import com.tpv.desktop.api.pos.SalonAdminApi;
@@ -25,8 +26,6 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -761,16 +760,11 @@ public class FooterBarController {
     }
 
     private void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK);
-        alert.setHeaderText("Error");
-        alert.showAndWait();
+        UiDialogs.error("Error", message);
     }
 
     private boolean showConfirm(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL);
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+        return UiDialogs.confirm(title, message);
     }
 
     private static void configureCategoryCombo(ComboBox<Category> combo) {

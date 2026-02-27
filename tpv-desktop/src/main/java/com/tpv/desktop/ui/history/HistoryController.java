@@ -7,12 +7,11 @@ import com.tpv.desktop.api.pos.TicketResponse;
 import com.tpv.desktop.api.pos.TicketSummaryResponse;
 import com.tpv.desktop.core.MoneyUtil;
 import com.tpv.desktop.core.AuthStore;
+import com.tpv.desktop.ui.UiDialogs;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -232,15 +231,12 @@ public class HistoryController {
             return;
         }
 
-        Alert confirm = new Alert(
-                Alert.AlertType.CONFIRMATION,
-                "Se reabrira el ticket #" + selectedTicket.id() + " y se revertiran sus pagos netos.\nDeseas continuar?",
-                ButtonType.OK,
-                ButtonType.CANCEL
+        boolean ok = UiDialogs.confirm(
+                "Confirmar reapertura",
+                "Se reabrira el ticket #" + selectedTicket.id()
+                        + " y se revertiran sus pagos netos.\nDeseas continuar?"
         );
-        confirm.setTitle("Confirmar reapertura");
-        confirm.setHeaderText("Modificar ticket pagado");
-        if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+        if (!ok) {
             return;
         }
 

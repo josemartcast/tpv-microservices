@@ -3,6 +3,7 @@ package com.tpv.desktop.tpv.ui.controllers.components;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.Nav;
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.domain.model.BackendStatus;
 import com.tpv.desktop.tpv.services.BackendStatusService;
@@ -14,9 +15,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
@@ -174,20 +173,16 @@ public class TopBarController {
             modal.setScene(scene);
             modal.showAndWait();
         } catch (IOException e) {
-            Alert alert = new Alert(Alert.AlertType.ERROR, "No se pudo abrir Settings: " + e.getMessage(), ButtonType.OK);
-            alert.setHeaderText("Error");
-            alert.showAndWait();
+            UiDialogs.error("Settings", "No se pudo abrir Settings: " + e.getMessage());
         }
     }
 
     private void openUsersAdminModal() {
         if (!AuthStore.hasRole("ADMIN")) {
-            Alert alert = new Alert(Alert.AlertType.WARNING,
-                    "Esta accion requiere un usuario con rol ADMIN.\nCierra sesion e inicia con un usuario administrador.",
-                    ButtonType.OK);
-            alert.setTitle("Permisos insuficientes");
-            alert.setHeaderText("Usuarios y Roles");
-            alert.showAndWait();
+            UiDialogs.warn(
+                    "Usuarios y Roles",
+                    "Esta accion requiere un usuario con rol ADMIN.\nCierra sesion e inicia con un usuario administrador."
+            );
             return;
         }
         try {
@@ -200,9 +195,7 @@ public class TopBarController {
             modal.setScene(scene);
             modal.showAndWait();
         } catch (IOException e) {
-            Alert alert = new Alert(Alert.AlertType.ERROR, "No se pudo abrir Usuarios: " + e.getMessage(), ButtonType.OK);
-            alert.setHeaderText("Error");
-            alert.showAndWait();
+            UiDialogs.error("Usuarios", "No se pudo abrir Usuarios: " + e.getMessage());
         }
     }
 

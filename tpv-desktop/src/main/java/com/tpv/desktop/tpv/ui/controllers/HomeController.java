@@ -1,6 +1,7 @@
 package com.tpv.desktop.tpv.ui.controllers;
 
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.domain.model.BackendStatus;
 import com.tpv.desktop.tpv.services.LockException;
@@ -14,7 +15,6 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.FlowPane;
@@ -140,10 +140,13 @@ public class HomeController {
     }
 
     private static void showAlert(Alert.AlertType type, String title, String message) {
-        Alert alert = new Alert(type, message, ButtonType.OK);
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        alert.showAndWait();
+        if (type == Alert.AlertType.WARNING) {
+            UiDialogs.warn(title, message);
+        } else if (type == Alert.AlertType.ERROR) {
+            UiDialogs.error(title, message);
+        } else {
+            UiDialogs.info(title, message);
+        }
     }
 
     private void renderSalonTabs() {

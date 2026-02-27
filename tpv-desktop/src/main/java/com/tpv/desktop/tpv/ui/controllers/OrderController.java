@@ -1,6 +1,7 @@
 package com.tpv.desktop.tpv.ui.controllers;
 
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.OrderLine;
@@ -715,21 +716,11 @@ public class OrderController {
     }
 
     private void showInfoDialog(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.getButtonTypes().setAll(ButtonType.OK);
-        alert.showAndWait();
+        UiDialogs.info(title, message);
     }
 
     private void showErrorDialog(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        alert.setContentText(message);
-        alert.getButtonTypes().setAll(ButtonType.OK);
-        alert.showAndWait();
+        UiDialogs.error(title, message);
     }
 
     private record LineSelection(OrderLine line, CheckBox include, Spinner<Integer> qty) {

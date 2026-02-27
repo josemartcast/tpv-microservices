@@ -11,6 +11,7 @@ import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.Nav;
 import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.ui.UiDialogs;
 import java.awt.Desktop;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -20,8 +21,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -194,10 +193,7 @@ public class SettingsController {
 
   private void showValidationError(String message) {
     statusLabel.setText(message);
-    Alert alert = new Alert(Alert.AlertType.WARNING, message, ButtonType.OK);
-    alert.setTitle("Validacion");
-    alert.setHeaderText("Revisa los datos");
-    alert.showAndWait();
+    UiDialogs.warn("Validacion", message);
   }
 
   private void loadBusinessProfileFromServerIfRealMode() {
@@ -244,14 +240,10 @@ public class SettingsController {
       applyBusinessProfile(profile);
       return true;
     } catch (Exception e) {
-      Alert alert = new Alert(
-              Alert.AlertType.WARNING,
-              "No se pudo guardar perfil fiscal en backend. Se guardo solo en local.\nDetalle: " + e.getMessage(),
-              ButtonType.OK
+      UiDialogs.warn(
+              "Backend no disponible",
+              "No se pudo guardar perfil fiscal en backend. Se guardo solo en local.\nDetalle: " + e.getMessage()
       );
-      alert.setTitle("Backend no disponible");
-      alert.setHeaderText("Guardado parcial");
-      alert.showAndWait();
       return false;
     }
   }

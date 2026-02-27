@@ -1,6 +1,7 @@
-﻿package com.tpv.desktop.ui.cash;
+package com.tpv.desktop.ui.cash;
 
 import com.tpv.desktop.api.ApiClient.ApiException;
+import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.api.pos.CashApi;
 import com.tpv.desktop.api.pos.CashSessionCloseSummaryResponse;
 import com.tpv.desktop.api.pos.CashSessionOpenTicketResponse;
@@ -16,9 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -441,20 +440,10 @@ public class CashController {
             + " - " + MoneyUtil.centsToEuros(t.totalCents()) + " EUR")
         .collect(Collectors.joining("\n"));
 
-    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-    alert.setTitle("Tickets pendientes");
-    alert.setHeaderText("Faltan tickets por cobrar");
-    alert.setContentText(detail);
-    alert.getButtonTypes().setAll(ButtonType.OK);
-    alert.showAndWait();
+    UiDialogs.info("Tickets pendientes", "Faltan tickets por cobrar\n\n" + detail);
   }
 
   private void showInfoDialog(String title, String message) {
-    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-    alert.setTitle(title);
-    alert.setHeaderText(null);
-    alert.setContentText(message);
-    alert.getButtonTypes().setAll(ButtonType.OK);
-    alert.showAndWait();
+    UiDialogs.info(title, message);
   }
 }
