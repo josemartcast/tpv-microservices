@@ -26,9 +26,12 @@ import com.tpv.pos_service.dto.TicketSummaryResponse;
 import com.tpv.pos_service.domain.CashSession;
 import com.tpv.pos_service.domain.CashSessionStatus;
 import com.tpv.pos_service.repository.CashSessionRepository;
+import com.tpv.pos_service.repository.CashIncidentRepository;
 import com.tpv.pos_service.dto.ApplyDiscountRequest;
 import com.tpv.pos_service.domain.TableLock;
 import com.tpv.pos_service.domain.SalonArea;
+import com.tpv.pos_service.domain.CashIncident;
+import com.tpv.pos_service.domain.CashIncidentDirection;
 
 @Service
 @SuppressWarnings("null")
@@ -39,15 +42,26 @@ public class TicketService {
     private final ProductRepository productRepo;
     private final PaymentRepository paymentRepo;
     private final CashSessionRepository cashSessionRepo;
+    private final CashIncidentRepository cashIncidentRepo;
     private final TableLockService tableLockService;
     private final SalonAreaRepository salonAreaRepo;
 
-    public TicketService(TicketRepository ticketRepo, TicketLineRepository lineRepo, ProductRepository productRepo, PaymentRepository paymentRepo, CashSessionRepository cashSessionRepo, TableLockService tableLockService, SalonAreaRepository salonAreaRepo) {
+    public TicketService(
+            TicketRepository ticketRepo,
+            TicketLineRepository lineRepo,
+            ProductRepository productRepo,
+            PaymentRepository paymentRepo,
+            CashSessionRepository cashSessionRepo,
+            CashIncidentRepository cashIncidentRepo,
+            TableLockService tableLockService,
+            SalonAreaRepository salonAreaRepo
+    ) {
         this.ticketRepo = ticketRepo;
         this.lineRepo = lineRepo;
         this.productRepo = productRepo;
         this.paymentRepo = paymentRepo;
         this.cashSessionRepo = cashSessionRepo;
+        this.cashIncidentRepo = cashIncidentRepo;
         this.tableLockService = tableLockService;
         this.salonAreaRepo = salonAreaRepo;
     }
@@ -84,10 +98,21 @@ public class TicketService {
     public List<TicketResponse> listOpen() {
         return ticketRepo.findAllByStatusOrderByCreatedAtDesc(TicketStatus.OPEN)
                 .stream()
-                .map(t -> {
-                    List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(t.getId());
-                    return toResponse(t, lines);
-                })
+                .map(this::toResponseWithLines)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TicketResponse> listCurrentCashSessionAllStatuses() {
+        CashSession currentOrLast = cashSessionRepo.findFirstByStatusOrderByOpenedAtDesc(CashSessionStatus.OPEN)
+                .or(() -> cashSessionRepo.findFirstByOrderByOpenedAtDesc())
+                .orElse(null);
+        if (currentOrLast == null) {
+            return List.of();
+        }
+        return ticketRepo.findAllByCashSession_IdOrderByCreatedAtDesc(currentOrLast.getId())
+                .stream()
+                .map(this::toResponseWithLines)
                 .toList();
     }
 
@@ -183,6 +208,11 @@ public class TicketService {
 
     @Transactional
     public TicketResponse reopenPaid(Long ticketId, String reason) {
+        return reopenPaid(ticketId, reason, "system");
+    }
+
+    @Transactional
+    public TicketResponse reopenPaid(Long ticketId, String reason, String actor) {
         if (reason == null || reason.isBlank() || reason.trim().length() < 6) {
             throw new ConflictException("Reason is required to reopen a paid ticket");
         }
@@ -220,6 +250,14 @@ public class TicketService {
 
         t.setBillRequested(false);
         t.reopen();
+        cashIncidentRepo.save(new CashIncident(
+                t.getCashSession(),
+                CashIncidentDirection.OUT,
+                0,
+                "REOPEN_PAID ticket #" + ticketId + ": " + reason.trim(),
+                actor == null || actor.isBlank() ? "system" : actor,
+                null
+        ));
 
         List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
         return toResponse(t, lines);
@@ -417,6 +455,11 @@ public class TicketService {
                 l.getCreatedAt(),
                 l.getUpdatedAt()
         );
+    }
+
+    private TicketResponse toResponseWithLines(Ticket t) {
+        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(t.getId());
+        return toResponse(t, lines);
     }
 
     private String destinationFor(String productName) {

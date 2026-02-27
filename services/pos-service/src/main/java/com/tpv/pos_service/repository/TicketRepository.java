@@ -13,6 +13,7 @@ import jakarta.persistence.LockModeType;
 
 public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Ticket> findAllByStatusOrderByCreatedAtDesc(TicketStatus status);
+    List<Ticket> findAllByCashSession_IdOrderByCreatedAtDesc(Long cashSessionId);
     int countByCashSession_IdAndStatus(Long cashSessionId, TicketStatus status);
     List<Ticket> findAllByCashSession_IdAndStatus(Long cashSessionId, TicketStatus status);
     boolean existsByStatus(TicketStatus status);

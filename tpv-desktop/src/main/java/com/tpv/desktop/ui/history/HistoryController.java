@@ -6,6 +6,7 @@ import com.tpv.desktop.api.pos.TicketHistoryApi;
 import com.tpv.desktop.api.pos.TicketResponse;
 import com.tpv.desktop.api.pos.TicketSummaryResponse;
 import com.tpv.desktop.core.MoneyUtil;
+import com.tpv.desktop.core.AuthStore;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -27,6 +28,8 @@ public class HistoryController {
 
     @FXML private TableView<TicketResponse> ticketsTable;
     @FXML private TableColumn<TicketResponse, String> colId;
+    @FXML private TableColumn<TicketResponse, String> colTable;
+    @FXML private TableColumn<TicketResponse, String> colStatus;
     @FXML private TableColumn<TicketResponse, String> colTotal;
     @FXML private TableColumn<TicketResponse, String> colCreated;
     @FXML private Label listErrorLabel;
@@ -61,11 +64,15 @@ public class HistoryController {
     private static final DateTimeFormatter DT =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault());
 
+    private boolean canReopenPaid() {
+        return AuthStore.hasRole("ADMIN") || AuthStore.hasRole("ENCARGADO");
+    }
+
     @FXML
     public void initialize() {
         openInSalesBtn.setDisable(true);
         refundBtn.setDisable(true);
-        reopenPaidBtn.setDisable(true);
+        reopenPaidBtn.setDisable(!canReopenPaid());
         setupTables();
         ticketsTable.setItems(tickets);
         linesTable.setItems(lines);
@@ -76,7 +83,7 @@ public class HistoryController {
             selectedPayment = null;
             openInSalesBtn.setDisable(true);
             refundBtn.setDisable(true);
-            reopenPaidBtn.setDisable(true);
+            reopenPaidBtn.setDisable(!canReopenPaid());
             if (newV != null) {
                 loadDetail(newV.id());
             }
@@ -92,6 +99,10 @@ public class HistoryController {
 
     private void setupTables() {
         colId.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().id())));
+        colTable.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
+                c.getValue().tableNumber() == null ? "-" : String.valueOf(c.getValue().tableNumber())
+        ));
+        colStatus.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().status()));
         colTotal.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(MoneyUtil.centsToEuros(c.getValue().totalCents()) + " EUR"));
         colCreated.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().createdAt() == null ? "-" : DT.format(c.getValue().createdAt())
@@ -116,7 +127,7 @@ public class HistoryController {
         clearDetail();
 
         try {
-            TicketResponse[] arr = TicketHistoryApi.listOpen();
+            TicketResponse[] arr = TicketHistoryApi.listCurrentCashHistory();
             tickets.setAll(arr == null ? FXCollections.observableArrayList() : Arrays.asList(arr));
         } catch (Exception e) {
             listErrorLabel.setText("No se pudo cargar la lista: " + e.getMessage());
@@ -159,7 +170,7 @@ public class HistoryController {
             boolean isOpen = "OPEN".equalsIgnoreCase(s.status());
             boolean isPaid = "PAID".equalsIgnoreCase(s.status());
             openInSalesBtn.setDisable(!isOpen);
-            reopenPaidBtn.setDisable(!isPaid);
+            reopenPaidBtn.setDisable(!isPaid || !canReopenPaid());
         } catch (Exception e) {
             detailErrorLabel.setText("No se pudo cargar el detalle: " + e.getMessage());
             clearDetail();
@@ -176,7 +187,7 @@ public class HistoryController {
         payments.clear();
         selectedPayment = null;
         openInSalesBtn.setDisable(true);
-        reopenPaidBtn.setDisable(true);
+        reopenPaidBtn.setDisable(!canReopenPaid());
         refundBtn.setDisable(true);
     }
 
@@ -201,6 +212,10 @@ public class HistoryController {
         }
         if (!"PAID".equalsIgnoreCase(selectedTicket.status())) {
             detailErrorLabel.setText("Solo se puede reabrir un ticket PAID.");
+            return;
+        }
+        if (!canReopenPaid()) {
+            detailErrorLabel.setText("Solo ADMIN/ENCARGADO puede modificar tickets pagados.");
             return;
         }
 

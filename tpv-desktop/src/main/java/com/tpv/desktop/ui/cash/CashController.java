@@ -5,6 +5,7 @@ import com.tpv.desktop.api.pos.CashApi;
 import com.tpv.desktop.api.pos.CashSessionCloseSummaryResponse;
 import com.tpv.desktop.api.pos.CashSessionOpenTicketResponse;
 import com.tpv.desktop.api.pos.CashSessionResponse;
+import com.tpv.desktop.api.pos.CashIncidentResponse;
 import com.tpv.desktop.api.pos.FiscalExerciseResponse;
 import com.tpv.desktop.api.pos.ResolveOpenTicketsResponse;
 import com.tpv.desktop.core.MoneyUtil;
@@ -12,6 +13,7 @@ import java.time.Year;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
@@ -370,6 +372,22 @@ public class CashController {
                   .map(this::formatOpenTicket)
                   .collect(Collectors.joining(", ")))
               .append(")\n");
+        }
+      } catch (Exception ignored) {
+        // non-blocking diagnostic info
+      }
+
+      try {
+        List<CashIncidentResponse> incidents = CashApi.listIncidents(cs.id());
+        long ticketIncidents = incidents.stream()
+            .filter(i -> i.note() != null && i.note().toUpperCase(Locale.ROOT).contains("REOPEN_PAID"))
+            .count();
+        if (ticketIncidents > 0) {
+          sb.append("Incidencias ticket: ").append(ticketIncidents).append("\n");
+          incidents.stream()
+              .filter(i -> i.note() != null && i.note().toUpperCase(Locale.ROOT).contains("REOPEN_PAID"))
+              .limit(5)
+              .forEach(i -> sb.append(" - ").append(i.note()).append("\n"));
         }
       } catch (Exception ignored) {
         // non-blocking diagnostic info

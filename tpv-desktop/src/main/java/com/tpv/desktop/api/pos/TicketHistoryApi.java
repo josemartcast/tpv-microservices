@@ -10,6 +10,10 @@ public final class TicketHistoryApi {
     return ApiClient.get("/api/v1/pos/tickets/open", TicketResponse[].class);
   }
 
+  public static TicketResponse[] listCurrentCashHistory() throws Exception {
+    return ApiClient.get("/api/v1/pos/tickets/history/current-cash", TicketResponse[].class);
+  }
+
   public static TicketSummaryResponse summary(long ticketId) throws Exception {
     return ApiClient.get("/api/v1/pos/tickets/" + ticketId + "/summary", TicketSummaryResponse.class);
   }

@@ -10,4 +10,6 @@ public interface CashSessionRepository extends JpaRepository<CashSession, Long> 
     boolean existsByStatus(CashSessionStatus status);
 
     Optional<CashSession> findFirstByStatusOrderByOpenedAtDesc(CashSessionStatus status);
+
+    Optional<CashSession> findFirstByOrderByOpenedAtDesc();
 }

@@ -63,6 +63,11 @@ public class TicketController {
         return service.listOpen();
     }
 
+    @GetMapping("/history/current-cash")
+    public List<TicketResponse> listCurrentCashHistory() {
+        return service.listCurrentCashSessionAllStatuses();
+    }
+
     @GetMapping("/{id}/payment-summary")
     public PaymentSummaryResponse paymentSummary(@PathVariable Long id) {
         return service.paymentSummary(id);
@@ -217,7 +222,7 @@ public class TicketController {
         String actor = ActorResolver.usernameFrom(auth);
         String term = ActorResolver.terminalFromHeader(terminalId);
         try {
-            TicketResponse response = service.reopenPaid(id, req.reason());
+            TicketResponse response = service.reopenPaid(id, req.reason(), actor);
             auditService.recordSuccess("TICKET_REOPEN_PAID", "TICKET", id, actor, term, req, response);
             return response;
         } catch (RuntimeException e) {

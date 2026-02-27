@@ -8,6 +8,7 @@ import com.tpv.pos_service.domain.TicketStatus;
 import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.dto.TicketResponse;
 import com.tpv.pos_service.repository.CashSessionRepository;
+import com.tpv.pos_service.repository.CashIncidentRepository;
 import com.tpv.pos_service.repository.PaymentRepository;
 import com.tpv.pos_service.repository.ProductRepository;
 import com.tpv.pos_service.repository.SalonAreaRepository;
@@ -43,6 +44,8 @@ class TicketServiceTest {
     private PaymentRepository paymentRepo;
     @Mock
     private CashSessionRepository cashSessionRepo;
+    @Mock
+    private CashIncidentRepository cashIncidentRepo;
     @Mock
     private TableLockService tableLockService;
     @Mock
@@ -101,6 +104,7 @@ class TicketServiceTest {
         List<Payment> generated = captor.getAllValues();
         assertEquals(-1_000, generated.get(0).getAmountCents());
         assertEquals(-500, generated.get(1).getAmountCents());
+        verify(cashIncidentRepo).save(any());
     }
 
     @Test
@@ -112,5 +116,29 @@ class TicketServiceTest {
         when(ticketRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(ticket));
 
         assertThrows(ConflictException.class, () -> service.reopenPaid(1L, "Correccion manual"));
+    }
+
+    @Test
+    void listCurrentCashSessionAllStatuses_returnsTicketsFromCurrentCashSession() {
+        CashSession cashSession = new CashSession(0, "admin", null);
+        ReflectionTestUtils.setField(cashSession, "id", 55L);
+        Ticket open = new Ticket(cashSession, 1);
+        ReflectionTestUtils.setField(open, "id", 10L);
+        Ticket paid = new Ticket(cashSession, 2);
+        ReflectionTestUtils.setField(paid, "id", 11L);
+        paid.markPaid();
+
+        when(cashSessionRepo.findFirstByStatusOrderByOpenedAtDesc(com.tpv.pos_service.domain.CashSessionStatus.OPEN))
+                .thenReturn(Optional.of(cashSession));
+        when(ticketRepo.findAllByCashSession_IdOrderByCreatedAtDesc(55L)).thenReturn(List.of(open, paid));
+        when(lineRepo.findAllByTicketIdOrderByIdAsc(10L)).thenReturn(List.of());
+        when(lineRepo.findAllByTicketIdOrderByIdAsc(11L)).thenReturn(List.of());
+
+        List<TicketResponse> result = service.listCurrentCashSessionAllStatuses();
+
+        assertEquals(2, result.size());
+        assertEquals(10L, result.get(0).id());
+        assertEquals("OPEN", result.get(0).status().name());
+        assertEquals("PAID", result.get(1).status().name());
     }
 }

@@ -26,6 +26,8 @@
         <TableView fx:id="ticketsTable" prefHeight="600">
           <columns>
             <TableColumn fx:id="colId" text="#" prefWidth="80"/>
+            <TableColumn fx:id="colTable" text="Mesa" prefWidth="90"/>
+            <TableColumn fx:id="colStatus" text="Estado" prefWidth="120"/>
             <TableColumn fx:id="colTotal" text="Total" prefWidth="120"/>
             <TableColumn fx:id="colCreated" text="Fecha" prefWidth="200"/>
           </columns>
