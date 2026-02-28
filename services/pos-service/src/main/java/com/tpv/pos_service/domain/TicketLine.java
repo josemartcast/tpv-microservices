@@ -133,6 +133,12 @@ public class TicketLine {
         recalc();
     }
 
+    public void changeUnitPriceCents(int unitPriceCents) {
+        this.unitPriceCentsSnapshot = unitPriceCents;
+        this.netUnitPriceCentsSnapshot = PriceCalc.netFromGross(this.unitPriceCentsSnapshot, this.vatRateBpsSnapshot);
+        recalc();
+    }
+
     public int getVatRateBpsSnapshot() {
         return vatRateBpsSnapshot;
     }

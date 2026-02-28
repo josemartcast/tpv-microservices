@@ -134,6 +134,18 @@ public class OrderViewModel {
         refreshOrder();
     }
 
+    public void updateLineQty(long lineId, int qty) {
+        int safeQty = Math.max(1, qty);
+        orderService.updateLineQty(orderId.get(), lineId, safeQty);
+        refreshOrder();
+    }
+
+    public void updateLinePrice(long lineId, int priceCents) {
+        int safePrice = Math.max(0, priceCents);
+        orderService.updateLinePrice(orderId.get(), lineId, safePrice);
+        refreshOrder();
+    }
+
     public boolean sendAll(boolean separateByDestination) {
         Set<Destination> selected = EnumSet.allOf(Destination.class);
         if (!hasPendingFor(selected)) {

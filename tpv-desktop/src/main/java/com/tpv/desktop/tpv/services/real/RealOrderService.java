@@ -71,6 +71,26 @@ public class RealOrderService implements OrderService {
     }
 
     @Override
+    public Order updateLineQty(long orderId, long lineId, int qty) {
+        int safeQty = qty <= 0 ? 1 : qty;
+        try {
+            return toDomain(TicketApi.updateQty(orderId, lineId, safeQty));
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo actualizar cantidad: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Order updateLinePrice(long orderId, long lineId, int priceCents) {
+        int safePrice = Math.max(0, priceCents);
+        try {
+            return toDomain(TicketApi.updatePrice(orderId, lineId, safePrice));
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo actualizar precio: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public void removeLastPendingLine(long orderId) {
         Order order = getById(orderId);
         TicketLineResponse target = null;

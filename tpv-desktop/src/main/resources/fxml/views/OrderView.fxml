@@ -36,6 +36,7 @@
           <Label fx:id="subtotalLabel" text="0.00 EUR" styleClass="ticket-subtotal-value"/>
         </HBox>
         <HBox spacing="8">
+          <Button fx:id="editBtn" text="Editar" onAction="#onEditLine" styleClass="small-dark-btn"/>
           <Button fx:id="noteBtn" text="Nota" onAction="#onNote" styleClass="small-dark-btn"/>
           <Button fx:id="deleteBtn" text="Borrar" onAction="#onDeleteLine" styleClass="small-dark-btn"/>
           <Button text="Anular" onAction="#onCancelOrder" styleClass="small-dark-btn"/>

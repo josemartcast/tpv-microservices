@@ -19,6 +19,11 @@ public final class TicketApi {
         new UpdateLineQtyRequest(qty), TicketResponse.class);
   }
 
+  public static TicketResponse updatePrice(long ticketId, long lineId, int priceCents) throws Exception {
+    return ApiClient.patch("/api/v1/pos/tickets/" + ticketId + "/lines/" + lineId + "/price",
+        new UpdateLinePriceRequest(priceCents), TicketResponse.class);
+  }
+
   public static TicketResponse deleteLine(long ticketId, long lineId) throws Exception {
     return ApiClient.delete("/api/v1/pos/tickets/" + ticketId + "/lines/" + lineId, TicketResponse.class);
   }

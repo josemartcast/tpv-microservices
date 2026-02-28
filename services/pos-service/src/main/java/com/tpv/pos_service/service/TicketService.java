@@ -207,6 +207,26 @@ public class TicketService {
     }
 
     @Transactional
+    public TicketResponse updateLinePrice(Long ticketId, Long lineId, int priceCents) {
+        Ticket t = getOpenTicket(ticketId);
+
+        TicketLine line = lineRepo.findByIdAndTicketId(lineId, ticketId)
+                .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
+        if (line.isSent()) {
+            throw new ConflictException("Cannot edit a sent line: " + lineId);
+        }
+        if (priceCents < 0) {
+            throw new ConflictException("Price must be >= 0");
+        }
+
+        line.changeUnitPriceCents(priceCents);
+
+        recalcTotal(ticketId);
+        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+        return toResponse(t, lines);
+    }
+
+    @Transactional
     public TicketResponse setBillRequested(Long ticketId, boolean requested) {
         Ticket t = getOpenTicket(ticketId);
         t.setBillRequested(requested);

@@ -330,6 +330,16 @@ class OrderViewModelSendQueueTest {
         }
 
         @Override
+        public Order updateLineQty(long orderId, long lineId, int qty) {
+            return order;
+        }
+
+        @Override
+        public Order updateLinePrice(long orderId, long lineId, int priceCents) {
+            return order;
+        }
+
+        @Override
         public void removeLastPendingLine(long orderId) {
         }
 

@@ -60,6 +60,7 @@ public class OrderController {
     @FXML private Button discountBtn;
     @FXML private Button noteBtn;
     @FXML private Button deleteBtn;
+    @FXML private Button editBtn;
 
     private final OrderViewModel vm = new OrderViewModel();
     private Timeline heartbeat;
@@ -117,6 +118,7 @@ public class OrderController {
         }
 
         vm.lines().addListener((ListChangeListener<OrderLine>) change -> updateActionState());
+        ticketList.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> updateActionState());
         updateActionState();
     }
 
@@ -426,6 +428,64 @@ public class OrderController {
     }
 
     @FXML
+    public void onEditLine() {
+        OrderLine selected = ticketList.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            return;
+        }
+        if (selected.getSentQty() > 0) {
+            showInfoDialog("Editar linea", "No se puede editar una linea ya enviada.");
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Editar linea");
+        dialog.setHeaderText(selected.getProductName());
+
+        ButtonType saveButton = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButton, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(8);
+        grid.setPadding(new Insets(10, 10, 10, 10));
+
+        TextField qtyInput = new TextField(String.valueOf(selected.getQty()));
+        TextField priceInput = new TextField(String.format(Locale.US, "%.2f", selected.getUnitPriceCents() / 100.0));
+
+        grid.add(new Label("Cantidad"), 0, 0);
+        grid.add(qtyInput, 1, 0);
+        grid.add(new Label("Precio (EUR)"), 0, 1);
+        grid.add(priceInput, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        ButtonType result = dialog.showAndWait().orElse(ButtonType.CANCEL);
+        if (result != saveButton) {
+            return;
+        }
+
+        try {
+            int qty = Integer.parseInt(qtyInput.getText().trim());
+            if (qty < 1) {
+                throw new IllegalArgumentException("La cantidad debe ser >= 1.");
+            }
+            int priceCents = parseAmountToCents(priceInput.getText());
+
+            if (qty != selected.getQty()) {
+                vm.updateLineQty(selected.getId(), qty);
+            }
+            if (priceCents != selected.getUnitPriceCents()) {
+                vm.updateLinePrice(selected.getId(), priceCents);
+            }
+        } catch (Exception e) {
+            String msg = "No se pudo editar linea: " + e.getMessage();
+            feedbackLabel.setText(msg);
+            showErrorDialog("Editar linea", msg);
+        }
+    }
+
+    @FXML
     public void onCancelOrder() {
         stopHeartbeat();
         vm.cancelOrder();
@@ -511,12 +571,14 @@ public class OrderController {
     private void updateActionState() {
         boolean hasLines = !vm.lines().isEmpty();
         boolean hasPending = vm.lines().stream().anyMatch(line -> line.getPendingQty() > 0);
+        boolean hasSelection = ticketList.getSelectionModel().getSelectedItem() != null;
 
         // Keep ENVIAR always available so the modal can be opened for "Reimprimir ultimo"
         // even when there are no pending lines.
         if (sendBtn != null) sendBtn.setDisable(false);
         if (noteBtn != null) noteBtn.setDisable(!hasPending);
         if (deleteBtn != null) deleteBtn.setDisable(!hasPending);
+        if (editBtn != null) editBtn.setDisable(!hasSelection);
 
         if (payBtn != null) payBtn.setDisable(!hasLines);
         if (splitBtn != null) splitBtn.setDisable(!hasLines);

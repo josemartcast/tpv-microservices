@@ -46,6 +46,14 @@ public class OrderLine {
         qty.set(qty.get() + delta);
     }
 
+    public void setQty(int value) {
+        qty.set(value);
+    }
+
+    public void setUnitPriceCents(int value) {
+        unitPriceCents.set(value);
+    }
+
     public int getPendingQty() {
         return Math.max(0, getQty() - getSentQty());
     }

@@ -14,6 +14,7 @@ import com.tpv.pos_service.dto.ReopenPaidTicketRequest;
 import com.tpv.pos_service.dto.SetBillRequestedRequest;
 import com.tpv.pos_service.dto.TicketResponse;
 import com.tpv.pos_service.dto.UpdateLineQtyRequest;
+import com.tpv.pos_service.dto.UpdateLinePriceRequest;
 import com.tpv.pos_service.service.AuditService;
 import com.tpv.pos_service.service.TicketService;
 import com.tpv.pos_service.dto.TicketSummaryResponse;
@@ -114,6 +115,26 @@ public class TicketController {
             return response;
         } catch (RuntimeException e) {
             auditService.recordFailure("TICKET_UPDATE_LINE", "TICKET", id, actor, term, req, e);
+            throw e;
+        }
+    }
+
+    @PatchMapping("/{id}/lines/{lineId}/price")
+    public TicketResponse updatePrice(
+            @PathVariable Long id,
+            @PathVariable Long lineId,
+            @Valid @RequestBody UpdateLinePriceRequest req,
+            Authentication auth,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            TicketResponse response = service.updateLinePrice(id, lineId, req.priceCents());
+            auditService.recordSuccess("TICKET_UPDATE_LINE_PRICE", "TICKET", id, actor, term, req, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("TICKET_UPDATE_LINE_PRICE", "TICKET", id, actor, term, req, e);
             throw e;
         }
     }

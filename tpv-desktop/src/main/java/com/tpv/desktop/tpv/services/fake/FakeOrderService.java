@@ -60,6 +60,32 @@ public class FakeOrderService implements OrderService {
     }
 
     @Override
+    public Order updateLineQty(long orderId, long lineId, int qty) {
+        int safeQty = qty <= 0 ? 1 : qty;
+        Order order = getById(orderId);
+        for (OrderLine line : order.getLines()) {
+            if (line.getId() == lineId) {
+                line.setQty(safeQty);
+                break;
+            }
+        }
+        return order;
+    }
+
+    @Override
+    public Order updateLinePrice(long orderId, long lineId, int priceCents) {
+        int safePrice = Math.max(0, priceCents);
+        Order order = getById(orderId);
+        for (OrderLine line : order.getLines()) {
+            if (line.getId() == lineId) {
+                line.setUnitPriceCents(safePrice);
+                break;
+            }
+        }
+        return order;
+    }
+
+    @Override
     public void removeLastPendingLine(long orderId) {
         Order order = getById(orderId);
         for (int i = order.getLines().size() - 1; i >= 0; i--) {
