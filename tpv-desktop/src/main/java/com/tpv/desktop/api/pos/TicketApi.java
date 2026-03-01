@@ -61,4 +61,16 @@ public final class TicketApi {
         TicketResponse.class
     );
   }
+
+  public static InvoiceResponse issueInvoice(long ticketId, long customerId) throws Exception {
+    return ApiClient.post(
+        "/api/v1/pos/tickets/" + ticketId + "/invoice",
+        new IssueInvoiceRequest(customerId),
+        InvoiceResponse.class
+    );
+  }
+
+  public static InvoiceResponse getInvoice(long ticketId) throws Exception {
+    return ApiClient.get("/api/v1/pos/tickets/" + ticketId + "/invoice", InvoiceResponse.class);
+  }
 }

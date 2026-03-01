@@ -4,11 +4,14 @@ import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.Product;
+import com.tpv.desktop.api.pos.CreateCustomerRequest;
+import com.tpv.desktop.api.pos.CustomerApi;
+import com.tpv.desktop.api.pos.CustomerResponse;
 import com.tpv.desktop.api.pos.SalonAdminApi;
 import com.tpv.desktop.api.pos.SalonAreaResponse;
 import com.tpv.desktop.api.pos.TableAliasResponse;
+import com.tpv.desktop.api.pos.UpdateCustomerRequest;
 import com.tpv.desktop.core.AuthStore;
-import com.tpv.desktop.core.SettingsStore;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -413,53 +416,233 @@ public class FooterBarController {
 
     @FXML
     public void onClientes() {
-        ObservableList<String> clients = FXCollections.observableArrayList(
-                "Mostrador",
-                "Mesa 1 - Consumidor final",
-                "Empresa Demo S.L.",
-                "Cliente VIP"
-        );
-        TextField search = new TextField();
-        search.setPromptText("Buscar cliente...");
-        ListView<String> list = new ListView<>(clients);
-        list.setPrefHeight(420);
+        if (!(AuthStore.hasRole("CAJERO") || AuthStore.hasRole("ENCARGADO") || AuthStore.hasRole("ADMIN"))) {
+            showError("Esta accion requiere rol CAJERO, ENCARGADO o ADMIN.");
+            return;
+        }
+        try {
+            ObservableList<CustomerResponse> all = FXCollections.observableArrayList();
+            ObservableList<CustomerResponse> rows = FXCollections.observableArrayList();
 
-        search.textProperty().addListener((obs, oldV, newV) -> {
-            String filter = newV == null ? "" : newV.trim().toLowerCase(Locale.ROOT);
-            if (filter.isBlank()) {
-                list.setItems(clients);
-                return;
-            }
-            ObservableList<String> filtered = FXCollections.observableArrayList();
-            for (String c : clients) {
-                if (c.toLowerCase(Locale.ROOT).contains(filter)) {
-                    filtered.add(c);
+            TextField search = new TextField();
+            search.setPromptText("Buscar cliente...");
+
+            ListView<CustomerResponse> list = new ListView<>(rows);
+            list.setPrefHeight(320);
+            list.setCellFactory(lv -> new javafx.scene.control.ListCell<>() {
+                @Override
+                protected void updateItem(CustomerResponse item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setText(null);
+                        return;
+                    }
+                    String taxId = item.taxId() == null || item.taxId().isBlank() ? "-" : item.taxId();
+                    String legalName = item.legalName() == null || item.legalName().isBlank() ? item.displayName() : item.legalName();
+                    setText(item.displayName() + "  |  " + taxId + "  |  " + legalName);
                 }
-            }
-            list.setItems(filtered);
-        });
+            });
 
-        Button selectBtn = new Button("Seleccionar");
-        selectBtn.setOnAction(e -> {
-            String selected = list.getSelectionModel().getSelectedItem();
-            if (selected != null) {
-                AppContext.get().appState().activeCustomerProperty().set(selected);
-                SettingsStore.setActiveCustomer(selected);
-                Stage stage = (Stage) selectBtn.getScene().getWindow();
-                stage.close();
-            }
-        });
+            TextField displayNameField = new TextField();
+            displayNameField.setPromptText("Nombre corto (ej: Empresa X)");
+            TextField legalNameField = new TextField();
+            legalNameField.setPromptText("Razon social");
+            TextField taxIdField = new TextField();
+            taxIdField.setPromptText("NIF/CIF");
+            TextField addressField = new TextField();
+            addressField.setPromptText("Direccion fiscal");
+            TextField postalCodeField = new TextField();
+            postalCodeField.setPromptText("Codigo postal");
+            TextField cityField = new TextField();
+            cityField.setPromptText("Ciudad");
+            TextField provinceField = new TextField();
+            provinceField.setPromptText("Provincia");
+            TextField countryField = new TextField();
+            countryField.setPromptText("Pais");
+            TextField phoneField = new TextField();
+            phoneField.setPromptText("Telefono");
+            TextField emailField = new TextField();
+            emailField.setPromptText("Email");
 
-        VBox root = new VBox(10, search, list, selectBtn);
-        root.setPadding(new Insets(12));
+            Button newBtn = new Button("Nuevo");
+            Button createBtn = new Button("Crear");
+            Button updateBtn = new Button("Guardar cambios");
+            Button deleteBtn = new Button("Eliminar");
+            Button refreshBtn = new Button("Refrescar");
+            updateBtn.setDisable(true);
+            deleteBtn.setDisable(true);
 
-        Stage modal = new Stage();
-        modal.initModality(Modality.APPLICATION_MODAL);
-        modal.setTitle("Clientes");
-        Scene scene = new Scene(root, 560, 540);
-        scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
-        modal.setScene(scene);
-        modal.showAndWait();
+            Runnable clearForm = () -> {
+                list.getSelectionModel().clearSelection();
+                displayNameField.clear();
+                legalNameField.clear();
+                taxIdField.clear();
+                addressField.clear();
+                postalCodeField.clear();
+                cityField.clear();
+                provinceField.clear();
+                countryField.clear();
+                phoneField.clear();
+                emailField.clear();
+                createBtn.setDisable(false);
+                updateBtn.setDisable(true);
+                deleteBtn.setDisable(true);
+            };
+
+            Runnable applyFilter = () -> {
+                String filter = search.getText() == null ? "" : search.getText().trim().toLowerCase(Locale.ROOT);
+                if (filter.isBlank()) {
+                    rows.setAll(all);
+                    return;
+                }
+                rows.setAll(all.stream()
+                        .filter(c -> {
+                            String display = c.displayName() == null ? "" : c.displayName().toLowerCase(Locale.ROOT);
+                            String legal = c.legalName() == null ? "" : c.legalName().toLowerCase(Locale.ROOT);
+                            String tax = c.taxId() == null ? "" : c.taxId().toLowerCase(Locale.ROOT);
+                            return display.contains(filter) || legal.contains(filter) || tax.contains(filter);
+                        })
+                        .toList());
+            };
+
+            Runnable refresh = () -> {
+                try {
+                    CustomerResponse[] response = CustomerApi.list();
+                    all.setAll(response == null ? List.of() : List.of(response));
+                    applyFilter.run();
+                } catch (Exception e) {
+                    showError("No se pudieron cargar clientes: " + e.getMessage());
+                }
+            };
+
+            search.textProperty().addListener((obs, oldV, newV) -> applyFilter.run());
+
+            list.getSelectionModel().selectedItemProperty().addListener((obs, oldV, selected) -> {
+                boolean enabled = selected != null;
+                createBtn.setDisable(enabled);
+                updateBtn.setDisable(!enabled);
+                deleteBtn.setDisable(!enabled);
+                if (selected == null) {
+                    return;
+                }
+                displayNameField.setText(selected.displayName());
+                legalNameField.setText(selected.legalName());
+                taxIdField.setText(selected.taxId());
+                addressField.setText(selected.fiscalAddress());
+                postalCodeField.setText(selected.postalCode());
+                cityField.setText(selected.city());
+                provinceField.setText(selected.province());
+                countryField.setText(selected.country());
+                phoneField.setText(selected.phone());
+                emailField.setText(selected.email());
+            });
+
+            createBtn.setOnAction(evt -> {
+                String displayName = displayNameField.getText() == null ? "" : displayNameField.getText().trim();
+                if (displayName.length() < 2) {
+                    showError("Nombre corto invalido (min 2 caracteres).");
+                    return;
+                }
+                try {
+                    CustomerApi.create(new CreateCustomerRequest(
+                            displayName,
+                            textOrBlank(legalNameField),
+                            textOrBlank(taxIdField),
+                            textOrBlank(addressField),
+                            textOrBlank(postalCodeField),
+                            textOrBlank(cityField),
+                            textOrBlank(provinceField),
+                            textOrBlank(countryField),
+                            textOrBlank(phoneField),
+                            textOrBlank(emailField)
+                    ));
+                    clearForm.run();
+                    refresh.run();
+                } catch (Exception e) {
+                    showError("No se pudo crear cliente: " + e.getMessage());
+                }
+            });
+
+            updateBtn.setOnAction(evt -> {
+                CustomerResponse selected = list.getSelectionModel().getSelectedItem();
+                if (selected == null) {
+                    showError("Selecciona un cliente para editar.");
+                    return;
+                }
+                String displayName = displayNameField.getText() == null ? "" : displayNameField.getText().trim();
+                if (displayName.length() < 2) {
+                    showError("Nombre corto invalido (min 2 caracteres).");
+                    return;
+                }
+                try {
+                    CustomerApi.update(selected.id(), new UpdateCustomerRequest(
+                            displayName,
+                            textOrBlank(legalNameField),
+                            textOrBlank(taxIdField),
+                            textOrBlank(addressField),
+                            textOrBlank(postalCodeField),
+                            textOrBlank(cityField),
+                            textOrBlank(provinceField),
+                            textOrBlank(countryField),
+                            textOrBlank(phoneField),
+                            textOrBlank(emailField)
+                    ));
+                    refresh.run();
+                } catch (Exception e) {
+                    showError("No se pudo actualizar cliente: " + e.getMessage());
+                }
+            });
+
+            deleteBtn.setOnAction(evt -> {
+                CustomerResponse selected = list.getSelectionModel().getSelectedItem();
+                if (selected == null) {
+                    showError("Selecciona un cliente para eliminar.");
+                    return;
+                }
+                if (!showConfirm("Eliminar cliente", "Se eliminara el cliente '" + selected.displayName() + "'. Continuar?")) {
+                    return;
+                }
+                try {
+                    CustomerApi.delete(selected.id());
+                    clearForm.run();
+                    refresh.run();
+                } catch (Exception e) {
+                    showError("No se pudo eliminar cliente: " + e.getMessage());
+                }
+            });
+
+            newBtn.setOnAction(evt -> clearForm.run());
+            refreshBtn.setOnAction(evt -> refresh.run());
+
+            HBox searchRow = new HBox(8, new Label("Buscar"), search, refreshBtn);
+            HBox.setHgrow(search, Priority.ALWAYS);
+
+            HBox row1 = new HBox(8, new Label("Nombre"), displayNameField, new Label("Razon social"), legalNameField);
+            HBox.setHgrow(displayNameField, Priority.ALWAYS);
+            HBox.setHgrow(legalNameField, Priority.ALWAYS);
+            HBox row2 = new HBox(8, new Label("NIF/CIF"), taxIdField, new Label("Direccion"), addressField);
+            HBox.setHgrow(addressField, Priority.ALWAYS);
+            HBox row3 = new HBox(8, new Label("CP"), postalCodeField, new Label("Ciudad"), cityField, new Label("Provincia"), provinceField);
+            HBox.setHgrow(cityField, Priority.ALWAYS);
+            HBox.setHgrow(provinceField, Priority.ALWAYS);
+            HBox row4 = new HBox(8, new Label("Pais"), countryField, new Label("Telefono"), phoneField, new Label("Email"), emailField);
+            HBox.setHgrow(emailField, Priority.ALWAYS);
+
+            HBox actions = new HBox(8, newBtn, createBtn, updateBtn, deleteBtn);
+
+            VBox root = new VBox(10, searchRow, list, row1, row2, row3, row4, actions);
+            root.setPadding(new Insets(12));
+
+            Stage modal = new Stage();
+            modal.initModality(Modality.APPLICATION_MODAL);
+            modal.setTitle("Clientes fiscales");
+            Scene scene = new Scene(root, 1080, 720);
+            scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
+            modal.setScene(scene);
+            modal.showAndWait();
+        } catch (Exception e) {
+            showError("No se pudo abrir Clientes: " + e.getMessage());
+        }
     }
 
     @FXML
@@ -765,6 +948,13 @@ public class FooterBarController {
 
     private boolean showConfirm(String title, String message) {
         return UiDialogs.confirm(title, message);
+    }
+
+    private static String textOrBlank(TextField field) {
+        if (field == null || field.getText() == null) {
+            return "";
+        }
+        return field.getText().trim();
     }
 
     private static void configureCategoryCombo(ComboBox<Category> combo) {

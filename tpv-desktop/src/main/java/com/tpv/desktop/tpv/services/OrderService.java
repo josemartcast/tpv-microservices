@@ -12,6 +12,7 @@ public interface OrderService {
     Order addProduct(long orderId, long productId, int qty);
     Order updateLineQty(long orderId, long lineId, int qty);
     Order updateLinePrice(long orderId, long lineId, int priceCents);
+    void removeLine(long orderId, long lineId);
     void removeLastPendingLine(long orderId);
     void setLastLineNote(long orderId, String note);
     Map<Destination, Integer> pendingByDestination(long orderId);

@@ -49,6 +49,11 @@
         </div>
       </div>
       <p id="tablesInfo" class="muted"></p>
+      <div class="tables-toolbar">
+        <label>Salon
+          <select id="salonFilter"></select>
+        </label>
+      </div>
       <div id="tablesGrid" class="tables-grid"></div>
     </section>
 
@@ -59,6 +64,7 @@
           <h1 id="orderTitle">Mesa</h1>
           <p id="orderMeta" class="muted"></p>
         </div>
+        <button id="moveTableBtn" class="btn btn-secondary" type="button">Mover mesa</button>
       </div>
 
       <div class="order-layout">
@@ -66,9 +72,33 @@
           <h2>Ticket</h2>
           <ul id="ticketLines" class="ticket-lines"></ul>
           <p class="subtotal">Total: <strong id="ticketTotal">0.00 EUR</strong></p>
+          <div class="ticket-actions">
+            <button id="editLineBtn" class="btn btn-secondary" type="button">Editar linea</button>
+            <button id="deleteLineBtn" class="btn btn-danger" type="button">Borrar linea</button>
+          </div>
         </aside>
 
         <section class="panel catalog-panel">
+          <div class="qty-panel">
+            <div class="qty-head">
+              <span>Cantidad</span>
+              <input id="qtyInput" type="text" readonly value="">
+            </div>
+            <div id="qtyPad" class="num-pad-grid">
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="1">1</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="2">2</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="3">3</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="4">4</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="5">5</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="6">6</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="7">7</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="8">8</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="9">9</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="C">C</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="0">0</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="BACK">⌫</button>
+            </div>
+          </div>
           <div id="categoryTabs" class="category-tabs"></div>
           <div id="productsGrid" class="products-grid"></div>
         </section>
@@ -132,6 +162,32 @@
     <p id="payLinesSelectedLabel" class="subtotal">Seleccionado: <strong>0.00 EUR</strong></p>
     <div class="pay-lines-actions">
       <button id="payLinesApplyBtn" class="btn btn-primary" type="button">Aplicar</button>
+      <form method="dialog">
+        <button class="btn btn-secondary" value="cancel">Cancelar</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="numberPadDialog" class="dialog">
+    <h3 id="numberPadTitle">Numero</h3>
+    <input id="numberPadDisplay" type="text" readonly>
+    <div class="num-pad-grid">
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="1">1</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="2">2</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="3">3</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="4">4</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="5">5</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="6">6</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="7">7</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="8">8</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="9">9</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key=".">.</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="0">0</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="BACK">⌫</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="C">C</button>
+    </div>
+    <div class="pay-lines-actions">
+      <button id="numberPadOkBtn" class="btn btn-primary" type="button">Aceptar</button>
       <form method="dialog">
         <button class="btn btn-secondary" value="cancel">Cancelar</button>
       </form>

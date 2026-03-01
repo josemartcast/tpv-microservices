@@ -424,7 +424,26 @@ public class OrderController {
 
     @FXML
     public void onDeleteLine() {
-        vm.removeLastPending();
+        OrderLine selected = ticketList.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            String msg = "Selecciona una linea para borrar.";
+            feedbackLabel.setText(msg);
+            showInfoDialog("Borrar linea", msg);
+            return;
+        }
+        if (selected.getSentQty() > 0) {
+            String msg = "No se puede borrar una linea ya enviada.";
+            feedbackLabel.setText(msg);
+            showInfoDialog("Borrar linea", msg);
+            return;
+        }
+        try {
+            vm.removeLine(selected.getId());
+        } catch (Exception e) {
+            String msg = "No se pudo borrar linea: " + e.getMessage();
+            feedbackLabel.setText(msg);
+            showErrorDialog("Borrar linea", msg);
+        }
     }
 
     @FXML
@@ -577,7 +596,7 @@ public class OrderController {
         // even when there are no pending lines.
         if (sendBtn != null) sendBtn.setDisable(false);
         if (noteBtn != null) noteBtn.setDisable(!hasPending);
-        if (deleteBtn != null) deleteBtn.setDisable(!hasPending);
+        if (deleteBtn != null) deleteBtn.setDisable(!hasSelection);
         if (editBtn != null) editBtn.setDisable(!hasSelection);
 
         if (payBtn != null) payBtn.setDisable(!hasLines);
@@ -767,7 +786,6 @@ public class OrderController {
         out.append("PRECUENTA").append('\n');
         out.append("Mesa ").append(vm.tableIdProperty().get())
                 .append("  Ticket ").append(vm.orderIdProperty().get()).append('\n');
-        out.append("Cliente ").append(AppContext.get().appState().activeCustomerProperty().get()).append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
         out.append("--------------------------------------------").append('\n');
         for (OrderLine line : vm.lines()) {

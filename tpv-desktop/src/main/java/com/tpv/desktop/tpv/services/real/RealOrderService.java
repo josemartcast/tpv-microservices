@@ -91,6 +91,15 @@ public class RealOrderService implements OrderService {
     }
 
     @Override
+    public void removeLine(long orderId, long lineId) {
+        try {
+            TicketApi.deleteLine(orderId, lineId);
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo borrar linea: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public void removeLastPendingLine(long orderId) {
         Order order = getById(orderId);
         TicketLineResponse target = null;

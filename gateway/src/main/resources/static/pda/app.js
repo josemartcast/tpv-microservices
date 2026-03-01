@@ -20,10 +20,14 @@
     terminalId: "",
     tables: [],
     categories: [],
+    salonFilter: "ALL",
+    salonsByName: new Map(),
     productsByCategory: new Map(),
     activeCategoryId: null,
     currentTableNumber: null,
     currentTicket: null,
+    selectedLineId: null,
+    currentQtyInput: "",
     heartbeatTimer: null,
     tablesPollTimer: null,
     sendPreview: null,
@@ -45,7 +49,11 @@
     },
     lastLatencyMs: null,
     lastError: null,
-    errors: []
+    errors: [],
+    numberPad: {
+      allowDecimal: false,
+      resolve: null
+    }
   };
 
   const els = {
@@ -70,11 +78,17 @@
     logoutBtn: byId("logoutBtn"),
     tablesGrid: byId("tablesGrid"),
     tablesInfo: byId("tablesInfo"),
+    salonFilter: byId("salonFilter"),
     backToTablesBtn: byId("backToTablesBtn"),
+    moveTableBtn: byId("moveTableBtn"),
     orderTitle: byId("orderTitle"),
     orderMeta: byId("orderMeta"),
     ticketLines: byId("ticketLines"),
     ticketTotal: byId("ticketTotal"),
+    editLineBtn: byId("editLineBtn"),
+    deleteLineBtn: byId("deleteLineBtn"),
+    qtyInput: byId("qtyInput"),
+    qtyPadButtons: Array.from(document.querySelectorAll(".num-pad-key")),
     categoryTabs: byId("categoryTabs"),
     productsGrid: byId("productsGrid"),
     sendPreviewLabel: byId("sendPreviewLabel"),
@@ -92,6 +106,11 @@
     payLinesList: byId("payLinesList"),
     payLinesSelectedLabel: byId("payLinesSelectedLabel"),
     payLinesApplyBtn: byId("payLinesApplyBtn"),
+    numberPadDialog: byId("numberPadDialog"),
+    numberPadTitle: byId("numberPadTitle"),
+    numberPadDisplay: byId("numberPadDisplay"),
+    numberPadOkBtn: byId("numberPadOkBtn"),
+    numberPadKeys: Array.from(document.querySelectorAll(".num-modal-key")),
     toast: byId("toast")
   };
 
@@ -101,6 +120,7 @@
 
   function boot() {
     bindEvents();
+    renderQtyInput();
     els.apiBaseInput.value = window.location.origin;
     loadSession();
     loadCache();
@@ -122,14 +142,26 @@
   function bindEvents() {
     els.loginForm.addEventListener("submit", onLoginSubmit);
     els.refreshTablesBtn.addEventListener("click", refreshTablesSafe);
+    els.salonFilter.addEventListener("change", function () {
+      state.salonFilter = els.salonFilter.value || "ALL";
+      renderTables();
+    });
     els.logoutBtn.addEventListener("click", logout);
     els.backToTablesBtn.addEventListener("click", async function () { await leaveTableAndBack(); });
+    els.moveTableBtn.addEventListener("click", onMoveTable);
     els.sendAllBtn.addEventListener("click", function () { sendComanda("ALL"); });
     els.sendBarBtn.addEventListener("click", function () { sendComanda("BAR"); });
     els.sendKitchenBtn.addEventListener("click", function () { sendComanda("COCINA"); });
     els.payFullBtn.addEventListener("click", onPayFull);
     els.payPartialBtn.addEventListener("click", onPayPartial);
     els.payLinesBtn.addEventListener("click", onPayByLines);
+    els.editLineBtn.addEventListener("click", onEditSelectedLine);
+    els.deleteLineBtn.addEventListener("click", onDeleteSelectedLine);
+    els.qtyPadButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        onQtyPadKey(btn.dataset.key || "");
+      });
+    });
     els.conflictsBtn.addEventListener("click", openConflictsDialog);
     els.errorsBtn.addEventListener("click", openErrorsDialog);
     els.methodChoiceButtons.forEach(function (btn) {
@@ -137,6 +169,23 @@
         state.methodChoice = btn.dataset.method || null;
         if (els.methodDialog.open) { els.methodDialog.close("selected"); }
       });
+    });
+    els.numberPadKeys.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        onNumberPadKey(btn.dataset.key || "");
+      });
+    });
+    els.numberPadOkBtn.addEventListener("click", function () {
+      if (els.numberPadDialog.open) {
+        els.numberPadDialog.close("ok");
+      }
+    });
+    els.numberPadDialog.addEventListener("close", function () {
+      if (typeof state.numberPad.resolve === "function") {
+        const resolver = state.numberPad.resolve;
+        state.numberPad.resolve = null;
+        resolver(els.numberPadDialog.returnValue === "ok" ? els.numberPadDisplay.value : null);
+      }
     });
   }
 
@@ -348,15 +397,23 @@
   async function refreshTables() {
     const list = await apiJson("/api/v1/pos/salon/tables", { method: "GET" });
     state.tables = Array.isArray(list) ? list : [];
+    await refreshSalonMap();
     state.cache.tables = state.tables.slice();
     saveCache();
+    renderSalonFilter();
     renderTables();
     els.tablesInfo.textContent = "Terminal " + state.terminalId + " | " + new Date().toLocaleTimeString();
   }
 
   function renderTables() {
     els.tablesGrid.replaceChildren();
-    state.tables.forEach(function (table) {
+    const filtered = state.tables.filter(function (table) {
+      if (!state.salonFilter || state.salonFilter === "ALL") {
+        return true;
+      }
+      return String(table.salonName || "").toLowerCase() === state.salonFilter.toLowerCase();
+    });
+    filtered.forEach(function (table) {
       const card = document.createElement("article");
       card.className = "table-card " + tableCardClass(table);
 
@@ -365,6 +422,12 @@
       head.innerHTML = "<span class='table-number'>Mesa " + escapeHtml(String(table.tableNumber)) + "</span>" +
         "<span class='table-elapsed'>" + elapsedText(table.elapsedMinutes) + "</span>";
       card.appendChild(head);
+      if (table.tableAlias) {
+        const alias = document.createElement("div");
+        alias.className = "table-alias";
+        alias.textContent = "Alias: " + table.tableAlias;
+        card.appendChild(alias);
+      }
 
       const status = document.createElement("div");
       status.className = "table-status " + tableStatusClass(table);
@@ -392,9 +455,88 @@
       if (blockedByOther) { btn.title = "Bloqueada por " + safeTerminal(table.lockedTerminalId); }
       btn.addEventListener("click", function () { enterTable(table); });
       foot.appendChild(btn);
+      const aliasBtn = document.createElement("button");
+      aliasBtn.className = "btn btn-secondary";
+      aliasBtn.type = "button";
+      aliasBtn.textContent = "Alias";
+      aliasBtn.addEventListener("click", function () {
+        editTableAlias(table);
+      });
+      foot.appendChild(aliasBtn);
       card.appendChild(foot);
       els.tablesGrid.appendChild(card);
     });
+  }
+
+  async function refreshSalonMap() {
+    try {
+      const salons = await apiJson("/api/v1/pos/admin/salons", { method: "GET" });
+      state.salonsByName = new Map();
+      (Array.isArray(salons) ? salons : []).forEach(function (s) {
+        const key = String(s.name || "").trim();
+        if (key && s.id != null) {
+          state.salonsByName.set(key.toLowerCase(), Number(s.id));
+        }
+      });
+    } catch (_err) {
+      // Not every role can access admin salons; alias edit will show a clear message.
+      state.salonsByName = new Map();
+    }
+  }
+
+  function renderSalonFilter() {
+    const previous = state.salonFilter || "ALL";
+    els.salonFilter.replaceChildren();
+    const all = document.createElement("option");
+    all.value = "ALL";
+    all.textContent = "Todos";
+    els.salonFilter.appendChild(all);
+
+    const names = Array.from(new Set(state.tables
+      .map(function (t) { return String(t.salonName || "").trim(); })
+      .filter(Boolean)))
+      .sort(function (a, b) { return a.localeCompare(b); });
+    names.forEach(function (name) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      els.salonFilter.appendChild(option);
+    });
+
+    if (names.includes(previous)) {
+      state.salonFilter = previous;
+    } else {
+      state.salonFilter = "ALL";
+    }
+    els.salonFilter.value = state.salonFilter;
+  }
+
+  async function editTableAlias(table) {
+    if (!table || !table.tableNumber) {
+      return;
+    }
+    const salonName = String(table.salonName || "").trim().toLowerCase();
+    const salonId = state.salonsByName.get(salonName);
+    if (!salonId) {
+      toast("No tienes permisos o no se pudo resolver el salon para editar alias.");
+      return;
+    }
+    const current = table.tableAlias ? String(table.tableAlias) : "";
+    const next = window.prompt("Alias para Mesa " + table.tableNumber + " (" + (table.salonName || "-") + ")", current);
+    if (next === null) {
+      return;
+    }
+    try {
+      await apiJson("/api/v1/pos/admin/salons/" + salonId + "/tables/" + table.tableNumber + "/alias", {
+        method: "PUT",
+        body: JSON.stringify({ alias: next })
+      });
+      await refreshTables();
+      toast("Alias actualizado");
+    } catch (err) {
+      pushError(err);
+      toast("No se pudo actualizar alias: " + err.message);
+    }
   }
 
   async function enterTable(table) {
@@ -408,6 +550,8 @@
       if (!ticketId) { ticketId = await openTicket(table.tableNumber); }
       state.currentTableNumber = table.tableNumber;
       state.currentTicket = await getTicket(ticketId);
+      state.selectedLineId = null;
+      clearQtyInput();
       showScreen("order");
       stopTablesPolling();
       startHeartbeat(table.tableNumber);
@@ -495,6 +639,8 @@
     stopHeartbeat();
     state.currentTableNumber = null;
     state.currentTicket = null;
+    state.selectedLineId = null;
+    clearQtyInput();
     state.sendPreview = null;
     state.paymentSummary = null;
     renderPaymentSummary();
@@ -579,23 +725,27 @@
       return;
     }
     try {
+      const qty = qtyFromInput();
       state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines", {
         method: "POST",
-        body: JSON.stringify({ productId: productId, qty: 1 })
+        body: JSON.stringify({ productId: productId, qty: qty })
       });
       cacheTicket(state.currentTicket);
+      clearQtyInput();
       renderTicket();
       await refreshSendPreview();
       await refreshPaymentSummary();
     } catch (err) {
       if (shouldQueueAction(err)) {
+        const qty = qtyFromInput();
         enqueueAction({
           type: "ADD_LINE",
           tableNumber: state.currentTableNumber,
           ticketId: state.currentTicket.id,
           productId: productId,
-          qty: 1
+          qty: qty
         });
+        clearQtyInput();
         toast("Sin conexion: linea en cola para sincronizar");
         return;
       }
@@ -611,14 +761,18 @@
       return;
     }
     const table = state.tables.find(function (t) { return t.tableNumber === state.currentTableNumber; });
-    els.orderTitle.textContent = "Mesa " + state.currentTableNumber;
-    els.orderMeta.textContent = elapsedText(table ? table.elapsedMinutes : 0);
+    const alias = table && table.tableAlias ? (" - " + table.tableAlias) : "";
+    els.orderTitle.textContent = "Mesa " + state.currentTableNumber + alias;
+    const salon = table && table.salonName ? table.salonName : "";
+    const elapsed = elapsedText(table ? table.elapsedMinutes : 0);
+    els.orderMeta.textContent = (salon ? salon + " | " : "") + elapsed;
   }
 
   function renderTicket() {
     const ticket = state.currentTicket;
     els.ticketLines.replaceChildren();
     if (!ticket || !Array.isArray(ticket.lines) || !ticket.lines.length) {
+      state.selectedLineId = null;
       const li = document.createElement("li");
       li.className = "muted";
       li.textContent = "Sin lineas";
@@ -626,9 +780,18 @@
       els.ticketTotal.textContent = centsToEur(0);
       return;
     }
+    const stillExists = ticket.lines.some(function (line) { return Number(line.id) === Number(state.selectedLineId); });
+    if (!stillExists) {
+      state.selectedLineId = null;
+    }
     ticket.lines.forEach(function (line) {
       const li = document.createElement("li");
-      li.className = "ticket-line" + (line.sent ? " sent" : "");
+      li.className = "ticket-line" + (line.sent ? " sent" : "") +
+        (Number(line.id) === Number(state.selectedLineId) ? " selected" : "");
+      li.addEventListener("click", function () {
+        state.selectedLineId = line.id;
+        renderTicket();
+      });
       li.innerHTML =
         "<div class='ticket-line-top'>" +
         "<span class='ticket-line-name'>" + escapeHtml(String(line.qty)) + "x " + escapeHtml(line.productName) + "</span>" +
@@ -748,6 +911,142 @@
     els.payPartialBtn.disabled = !enabled;
     els.payLinesBtn.disabled = !enabled;
   }
+
+  function getSelectedLine() {
+    if (!state.currentTicket || !Array.isArray(state.currentTicket.lines)) {
+      return null;
+    }
+    return state.currentTicket.lines.find(function (line) {
+      return Number(line.id) === Number(state.selectedLineId);
+    }) || null;
+  }
+
+  async function onDeleteSelectedLine() {
+    const line = getSelectedLine();
+    if (!line) {
+      toast("Selecciona una linea para borrar");
+      return;
+    }
+    if (line.sent) {
+      toast("No se puede borrar una linea enviada");
+      return;
+    }
+    if (!canRunCriticalAction()) {
+      toast("Sin lock valido. Reabre mesa para continuar.");
+      return;
+    }
+    try {
+      state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines/" + line.id, {
+        method: "DELETE"
+      });
+      cacheTicket(state.currentTicket);
+      state.selectedLineId = null;
+      renderTicket();
+      await refreshSendPreview();
+      await refreshPaymentSummary();
+      toast("Linea borrada");
+    } catch (err) {
+      pushError(err);
+      toast("No se pudo borrar linea: " + err.message);
+    }
+  }
+
+  async function onEditSelectedLine() {
+    const line = getSelectedLine();
+    if (!line) {
+      toast("Selecciona una linea para editar");
+      return;
+    }
+    if (line.sent) {
+      toast("No se puede editar una linea enviada");
+      return;
+    }
+    if (!canRunCriticalAction()) {
+      toast("Sin lock valido. Reabre mesa para continuar.");
+      return;
+    }
+
+    const qtyRaw = await promptNumberPad("Cantidad", String(line.qty), false);
+    if (qtyRaw === null) { return; }
+    const qty = Math.max(1, parseInt(qtyRaw, 10) || 1);
+
+    const priceRaw = await promptNumberPad("Precio EUR", (Number(line.unitPriceCents || 0) / 100).toFixed(2), true);
+    if (priceRaw === null) { return; }
+    let priceCents;
+    try {
+      priceCents = parseAmountToCents(priceRaw);
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+
+    try {
+      if (qty !== Number(line.qty)) {
+        state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines/" + line.id, {
+          method: "PATCH",
+          body: JSON.stringify({ qty: qty })
+        });
+      }
+      if (priceCents !== Number(line.unitPriceCents || 0)) {
+        state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines/" + line.id + "/price", {
+          method: "PATCH",
+          body: JSON.stringify({ priceCents: priceCents })
+        });
+      }
+      cacheTicket(state.currentTicket);
+      renderTicket();
+      await refreshSendPreview();
+      await refreshPaymentSummary();
+      toast("Linea actualizada");
+    } catch (err) {
+      pushError(err);
+      toast("No se pudo editar linea: " + err.message);
+    }
+  }
+
+  async function onMoveTable() {
+    if (!state.currentTicket || !state.currentTableNumber) {
+      toast("No hay mesa activa");
+      return;
+    }
+    const raw = await promptNumberPad("Mesa destino", "", false);
+    if (raw === null) { return; }
+    const targetTable = parseInt(raw, 10);
+    if (!Number.isFinite(targetTable) || targetTable < 1) {
+      toast("Mesa destino invalida");
+      return;
+    }
+    if (targetTable === Number(state.currentTableNumber)) {
+      toast("Ya estas en esa mesa");
+      return;
+    }
+
+    try {
+      await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/move-table", {
+        method: "POST",
+        body: JSON.stringify({ tableNumber: targetTable })
+      });
+      const oldTable = state.currentTableNumber;
+      stopHeartbeat();
+      try {
+        await unlockTable(oldTable);
+      } catch (_err) {}
+      state.currentTableNumber = targetTable;
+      await lockTable(targetTable);
+      startHeartbeat(targetTable);
+      state.currentTicket = await getTicket(state.currentTicket.id);
+      renderOrderHeader();
+      renderTicket();
+      await refreshSendPreview();
+      await refreshPaymentSummary();
+      await refreshTablesSafe();
+      toast("Mesa movida a " + targetTable);
+    } catch (err) {
+      pushError(err);
+      toast("No se pudo mover mesa: " + err.message);
+    }
+  }
+
   async function onPayFull() {
     if (!state.paymentSummary || state.paymentSummary.pendingCents <= 0) { toast("No hay importe pendiente"); return; }
     const method = await choosePaymentMethod();
@@ -760,7 +1059,7 @@
     const method = await choosePaymentMethod();
     if (!method) { return; }
     const def = (state.paymentSummary.pendingCents / 100).toFixed(2);
-    const raw = window.prompt("Importe parcial EUR (pendiente " + def + ")", def);
+    const raw = await promptNumberPad("Importe parcial EUR", def, true);
     if (raw === null) { return; }
     let amount;
     try {
@@ -1162,6 +1461,88 @@
     if (typeof state.lastLatencyMs === "number") { text += " " + state.lastLatencyMs + "ms"; }
     badge.textContent = text;
     badge.title = state.lastError ? state.lastError.message : "Sin errores";
+  }
+
+  function renderQtyInput() {
+    els.qtyInput.value = state.currentQtyInput;
+  }
+
+  function clearQtyInput() {
+    state.currentQtyInput = "";
+    renderQtyInput();
+  }
+
+  function qtyFromInput() {
+    const raw = String(state.currentQtyInput || "").trim();
+    if (!raw) {
+      return 1;
+    }
+    const value = parseInt(raw, 10);
+    if (!Number.isFinite(value) || value < 1) {
+      return 1;
+    }
+    return value;
+  }
+
+  function onQtyPadKey(key) {
+    if (!key) { return; }
+    if (key === "C") {
+      clearQtyInput();
+      return;
+    }
+    if (key === "BACK") {
+      state.currentQtyInput = state.currentQtyInput.slice(0, -1);
+      renderQtyInput();
+      return;
+    }
+    if (!/^\d$/.test(key)) {
+      return;
+    }
+    if (state.currentQtyInput.length >= 4) {
+      return;
+    }
+    state.currentQtyInput += key;
+    renderQtyInput();
+  }
+
+  function onNumberPadKey(key) {
+    if (!key) { return; }
+    let value = String(els.numberPadDisplay.value || "");
+    if (key === "C") {
+      els.numberPadDisplay.value = "";
+      return;
+    }
+    if (key === "BACK") {
+      els.numberPadDisplay.value = value.slice(0, -1);
+      return;
+    }
+    if (key === ".") {
+      if (!state.numberPad.allowDecimal || value.includes(".")) {
+        return;
+      }
+      if (!value) {
+        value = "0";
+      }
+      els.numberPadDisplay.value = value + ".";
+      return;
+    }
+    if (!/^\d$/.test(key)) {
+      return;
+    }
+    if (value.length >= 12) {
+      return;
+    }
+    els.numberPadDisplay.value = value + key;
+  }
+
+  function promptNumberPad(title, initialValue, allowDecimal) {
+    return new Promise(function (resolve) {
+      state.numberPad.allowDecimal = !!allowDecimal;
+      state.numberPad.resolve = resolve;
+      els.numberPadTitle.textContent = title || "Numero";
+      els.numberPadDisplay.value = String(initialValue || "");
+      els.numberPadDialog.showModal();
+    });
   }
 
   function updateSessionBadge() {

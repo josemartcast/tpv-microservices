@@ -266,6 +266,11 @@ public class OrderViewModel {
         refreshOrder();
     }
 
+    public void removeLine(long lineId) {
+        orderService.removeLine(orderId.get(), lineId);
+        refreshOrder();
+    }
+
     public void cancelOrder() {
         orderService.cancelOrder(orderId.get());
         unlockWithPolicy();

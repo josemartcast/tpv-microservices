@@ -340,6 +340,10 @@ class OrderViewModelSendQueueTest {
         }
 
         @Override
+        public void removeLine(long orderId, long lineId) {
+        }
+
+        @Override
         public void removeLastPendingLine(long orderId) {
         }
 

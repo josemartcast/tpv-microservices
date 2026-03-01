@@ -86,6 +86,21 @@ public class FakeOrderService implements OrderService {
     }
 
     @Override
+    public void removeLine(long orderId, long lineId) {
+        Order order = getById(orderId);
+        for (int i = 0; i < order.getLines().size(); i++) {
+            OrderLine line = order.getLines().get(i);
+            if (line.getId() == lineId) {
+                if (line.getSentQty() > 0) {
+                    throw new IllegalStateException("Cannot delete a sent line: " + lineId);
+                }
+                order.getLines().remove(i);
+                return;
+            }
+        }
+    }
+
+    @Override
     public void removeLastPendingLine(long orderId) {
         Order order = getById(orderId);
         for (int i = order.getLines().size() - 1; i >= 0; i--) {

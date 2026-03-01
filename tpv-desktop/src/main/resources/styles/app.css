@@ -207,6 +207,13 @@
     -fx-control-inner-background: transparent;
 }
 .ticket-list .list-cell { -fx-background-color: transparent; }
+.ticket-list .list-cell:selected { -fx-background-color: transparent; }
+.ticket-list .list-cell:selected .ticket-line {
+    -fx-background-color: rgba(88, 134, 212, 0.45);
+    -fx-border-color: #8fb7ff;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+}
 
 .ticket-line {
     -fx-background-color: rgba(255,255,255,0.06);

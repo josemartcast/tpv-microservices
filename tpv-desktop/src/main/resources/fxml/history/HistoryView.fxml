@@ -41,6 +41,7 @@
                  text="Selecciona un ticket"
                  style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
           <Region HBox.hgrow="ALWAYS"/>
+          <Button fx:id="invoiceBtn" text="Facturar" onAction="#onInvoice"/>
           <Button fx:id="reopenPaidBtn" text="Reabrir pagado" onAction="#onReopenPaid"/>
           <Button fx:id="refundBtn" text="Devolver pago" onAction="#onRefundSelectedPayment"/>
           <Button fx:id="openInSalesBtn" text="Abrir en Sales" onAction="#onOpenInSales"/>

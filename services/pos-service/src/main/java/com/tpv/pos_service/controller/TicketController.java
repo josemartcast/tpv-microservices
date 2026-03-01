@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.*;
 import com.tpv.pos_service.dto.AddTicketLineRequest;
 import com.tpv.pos_service.dto.ApplyDiscountRequest;
 import com.tpv.pos_service.dto.CreateTicketRequest;
+import com.tpv.pos_service.dto.InvoiceResponse;
+import com.tpv.pos_service.dto.IssueInvoiceRequest;
 import com.tpv.pos_service.dto.MoveTableRequest;
 import com.tpv.pos_service.dto.PaymentSummaryResponse;
 import com.tpv.pos_service.dto.ReopenPaidTicketRequest;
@@ -16,6 +18,7 @@ import com.tpv.pos_service.dto.TicketResponse;
 import com.tpv.pos_service.dto.UpdateLineQtyRequest;
 import com.tpv.pos_service.dto.UpdateLinePriceRequest;
 import com.tpv.pos_service.service.AuditService;
+import com.tpv.pos_service.service.InvoiceService;
 import com.tpv.pos_service.service.TicketService;
 import com.tpv.pos_service.dto.TicketSummaryResponse;
 import com.tpv.pos_service.util.ActorResolver;
@@ -28,10 +31,12 @@ import org.springframework.security.core.Authentication;
 public class TicketController {
 
     private final TicketService service;
+    private final InvoiceService invoiceService;
     private final AuditService auditService;
 
-    public TicketController(TicketService service, AuditService auditService) {
+    public TicketController(TicketService service, InvoiceService invoiceService, AuditService auditService) {
         this.service = service;
+        this.invoiceService = invoiceService;
         this.auditService = auditService;
     }
 
@@ -248,6 +253,30 @@ public class TicketController {
             return response;
         } catch (RuntimeException e) {
             auditService.recordFailure("TICKET_REOPEN_PAID", "TICKET", id, actor, term, req, e);
+            throw e;
+        }
+    }
+
+    @GetMapping("/{id}/invoice")
+    public InvoiceResponse getInvoiceByTicket(@PathVariable Long id) {
+        return invoiceService.getByTicket(id);
+    }
+
+    @PostMapping("/{id}/invoice")
+    public InvoiceResponse issueInvoice(
+            @PathVariable Long id,
+            @Valid @RequestBody IssueInvoiceRequest req,
+            Authentication auth,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            InvoiceResponse response = invoiceService.issueForTicket(id, req.customerId(), actor);
+            auditService.recordSuccess("TICKET_ISSUE_INVOICE", "TICKET", id, actor, term, req, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("TICKET_ISSUE_INVOICE", "TICKET", id, actor, term, req, e);
             throw e;
         }
     }

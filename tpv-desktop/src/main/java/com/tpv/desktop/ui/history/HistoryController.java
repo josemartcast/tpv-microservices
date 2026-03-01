@@ -1,26 +1,45 @@
 package com.tpv.desktop.ui.history;
 
+import com.tpv.desktop.api.pos.CustomerApi;
+import com.tpv.desktop.api.pos.CustomerResponse;
+import com.tpv.desktop.api.pos.InvoiceResponse;
 import com.tpv.desktop.api.pos.PaymentApi;
 import com.tpv.desktop.api.pos.TicketApi;
 import com.tpv.desktop.api.pos.TicketHistoryApi;
 import com.tpv.desktop.api.pos.TicketResponse;
 import com.tpv.desktop.api.pos.TicketSummaryResponse;
-import com.tpv.desktop.core.MoneyUtil;
 import com.tpv.desktop.core.AuthStore;
+import com.tpv.desktop.core.MoneyUtil;
+import com.tpv.desktop.core.SettingsStore;
+import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.ui.UiDialogs;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.scene.control.ButtonBar;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.UUID;
 
 public class HistoryController {
@@ -53,6 +72,7 @@ public class HistoryController {
     @FXML private Button openInSalesBtn;
     @FXML private Button refundBtn;
     @FXML private Button reopenPaidBtn;
+    @FXML private Button invoiceBtn;
 
     private final ObservableList<TicketResponse> tickets = FXCollections.observableArrayList();
     private final ObservableList<TicketSummaryResponse.TicketLineSummary> lines = FXCollections.observableArrayList();
@@ -67,11 +87,16 @@ public class HistoryController {
         return AuthStore.hasRole("ADMIN") || AuthStore.hasRole("ENCARGADO");
     }
 
+    private boolean canInvoice() {
+        return AuthStore.hasRole("ADMIN") || AuthStore.hasRole("ENCARGADO") || AuthStore.hasRole("CAJERO");
+    }
+
     @FXML
     public void initialize() {
         openInSalesBtn.setDisable(true);
         refundBtn.setDisable(true);
         reopenPaidBtn.setDisable(!canReopenPaid());
+        invoiceBtn.setDisable(!canInvoice());
         setupTables();
         ticketsTable.setItems(tickets);
         linesTable.setItems(lines);
@@ -83,6 +108,7 @@ public class HistoryController {
             openInSalesBtn.setDisable(true);
             refundBtn.setDisable(true);
             reopenPaidBtn.setDisable(!canReopenPaid());
+            invoiceBtn.setDisable(!canInvoice());
             if (newV != null) {
                 loadDetail(newV.id());
             }
@@ -170,6 +196,7 @@ public class HistoryController {
             boolean isPaid = "PAID".equalsIgnoreCase(s.status());
             openInSalesBtn.setDisable(!isOpen);
             reopenPaidBtn.setDisable(!isPaid || !canReopenPaid());
+            invoiceBtn.setDisable(!isPaid || !canInvoice());
         } catch (Exception e) {
             detailErrorLabel.setText("No se pudo cargar el detalle: " + e.getMessage());
             clearDetail();
@@ -187,7 +214,103 @@ public class HistoryController {
         selectedPayment = null;
         openInSalesBtn.setDisable(true);
         reopenPaidBtn.setDisable(!canReopenPaid());
+        invoiceBtn.setDisable(!canInvoice());
         refundBtn.setDisable(true);
+    }
+
+    @FXML
+    public void onInvoice() {
+        if (selectedTicket == null) {
+            detailErrorLabel.setText("Selecciona un ticket.");
+            return;
+        }
+        if (!"PAID".equalsIgnoreCase(selectedTicket.status())) {
+            detailErrorLabel.setText("Solo se puede facturar un ticket en estado PAID.");
+            return;
+        }
+        if (!canInvoice()) {
+            detailErrorLabel.setText("No tienes permisos para facturar.");
+            return;
+        }
+        try {
+            TicketSummaryResponse summary = TicketHistoryApi.summary(selectedTicket.id());
+            CustomerResponse[] allCustomers = CustomerApi.list();
+            if (allCustomers == null || allCustomers.length == 0) {
+                detailErrorLabel.setText("No hay clientes fiscales. Crea uno en el modulo Clientes.");
+                return;
+            }
+
+            ComboBox<CustomerResponse> customerBox = new ComboBox<>(FXCollections.observableArrayList(Arrays.asList(allCustomers)));
+            customerBox.setConverter(new javafx.util.StringConverter<>() {
+                @Override
+                public String toString(CustomerResponse c) {
+                    if (c == null) {
+                        return "";
+                    }
+                    String tax = c.taxId() == null || c.taxId().isBlank() ? "-" : c.taxId();
+                    return c.displayName() + " (" + tax + ")";
+                }
+
+                @Override
+                public CustomerResponse fromString(String string) {
+                    return null;
+                }
+            });
+            customerBox.getSelectionModel().selectFirst();
+
+            TextArea preview = new TextArea();
+            preview.setEditable(false);
+            preview.setWrapText(false);
+            preview.setPrefColumnCount(60);
+            preview.setPrefRowCount(28);
+            preview.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 12px;");
+
+            Runnable render = () -> preview.setText(buildInvoiceText(summary, customerBox.getValue()));
+            customerBox.valueProperty().addListener((obs, oldV, newV) -> render.run());
+            render.run();
+
+            Dialog<ButtonType> dialog = new Dialog<>();
+            dialog.setTitle("Factura");
+            dialog.setHeaderText("Factura de ticket #" + summary.id());
+            ButtonType copyBtn = new ButtonType("Copiar", ButtonBar.ButtonData.LEFT);
+            ButtonType pdfBtn = new ButtonType("Print to PDF", ButtonBar.ButtonData.LEFT);
+            dialog.getDialogPane().getButtonTypes().addAll(copyBtn, pdfBtn, ButtonType.CLOSE);
+
+            HBox customerRow = new HBox(8, new Label("Cliente fiscal"), customerBox, new Region());
+            HBox.setHgrow(customerBox, Priority.ALWAYS);
+            VBox content = new VBox(10, customerRow, preview);
+            dialog.getDialogPane().setContent(content);
+
+            ButtonType action = dialog.showAndWait().orElse(ButtonType.CLOSE);
+            if (action == copyBtn) {
+                CustomerResponse selectedCustomer = customerBox.getValue();
+                if (selectedCustomer == null) {
+                    detailErrorLabel.setText("Selecciona un cliente fiscal.");
+                    return;
+                }
+                InvoiceResponse invoice = TicketApi.issueInvoice(selectedTicket.id(), selectedCustomer.id());
+                String finalText = buildInvoiceText(invoice);
+                ClipboardContent clip = new ClipboardContent();
+                clip.putString(finalText);
+                Clipboard.getSystemClipboard().setContent(clip);
+                detailErrorLabel.setText("Factura " + invoice.invoiceNumber() + " guardada y copiada.");
+                return;
+            }
+            if (action == pdfBtn) {
+                CustomerResponse selectedCustomer = customerBox.getValue();
+                if (selectedCustomer == null) {
+                    detailErrorLabel.setText("Selecciona un cliente fiscal.");
+                    return;
+                }
+                InvoiceResponse invoice = TicketApi.issueInvoice(selectedTicket.id(), selectedCustomer.id());
+                String finalText = buildInvoiceText(invoice);
+                PrintUtil.printTextToPdf(finalText,
+                        detailErrorLabel != null && detailErrorLabel.getScene() != null ? detailErrorLabel.getScene().getWindow() : null);
+                detailErrorLabel.setText("Factura " + invoice.invoiceNumber() + " guardada y enviada a Print to PDF.");
+            }
+        } catch (Exception e) {
+            detailErrorLabel.setText("No se pudo generar factura: " + e.getMessage());
+        }
     }
 
     @FXML
@@ -293,5 +416,185 @@ public class HistoryController {
         } catch (Exception e) {
             detailErrorLabel.setText("No se pudo registrar devolucion: " + e.getMessage());
         }
+    }
+
+    private String buildInvoiceText(TicketSummaryResponse summary, CustomerResponse customer) {
+        StringBuilder out = new StringBuilder();
+
+        String businessName = blankTo(SettingsStore.getFiscalLegalName(),
+                blankTo(AppContext.get().appState().restaurantNameProperty().get(), "NEGOCIO"));
+        String taxId = blankTo(SettingsStore.getFiscalTaxId(), "-");
+        String address = SettingsStore.getFiscalAddress();
+        String cp = SettingsStore.getFiscalPostalCode();
+        String city = SettingsStore.getFiscalCity();
+        String province = SettingsStore.getFiscalProvince();
+        String country = SettingsStore.getFiscalCountry();
+
+        String invoiceNumber = "F-" + summary.id() + "-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
+
+        out.append(clip(businessName.toUpperCase(Locale.ROOT), 46)).append('\n');
+        out.append("NIF/CIF ").append(taxId).append('\n');
+        if (!blankTo(address, "").isBlank()) {
+            out.append(clip(address, 46)).append('\n');
+        }
+        String cityLine = String.format(
+                Locale.ROOT,
+                "%s %s %s",
+                blankTo(cp, ""),
+                blankTo(city, ""),
+                blankTo(province, "")
+        ).trim();
+        if (!cityLine.isBlank()) {
+            out.append(clip(cityLine, 46)).append('\n');
+        }
+        if (!blankTo(country, "").isBlank()) {
+            out.append(clip(country.toUpperCase(Locale.ROOT), 46)).append('\n');
+        }
+
+        out.append("----------------------------------------------").append('\n');
+        out.append("FACTURA ").append(invoiceNumber).append('\n');
+        out.append("Ticket ").append(summary.id()).append("  Mesa ")
+                .append(selectedTicket == null || selectedTicket.tableNumber() == null ? "-" : selectedTicket.tableNumber())
+                .append('\n');
+        out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
+        out.append("----------------------------------------------").append('\n');
+        out.append("CLIENTE").append('\n');
+        out.append(clip(blankTo(customer == null ? "" : customer.legalName(), customer == null ? "" : customer.displayName()), 46)).append('\n');
+        if (customer != null && !blankTo(customer.taxId(), "").isBlank()) {
+            out.append("NIF/CIF ").append(customer.taxId()).append('\n');
+        }
+        if (customer != null && !blankTo(customer.fiscalAddress(), "").isBlank()) {
+            out.append(clip(customer.fiscalAddress(), 46)).append('\n');
+        }
+        if (customer != null) {
+            String customerCity = String.format(
+                    Locale.ROOT,
+                    "%s %s %s",
+                    blankTo(customer.postalCode(), ""),
+                    blankTo(customer.city(), ""),
+                    blankTo(customer.province(), "")
+            ).trim();
+            if (!customerCity.isBlank()) {
+                out.append(clip(customerCity, 46)).append('\n');
+            }
+            if (!blankTo(customer.country(), "").isBlank()) {
+                out.append(clip(customer.country().toUpperCase(Locale.ROOT), 46)).append('\n');
+            }
+        }
+
+        out.append("----------------------------------------------").append('\n');
+        if (summary.lines() != null) {
+            for (TicketSummaryResponse.TicketLineSummary line : summary.lines()) {
+                out.append(String.format(
+                        Locale.US,
+                        "%2dx %-24s %10.2f",
+                        line.qty(),
+                        clip(line.productName(), 24),
+                        line.lineTotalCents() / 100.0
+                )).append('\n');
+            }
+        }
+        out.append("----------------------------------------------").append('\n');
+        out.append(String.format(Locale.US, "TOTAL:%36.2f", summary.totalCents() / 100.0)).append('\n');
+        out.append(String.format(Locale.US, "PAGADO:%35.2f", summary.paidCents() / 100.0)).append('\n');
+        out.append(String.format(Locale.US, "PENDIENTE:%32.2f", summary.remainingCents() / 100.0)).append('\n');
+        out.append("----------------------------------------------").append('\n');
+        if (summary.payments() != null && !summary.payments().isEmpty()) {
+            out.append("Pagos registrados").append('\n');
+            for (TicketSummaryResponse.PaymentSummary payment : summary.payments()) {
+                out.append(String.format(
+                        Locale.US,
+                        "%-10s %10.2f %s",
+                        payment.method(),
+                        payment.amountCents() / 100.0,
+                        payment.createdAt() == null ? "" : DT.format(payment.createdAt())
+                )).append('\n');
+            }
+        }
+        return out.toString();
+    }
+
+    private String buildInvoiceText(InvoiceResponse invoice) {
+        StringBuilder out = new StringBuilder();
+        out.append(clip(blankTo(invoice.businessLegalName(), invoice.businessName()).toUpperCase(Locale.ROOT), 46)).append('\n');
+        out.append("NIF/CIF ").append(blankTo(invoice.businessTaxId(), "-")).append('\n');
+        if (!blankTo(invoice.businessAddress(), "").isBlank()) {
+            out.append(clip(invoice.businessAddress(), 46)).append('\n');
+        }
+        String businessCity = String.format(
+                Locale.ROOT,
+                "%s %s %s",
+                blankTo(invoice.businessPostalCode(), ""),
+                blankTo(invoice.businessCity(), ""),
+                blankTo(invoice.businessProvince(), "")
+        ).trim();
+        if (!businessCity.isBlank()) {
+            out.append(clip(businessCity, 46)).append('\n');
+        }
+        if (!blankTo(invoice.businessCountry(), "").isBlank()) {
+            out.append(clip(invoice.businessCountry().toUpperCase(Locale.ROOT), 46)).append('\n');
+        }
+        out.append("----------------------------------------------").append('\n');
+        out.append("FACTURA ").append(invoice.invoiceNumber()).append('\n');
+        out.append("Ticket ").append(invoice.ticketId()).append("  Mesa ")
+                .append(invoice.tableNumber() == null ? "-" : invoice.tableNumber()).append('\n');
+        out.append("Fecha ").append(invoice.issuedAt() == null ? "-" : DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                .withZone(ZoneId.systemDefault()).format(invoice.issuedAt())).append('\n');
+        out.append("----------------------------------------------").append('\n');
+        out.append("CLIENTE").append('\n');
+        out.append(clip(blankTo(invoice.customerLegalName(), invoice.customerDisplayName()), 46)).append('\n');
+        if (!blankTo(invoice.customerTaxId(), "").isBlank()) {
+            out.append("NIF/CIF ").append(invoice.customerTaxId()).append('\n');
+        }
+        if (!blankTo(invoice.customerAddress(), "").isBlank()) {
+            out.append(clip(invoice.customerAddress(), 46)).append('\n');
+        }
+        String customerCity = String.format(
+                Locale.ROOT,
+                "%s %s %s",
+                blankTo(invoice.customerPostalCode(), ""),
+                blankTo(invoice.customerCity(), ""),
+                blankTo(invoice.customerProvince(), "")
+        ).trim();
+        if (!customerCity.isBlank()) {
+            out.append(clip(customerCity, 46)).append('\n');
+        }
+        if (!blankTo(invoice.customerCountry(), "").isBlank()) {
+            out.append(clip(invoice.customerCountry().toUpperCase(Locale.ROOT), 46)).append('\n');
+        }
+        out.append("----------------------------------------------").append('\n');
+        if (invoice.lines() != null) {
+            for (var line : invoice.lines()) {
+                out.append(String.format(
+                        Locale.US,
+                        "%2dx %-24s %10.2f",
+                        line.qty(),
+                        clip(line.productName(), 24),
+                        line.lineGrossCents() / 100.0
+                )).append('\n');
+            }
+        }
+        out.append("----------------------------------------------").append('\n');
+        out.append(String.format(Locale.US, "TOTAL:%36.2f", invoice.totalGrossCents() / 100.0)).append('\n');
+        out.append(String.format(Locale.US, "BASE:%37.2f", invoice.totalNetCents() / 100.0)).append('\n');
+        out.append(String.format(Locale.US, "IVA:%38.2f", invoice.totalVatCents() / 100.0)).append('\n');
+        return out.toString();
+    }
+
+    private static String blankTo(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value.trim();
+    }
+
+    private static String clip(String value, int max) {
+        if (value == null) {
+            return "";
+        }
+        if (value.length() <= max) {
+            return value;
+        }
+        return value.substring(0, max - 1) + ".";
     }
 }

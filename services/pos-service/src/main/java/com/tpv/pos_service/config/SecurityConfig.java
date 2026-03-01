@@ -27,6 +27,8 @@ public class SecurityConfig {
                 // business profile
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/business-profile").hasAnyRole("CAMARERO", "CAJERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/pos/business-profile").hasAnyRole("ENCARGADO", "ADMIN")
+                // customers (fiscal billing data)
+                .requestMatchers(RegexRequestMatcher.regexMatcher("/api/v1/pos/customers(/.*)?")).hasAnyRole("CAJERO", "ENCARGADO", "ADMIN")
                 //products
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/products/**").hasAnyRole("CAMARERO", "CAJERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/products").hasAnyRole("ENCARGADO", "ADMIN")
@@ -35,6 +37,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/products/**").hasAnyRole("ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/pos/products/**").hasAnyRole("ENCARGADO", "ADMIN")
                 //tickets        
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/tickets/*/invoice").hasAnyRole("CAJERO", "ENCARGADO", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/invoice").hasAnyRole("CAJERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/tickets/**").hasAnyRole("CAMARERO", "CAJERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets").hasAnyRole("CAMARERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(RegexRequestMatcher.regexMatcher(HttpMethod.POST, "/api/v1/pos/tickets/?$")).hasAnyRole("CAMARERO", "ENCARGADO", "ADMIN")
