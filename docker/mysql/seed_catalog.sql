@@ -1,4 +1,5 @@
-USE tpv_pos;
+﻿USE tpv_pos;
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO categories (active, created_at, name, updated_at) VALUES
 (b'1', NOW(6), 'Bebidas', NOW(6)),
@@ -16,7 +17,7 @@ INSERT IGNORE INTO products (active, created_at, name, price_cents, updated_at, 
 SELECT b'1', NOW(6), 'Zumo Naranja', 280, NOW(6), 1000, c.id FROM categories c WHERE c.name = 'Bebidas';
 
 INSERT IGNORE INTO products (active, created_at, name, price_cents, updated_at, vat_rate_bps, category_id)
-SELECT b'1', NOW(6), 'Cerveza Caña', 220, NOW(6), 1000, c.id FROM categories c WHERE c.name = 'Cervezas';
+SELECT b'1', NOW(6), CONVERT(0x43657276657A61204361C3B161 USING utf8mb4), 220, NOW(6), 1000, c.id FROM categories c WHERE c.name = 'Cervezas';
 INSERT IGNORE INTO products (active, created_at, name, price_cents, updated_at, vat_rate_bps, category_id)
 SELECT b'1', NOW(6), 'Cerveza Doble', 320, NOW(6), 1000, c.id FROM categories c WHERE c.name = 'Cervezas';
 INSERT IGNORE INTO products (active, created_at, name, price_cents, updated_at, vat_rate_bps, category_id)

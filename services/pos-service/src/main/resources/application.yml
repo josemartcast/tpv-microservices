@@ -3,9 +3,11 @@ server:
 
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/tpv_pos}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/tpv_pos?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_unicode_ci}
     username: ${DB_USERNAME:tpv_user}
     password: ${DB_PASSWORD:tpv_pass}
+    hikari:
+      connection-init-sql: SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO:update}
