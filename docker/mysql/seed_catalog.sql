@@ -1,4 +1,4 @@
-﻿USE tpv_pos;
+USE tpv_pos;
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO categories (active, created_at, name, updated_at) VALUES

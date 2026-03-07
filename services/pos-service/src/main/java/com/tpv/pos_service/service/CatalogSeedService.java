@@ -1,4 +1,4 @@
-﻿package com.tpv.pos_service.service;
+package com.tpv.pos_service.service;
 
 import com.tpv.pos_service.domain.Category;
 import com.tpv.pos_service.domain.Product;
