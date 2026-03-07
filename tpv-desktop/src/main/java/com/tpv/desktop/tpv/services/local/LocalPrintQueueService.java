@@ -1,5 +1,6 @@
 package com.tpv.desktop.tpv.services.local;
 
+import com.tpv.desktop.core.PrinterSettingsStore;
 import com.tpv.desktop.tpv.domain.model.PrintQueueState;
 import com.tpv.desktop.tpv.services.PrintQueueService;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
@@ -15,6 +16,7 @@ import javafx.collections.ObservableList;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -90,7 +92,7 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
 
     private void process(PrintJob job) {
         try {
-            printGateway.print(job.text());
+            printGateway.print(job.destination(), job.text());
             uiExecutor.execute(() -> {
                 pendingJobs.set(Math.max(0, pendingJobs.get() - 1));
                 lastError.set("");
@@ -117,11 +119,18 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
         }
     }
 
-    private static void printOnFxThread(String text) throws Exception {
+    private static void printOnFxThread(String destination, String text) throws Exception {
         CompletableFuture<Void> future = new CompletableFuture<>();
         Platform.runLater(() -> {
             try {
-                PrintUtil.printTextToPdf(text, null);
+                List<String> mappedPrinters = PrinterSettingsStore.resolveSystemPrintersForDestination(destination);
+                if (mappedPrinters.isEmpty()) {
+                    PrintUtil.printTextToPdf(text, null);
+                } else {
+                    for (String printerName : mappedPrinters) {
+                        PrintUtil.printTextToPrinter(printerName, text, null);
+                    }
+                }
                 future.complete(null);
             } catch (Exception e) {
                 future.completeExceptionally(e);
@@ -147,7 +156,7 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
 
     @FunctionalInterface
     interface PrintGateway {
-        void print(String text) throws Exception;
+        void print(String destination, String text) throws Exception;
     }
 
     @FunctionalInterface

@@ -9,8 +9,11 @@ import com.tpv.desktop.api.pos.SalonTableResponse;
 import com.tpv.desktop.api.pos.UpdateBusinessProfileRequest;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.Nav;
+import com.tpv.desktop.core.PrinterSettingsStore;
+import com.tpv.desktop.core.PrinterSettingsStore.PrinterProfile;
 import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.ui.UiDialogs;
 import java.awt.Desktop;
 import java.time.LocalDateTime;
@@ -18,10 +21,18 @@ import java.time.format.DateTimeFormatter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.input.Clipboard;
@@ -46,6 +57,15 @@ public class SettingsController {
   @FXML private TextField fiscalEmailField;
   @FXML private TextArea connectivityLogArea;
   @FXML private Label statusLabel;
+  @FXML private TableView<PrinterProfile> printersTable;
+  @FXML private TableColumn<PrinterProfile, String> printerLogicalCol;
+  @FXML private TableColumn<PrinterProfile, String> printerDestinationCol;
+  @FXML private TableColumn<PrinterProfile, String> printerSystemCol;
+  @FXML private TableColumn<PrinterProfile, String> printerEnabledCol;
+  @FXML private TextField printerLogicalNameField;
+  @FXML private ComboBox<String> printerDestinationCombo;
+  @FXML private ComboBox<String> systemPrinterCombo;
+  @FXML private CheckBox printerEnabledCheck;
 
   @FXML
   public void initialize() {
@@ -63,6 +83,7 @@ public class SettingsController {
     fiscalEmailField.setText(SettingsStore.getFiscalEmail());
     loadConnectivityLogsPreview();
     loadBusinessProfileFromServerIfRealMode();
+    initializePrinterSection();
   }
 
   @FXML
@@ -420,6 +441,104 @@ public class SettingsController {
     Nav.goToLogin();
   }
 
+  @FXML
+  public void onPrinterSave() {
+    String logicalName = normalize(printerLogicalNameField == null ? "" : printerLogicalNameField.getText());
+    String destination = normalize(printerDestinationCombo == null ? "" : printerDestinationCombo.getValue()).toUpperCase(Locale.ROOT);
+    String systemPrinter = normalize(systemPrinterCombo == null ? "" : systemPrinterCombo.getValue());
+    boolean enabled = printerEnabledCheck == null || printerEnabledCheck.isSelected();
+
+    if (logicalName.isBlank()) {
+      UiDialogs.warn("Impresoras", "El nombre de impresora del negocio es obligatorio.");
+      return;
+    }
+    if (destination.isBlank()) {
+      UiDialogs.warn("Impresoras", "Debes seleccionar un destino (BAR/COCINA/POSTRES/ALL).");
+      return;
+    }
+    if (systemPrinter.isBlank()) {
+      UiDialogs.warn("Impresoras", "Debes seleccionar una impresora real del sistema.");
+      return;
+    }
+
+    List<PrinterProfile> profiles = new ArrayList<>(PrinterSettingsStore.getProfiles());
+    PrinterProfile selected = printersTable == null ? null : printersTable.getSelectionModel().getSelectedItem();
+    PrinterProfile saved;
+    if (selected == null) {
+      saved = PrinterSettingsStore.newProfile(logicalName, destination, systemPrinter, enabled);
+      profiles.add(saved);
+    } else {
+      saved = new PrinterProfile(selected.id(), logicalName, destination, systemPrinter, enabled);
+      for (int i = 0; i < profiles.size(); i++) {
+        if (profiles.get(i).id().equals(selected.id())) {
+          profiles.set(i, saved);
+          break;
+        }
+      }
+    }
+
+    PrinterSettingsStore.saveProfiles(profiles);
+    reloadPrinterProfiles(saved.id());
+    statusLabel.setText("Impresora guardada.");
+  }
+
+  @FXML
+  public void onPrinterDelete() {
+    if (printersTable == null) {
+      return;
+    }
+    PrinterProfile selected = printersTable.getSelectionModel().getSelectedItem();
+    if (selected == null) {
+      UiDialogs.warn("Impresoras", "Selecciona una impresora para eliminar.");
+      return;
+    }
+    boolean ok = UiDialogs.confirm(
+            "Eliminar impresora",
+            "Se eliminara la impresora '" + selected.logicalName() + "'. Continuar?"
+    );
+    if (!ok) {
+      return;
+    }
+
+    List<PrinterProfile> profiles = new ArrayList<>(PrinterSettingsStore.getProfiles());
+    profiles.removeIf(p -> p.id().equals(selected.id()));
+    PrinterSettingsStore.saveProfiles(profiles);
+    reloadPrinterProfiles(null);
+    clearPrinterEditor();
+    statusLabel.setText("Impresora eliminada.");
+  }
+
+  @FXML
+  public void onPrinterNew() {
+    if (printersTable != null) {
+      printersTable.getSelectionModel().clearSelection();
+    }
+    clearPrinterEditor();
+    statusLabel.setText("Nueva impresora.");
+  }
+
+  @FXML
+  public void onRefreshSystemPrinters() {
+    refreshSystemPrintersCombo();
+    statusLabel.setText("Lista de impresoras del sistema recargada.");
+  }
+
+  @FXML
+  public void onPrinterTest() {
+    String printerName = normalize(systemPrinterCombo == null ? "" : systemPrinterCombo.getValue());
+    if (printerName.isBlank()) {
+      UiDialogs.warn("Impresoras", "Selecciona una impresora real para enviar test.");
+      return;
+    }
+    try {
+      String text = "TPV Desktop\nTEST IMPRESION\n" + LocalDateTime.now().format(TS_FMT) + "\n";
+      PrintUtil.printTextToPrinter(printerName, text, null);
+      statusLabel.setText("Test enviado a '" + printerName + "'.");
+    } catch (Exception e) {
+      UiDialogs.error("Impresoras", "No se pudo imprimir test:\n" + e.getMessage());
+    }
+  }
+
   private static Path connectivityDir() {
     String home = System.getProperty("user.home", ".");
     return Path.of(home, CONNECTIVITY_DIR);
@@ -475,5 +594,86 @@ public class SettingsController {
             "Recent entries:",
             lines
     );
+  }
+
+  private void initializePrinterSection() {
+    if (printerDestinationCombo == null || systemPrinterCombo == null || printersTable == null) {
+      return;
+    }
+
+    printerDestinationCombo.setItems(FXCollections.observableArrayList(PrinterSettingsStore.supportedDestinations()));
+    printerDestinationCombo.setValue("ALL");
+    if (printerEnabledCheck != null) {
+      printerEnabledCheck.setSelected(true);
+    }
+
+    printerLogicalCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().logicalName()));
+    printerDestinationCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().destination()));
+    printerSystemCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().systemPrinter()));
+    printerEnabledCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().enabled() ? "Si" : "No"));
+
+    printersTable.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, selected) -> {
+      if (selected == null) {
+        return;
+      }
+      printerLogicalNameField.setText(selected.logicalName());
+      printerDestinationCombo.setValue(selected.destination());
+      systemPrinterCombo.setValue(selected.systemPrinter());
+      if (printerEnabledCheck != null) {
+        printerEnabledCheck.setSelected(selected.enabled());
+      }
+    });
+
+    refreshSystemPrintersCombo();
+    reloadPrinterProfiles(null);
+  }
+
+  private void refreshSystemPrintersCombo() {
+    if (systemPrinterCombo == null) {
+      return;
+    }
+    String current = systemPrinterCombo.getValue();
+    List<String> printers = PrintUtil.availablePrinterNames();
+    systemPrinterCombo.setItems(FXCollections.observableArrayList(printers));
+    if (current != null && !current.isBlank() && printers.contains(current)) {
+      systemPrinterCombo.setValue(current);
+    } else if (!printers.isEmpty()) {
+      systemPrinterCombo.setValue(printers.getFirst());
+    }
+  }
+
+  private void reloadPrinterProfiles(String selectId) {
+    if (printersTable == null) {
+      return;
+    }
+    List<PrinterProfile> profiles = new ArrayList<>(PrinterSettingsStore.getProfiles());
+    profiles.sort(Comparator.comparing(PrinterProfile::logicalName, String.CASE_INSENSITIVE_ORDER));
+    printersTable.getItems().setAll(profiles);
+    if (profiles.isEmpty()) {
+      return;
+    }
+    if (selectId == null || selectId.isBlank()) {
+      printersTable.getSelectionModel().selectFirst();
+      return;
+    }
+    for (PrinterProfile profile : profiles) {
+      if (profile.id().equals(selectId)) {
+        printersTable.getSelectionModel().select(profile);
+        return;
+      }
+    }
+    printersTable.getSelectionModel().selectFirst();
+  }
+
+  private void clearPrinterEditor() {
+    if (printerLogicalNameField != null) {
+      printerLogicalNameField.clear();
+    }
+    if (printerDestinationCombo != null) {
+      printerDestinationCombo.setValue("ALL");
+    }
+    if (printerEnabledCheck != null) {
+      printerEnabledCheck.setSelected(true);
+    }
   }
 }

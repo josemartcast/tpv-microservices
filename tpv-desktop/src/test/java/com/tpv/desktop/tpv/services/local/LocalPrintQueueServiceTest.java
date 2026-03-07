@@ -19,7 +19,7 @@ class LocalPrintQueueServiceTest {
         ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
         AtomicInteger calls = new AtomicInteger();
         LocalPrintQueueService service = new LocalPrintQueueService(
-                text -> calls.incrementAndGet(),
+                (destination, text) -> calls.incrementAndGet(),
                 Runnable::run,
                 worker
         );
@@ -40,7 +40,7 @@ class LocalPrintQueueServiceTest {
         ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
         AtomicInteger attempts = new AtomicInteger();
         LocalPrintQueueService service = new LocalPrintQueueService(
-                text -> {
+                (destination, text) -> {
                     int n = attempts.incrementAndGet();
                     if (n < 3) {
                         throw new RuntimeException("transient");
@@ -67,7 +67,7 @@ class LocalPrintQueueServiceTest {
         ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
         AtomicInteger attempts = new AtomicInteger();
         LocalPrintQueueService service = new LocalPrintQueueService(
-                text -> {
+                (destination, text) -> {
                     attempts.incrementAndGet();
                     throw new RuntimeException("broken printer");
                 },
@@ -98,4 +98,3 @@ class LocalPrintQueueServiceTest {
         throw new IllegalStateException("Timeout waiting for condition");
     }
 }
-
