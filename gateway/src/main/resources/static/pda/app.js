@@ -21,7 +21,6 @@
     tables: [],
     categories: [],
     salonFilter: "ALL",
-    salonsByName: new Map(),
     productsByCategory: new Map(),
     activeCategoryId: null,
     currentTableNumber: null,
@@ -106,6 +105,9 @@
     payLinesList: byId("payLinesList"),
     payLinesSelectedLabel: byId("payLinesSelectedLabel"),
     payLinesApplyBtn: byId("payLinesApplyBtn"),
+    moveTableDialog: byId("moveTableDialog"),
+    moveTableInfo: byId("moveTableInfo"),
+    moveTableList: byId("moveTableList"),
     numberPadDialog: byId("numberPadDialog"),
     numberPadTitle: byId("numberPadTitle"),
     numberPadDisplay: byId("numberPadDisplay"),
@@ -397,7 +399,6 @@
   async function refreshTables() {
     const list = await apiJson("/api/v1/pos/salon/tables", { method: "GET" });
     state.tables = Array.isArray(list) ? list : [];
-    await refreshSalonMap();
     state.cache.tables = state.tables.slice();
     saveCache();
     renderSalonFilter();
@@ -468,22 +469,6 @@
     });
   }
 
-  async function refreshSalonMap() {
-    try {
-      const salons = await apiJson("/api/v1/pos/admin/salons", { method: "GET" });
-      state.salonsByName = new Map();
-      (Array.isArray(salons) ? salons : []).forEach(function (s) {
-        const key = String(s.name || "").trim();
-        if (key && s.id != null) {
-          state.salonsByName.set(key.toLowerCase(), Number(s.id));
-        }
-      });
-    } catch (_err) {
-      // Not every role can access admin salons; alias edit will show a clear message.
-      state.salonsByName = new Map();
-    }
-  }
-
   function renderSalonFilter() {
     const previous = state.salonFilter || "ALL";
     els.salonFilter.replaceChildren();
@@ -515,19 +500,13 @@
     if (!table || !table.tableNumber) {
       return;
     }
-    const salonName = String(table.salonName || "").trim().toLowerCase();
-    const salonId = state.salonsByName.get(salonName);
-    if (!salonId) {
-      toast("No tienes permisos o no se pudo resolver el salon para editar alias.");
-      return;
-    }
     const current = table.tableAlias ? String(table.tableAlias) : "";
     const next = window.prompt("Alias para Mesa " + table.tableNumber + " (" + (table.salonName || "-") + ")", current);
     if (next === null) {
       return;
     }
     try {
-      await apiJson("/api/v1/pos/admin/salons/" + salonId + "/tables/" + table.tableNumber + "/alias", {
+      await apiJson("/api/v1/pos/salon/tables/" + table.tableNumber + "/alias", {
         method: "PUT",
         body: JSON.stringify({ alias: next })
       });
@@ -546,10 +525,8 @@
     }
     try {
       await lockTable(table.tableNumber);
-      let ticketId = table.ticketId;
-      if (!ticketId) { ticketId = await openTicket(table.tableNumber); }
       state.currentTableNumber = table.tableNumber;
-      state.currentTicket = await getTicket(ticketId);
+      state.currentTicket = table.ticketId ? await getTicket(table.ticketId) : null;
       state.selectedLineId = null;
       clearQtyInput();
       showScreen("order");
@@ -565,6 +542,19 @@
       pushError(err);
       toast("No se puede entrar en mesa: " + err.message);
     }
+  }
+
+  async function ensureCurrentTicket() {
+    if (state.currentTicket && state.currentTicket.id) {
+      return state.currentTicket;
+    }
+    if (!state.currentTableNumber) {
+      throw new Error("No hay mesa activa");
+    }
+    const ticketId = await openTicket(state.currentTableNumber);
+    state.currentTicket = await getTicket(ticketId);
+    cacheTicket(state.currentTicket);
+    return state.currentTicket;
   }
 
   async function openTicket(tableNumber) {
@@ -719,13 +709,14 @@
   }
 
   async function addLine(productId) {
-    if (!state.currentTicket) { toast("No hay ticket activo"); return; }
+    if (!state.currentTableNumber) { toast("No hay mesa activa"); return; }
     if (!canRunCriticalAction()) {
       toast("Sin lock valido. Reabre mesa para continuar.");
       return;
     }
+    const qty = qtyFromInput();
     try {
-      const qty = qtyFromInput();
+      await ensureCurrentTicket();
       state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines", {
         method: "POST",
         body: JSON.stringify({ productId: productId, qty: qty })
@@ -737,11 +728,10 @@
       await refreshPaymentSummary();
     } catch (err) {
       if (shouldQueueAction(err)) {
-        const qty = qtyFromInput();
         enqueueAction({
           type: "ADD_LINE",
           tableNumber: state.currentTableNumber,
-          ticketId: state.currentTicket.id,
+          ticketId: state.currentTicket && state.currentTicket.id ? state.currentTicket.id : null,
           productId: productId,
           qty: qty
         });
@@ -927,10 +917,6 @@
       toast("Selecciona una linea para borrar");
       return;
     }
-    if (line.sent) {
-      toast("No se puede borrar una linea enviada");
-      return;
-    }
     if (!canRunCriticalAction()) {
       toast("Sin lock valido. Reabre mesa para continuar.");
       return;
@@ -955,10 +941,6 @@
     const line = getSelectedLine();
     if (!line) {
       toast("Selecciona una linea para editar");
-      return;
-    }
-    if (line.sent) {
-      toast("No se puede editar una linea enviada");
       return;
     }
     if (!canRunCriticalAction()) {
@@ -1009,15 +991,19 @@
       toast("No hay mesa activa");
       return;
     }
-    const raw = await promptNumberPad("Mesa destino", "", false);
-    if (raw === null) { return; }
-    const targetTable = parseInt(raw, 10);
-    if (!Number.isFinite(targetTable) || targetTable < 1) {
-      toast("Mesa destino invalida");
+    if (!canRunCriticalAction()) {
+      toast("Sin lock valido. Reabre mesa para continuar.");
       return;
     }
-    if (targetTable === Number(state.currentTableNumber)) {
-      toast("Ya estas en esa mesa");
+    let targetTable;
+    try {
+      targetTable = await chooseMoveTargetTable(Number(state.currentTableNumber));
+    } catch (err) {
+      pushError(err);
+      toast("No se pudo cargar mesas destino: " + err.message);
+      return;
+    }
+    if (!targetTable || targetTable === Number(state.currentTableNumber)) {
       return;
     }
 
@@ -1028,12 +1014,18 @@
       });
       const oldTable = state.currentTableNumber;
       stopHeartbeat();
-      try {
-        await unlockTable(oldTable);
-      } catch (_err) {}
       state.currentTableNumber = targetTable;
-      await lockTable(targetTable);
-      startHeartbeat(targetTable);
+      try {
+        await lockTable(targetTable);
+        startHeartbeat(targetTable);
+      } catch (lockErr) {
+        pushError(lockErr);
+        toast("Mesa movida, pero no se pudo bloquear destino. Reabre la mesa.");
+      } finally {
+        try {
+          await unlockTable(oldTable);
+        } catch (_err) {}
+      }
       state.currentTicket = await getTicket(state.currentTicket.id);
       renderOrderHeader();
       renderTicket();
@@ -1045,6 +1037,79 @@
       pushError(err);
       toast("No se pudo mover mesa: " + err.message);
     }
+  }
+
+  async function chooseMoveTargetTable(currentTableNumber) {
+    await refreshTables();
+    const current = Number(currentTableNumber);
+    const candidates = state.tables
+      .filter(function (t) { return Number(t.tableNumber) !== current; })
+      .sort(function (a, b) {
+        const salonCmp = String(a.salonName || "").localeCompare(String(b.salonName || ""));
+        if (salonCmp !== 0) { return salonCmp; }
+        return Number(a.tableNumber) - Number(b.tableNumber);
+      });
+
+    return new Promise(function (resolve) {
+      els.moveTableList.replaceChildren();
+      let availableCount = 0;
+
+      candidates.forEach(function (table) {
+        const row = document.createElement("div");
+        row.className = "move-table-row";
+
+        const details = document.createElement("div");
+        details.className = "move-table-details";
+        const alias = table.tableAlias ? (" (" + table.tableAlias + ")") : "";
+        details.textContent = (table.salonName || "Salon") + " - Mesa " + table.tableNumber + alias;
+
+        const status = document.createElement("div");
+        status.className = "move-table-status muted";
+        status.textContent = tableStatusText(table);
+
+        const action = document.createElement("button");
+        action.type = "button";
+        action.className = "btn btn-secondary";
+        action.textContent = "Mover aqui";
+        const available = isMoveTargetAvailable(table);
+        action.disabled = !available;
+        if (available) {
+          availableCount += 1;
+          action.addEventListener("click", function () {
+            els.moveTableDialog.close(String(table.tableNumber));
+          });
+        }
+
+        row.appendChild(details);
+        row.appendChild(status);
+        row.appendChild(action);
+        els.moveTableList.appendChild(row);
+      });
+
+      if (!candidates.length) {
+        const empty = document.createElement("p");
+        empty.className = "muted";
+        empty.textContent = "No hay mesas disponibles.";
+        els.moveTableList.appendChild(empty);
+      }
+
+      els.moveTableInfo.textContent = availableCount > 0
+        ? "Selecciona una mesa libre como destino."
+        : "No hay mesas libres disponibles para mover.";
+
+      const onClose = function () {
+        els.moveTableDialog.removeEventListener("close", onClose);
+        const value = parseInt(els.moveTableDialog.returnValue || "", 10);
+        if (Number.isFinite(value) && value > 0) {
+          resolve(value);
+          return;
+        }
+        resolve(null);
+      };
+
+      els.moveTableDialog.addEventListener("close", onClose);
+      els.moveTableDialog.showModal();
+    });
   }
 
   async function onPayFull() {
@@ -1262,7 +1327,7 @@
       return response;
     } catch (err) {
       markBackendFail(err);
-      if (err.status === 401 || err.status === 403) {
+      if (err.status === 401) {
         clearSession();
         showScreen("login");
       }
@@ -1351,10 +1416,10 @@
         } catch (err) {
           action.attempts = (action.attempts || 0) + 1;
           saveQueue();
-          if (err && (err.status === 401 || err.status === 403)) {
+          if (err && err.status === 401) {
             throw err;
           }
-          if (err && (err.status === 404 || err.status === 409)) {
+          if (err && (err.status === 403 || err.status === 404 || err.status === 409)) {
             pushConflict(action, err);
             state.actionQueue.shift();
             saveQueue();
@@ -1392,7 +1457,21 @@
       setLocalLockLease(lock);
     }
     if (action.type === "ADD_LINE") {
-      const ticket = await apiJson("/api/v1/pos/tickets/" + action.ticketId + "/lines", {
+      let ticketId = action.ticketId;
+      if (!ticketId) {
+        if (!action.tableNumber) {
+          throw new Error("ADD_LINE sin tableNumber");
+        }
+        const opened = await apiJson("/api/v1/pos/salon/tables/" + action.tableNumber + "/open-ticket", {
+          method: "POST"
+        });
+        ticketId = opened && opened.id ? opened.id : null;
+        if (!ticketId) {
+          throw new Error("No se pudo crear ticket en replay");
+        }
+        action.ticketId = ticketId;
+      }
+      const ticket = await apiJson("/api/v1/pos/tickets/" + ticketId + "/lines", {
         method: "POST",
         body: JSON.stringify({ productId: action.productId, qty: action.qty || 1 })
       });
@@ -1804,6 +1883,10 @@
 
   function isLockedByMe(table) {
     return table && table.lockedTerminalId && state.terminalId && table.lockedTerminalId.toLowerCase() === state.terminalId.toLowerCase();
+  }
+
+  function isMoveTargetAvailable(table) {
+    return !!table && Number(table.tableNumber) > 0 && !table.ticketId && !table.lockedTerminalId;
   }
 
   function isLockedByOther(table) { return table && table.lockedTerminalId && !isLockedByMe(table); }

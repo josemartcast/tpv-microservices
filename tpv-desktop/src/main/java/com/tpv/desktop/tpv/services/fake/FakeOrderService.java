@@ -91,9 +91,6 @@ public class FakeOrderService implements OrderService {
         for (int i = 0; i < order.getLines().size(); i++) {
             OrderLine line = order.getLines().get(i);
             if (line.getId() == lineId) {
-                if (line.getSentQty() > 0) {
-                    throw new IllegalStateException("Cannot delete a sent line: " + lineId);
-                }
                 order.getLines().remove(i);
                 return;
             }

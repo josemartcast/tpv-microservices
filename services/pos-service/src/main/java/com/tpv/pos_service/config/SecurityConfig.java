@@ -29,6 +29,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/v1/pos/business-profile").hasAnyRole("ENCARGADO", "ADMIN")
                 // customers (fiscal billing data)
                 .requestMatchers(RegexRequestMatcher.regexMatcher("/api/v1/pos/customers(/.*)?")).hasAnyRole("CAJERO", "ENCARGADO", "ADMIN")
+                // invoices
+                .requestMatchers(HttpMethod.GET, "/api/v1/pos/invoices/**").hasAnyRole("CAJERO", "ENCARGADO", "ADMIN")
                 //products
                 .requestMatchers(HttpMethod.GET, "/api/v1/pos/products/**").hasAnyRole("CAMARERO", "CAJERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/products").hasAnyRole("ENCARGADO", "ADMIN")
@@ -109,6 +111,8 @@ public class SecurityConfig {
                 .hasAnyRole("CAMARERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/salon/tables/*/unlock")
                 .hasAnyRole("CAMARERO", "ENCARGADO", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/pos/salon/tables/*/alias")
+                .hasAnyRole("CAMARERO", "CAJERO", "ENCARGADO", "ADMIN")
                 .anyRequest().denyAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

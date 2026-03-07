@@ -1,5 +1,7 @@
 package com.tpv.desktop.tpv.ui.viewmodel;
 
+import com.tpv.desktop.api.pos.ComandaApi;
+import com.tpv.desktop.api.pos.TicketLineResponse;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.tpv.app.AppState;
 import com.tpv.desktop.tpv.domain.model.*;
@@ -322,15 +324,17 @@ public class OrderViewModel {
     public ObservableList<OrderLine> lines() { return lines; }
 
     private boolean hasPendingFor(Set<Destination> destinations) {
-        return lines.stream()
-                .anyMatch(line -> line.getPendingQty() > 0 && isDestinationIncluded(line.getDestination(), destinations));
+        Map<Destination, Integer> pending = pendingByDestination();
+        for (Map.Entry<Destination, Integer> entry : pending.entrySet()) {
+            if (entry.getValue() > 0 && isDestinationIncluded(entry.getKey(), destinations)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private PrintBatch snapshotLastSend(Set<Destination> destinations, boolean separateByDestination) {
-        List<OrderLine> pendingLines = lines.stream()
-                .filter(line -> line.getPendingQty() > 0)
-                .filter(line -> isDestinationIncluded(line.getDestination(), destinations))
-                .toList();
+        List<PendingPrintLine> pendingLines = pendingLinesForPrint(destinations);
         LinkedHashMap<String, String> printJobsByDestination = new LinkedHashMap<>();
         String restaurantName = restaurantNameForPrint();
 
@@ -355,12 +359,12 @@ public class OrderViewModel {
             collectDestinationPrintJob(printJobsByDestination, Destination.COCINA, pendingLines);
             collectDestinationPrintJob(printJobsByDestination, Destination.POSTRES, pendingLines);
         } else {
-            int totalQty = pendingLines.stream().mapToInt(OrderLine::getPendingQty).sum();
+            int totalQty = pendingLines.stream().mapToInt(PendingPrintLine::qty).sum();
             out.append("COMANDA UNIFICADA  ").append(totalQty).append(" productos").append('\n');
             out.append(THERMAL_SEPARATOR).append('\n');
-            for (OrderLine line : pendingLines) {
-                appendLineWithWrap(out, line.getPendingQty(), line.getProductName());
-                appendNoteWithWrap(out, line.getNote());
+            for (PendingPrintLine line : pendingLines) {
+                appendLineWithWrap(out, line.qty(), line.productName());
+                appendNoteWithWrap(out, line.note());
             }
             printJobsByDestination.put("ALL", buildUnifiedPrintText(pendingLines, totalQty));
         }
@@ -378,60 +382,103 @@ public class OrderViewModel {
         return selected.contains(destination);
     }
 
-    private static List<OrderLine> pendingByDestination(Destination destination, List<OrderLine> pendingLines) {
+    private static List<PendingPrintLine> pendingByDestination(Destination destination, List<PendingPrintLine> pendingLines) {
         return pendingLines.stream()
-                .filter(line -> line.getDestination() == destination)
+                .filter(line -> line.destination() == destination)
                 .toList();
     }
 
-    private static void appendDestinationDetail(StringBuilder out, Destination destination, List<OrderLine> pendingLines) {
-        List<OrderLine> linesByDest = pendingByDestination(destination, pendingLines);
+    private static void appendDestinationDetail(StringBuilder out, Destination destination, List<PendingPrintLine> pendingLines) {
+        List<PendingPrintLine> linesByDest = pendingByDestination(destination, pendingLines);
         if (linesByDest.isEmpty()) {
             return;
         }
-        int qty = linesByDest.stream().mapToInt(OrderLine::getPendingQty).sum();
+        int qty = linesByDest.stream().mapToInt(PendingPrintLine::qty).sum();
         out.append(destination.name()).append("  ").append(qty).append(" productos").append('\n');
         out.append(THERMAL_SEPARATOR).append('\n');
-        for (OrderLine line : linesByDest) {
-            appendLineWithWrap(out, line.getPendingQty(), line.getProductName());
-            appendNoteWithWrap(out, line.getNote());
+        for (PendingPrintLine line : linesByDest) {
+            appendLineWithWrap(out, line.qty(), line.productName());
+            appendNoteWithWrap(out, line.note());
         }
         out.append('\n');
     }
 
-    private void collectDestinationPrintJob(Map<String, String> out, Destination destination, List<OrderLine> pendingLines) {
-        List<OrderLine> linesByDest = pendingByDestination(destination, pendingLines);
+    private void collectDestinationPrintJob(Map<String, String> out, Destination destination, List<PendingPrintLine> pendingLines) {
+        List<PendingPrintLine> linesByDest = pendingByDestination(destination, pendingLines);
         if (linesByDest.isEmpty()) {
             return;
         }
-        int qty = linesByDest.stream().mapToInt(OrderLine::getPendingQty).sum();
+        int qty = linesByDest.stream().mapToInt(PendingPrintLine::qty).sum();
         out.put(destination.name(), buildDestinationPrintText(destination, linesByDest, qty));
     }
 
-    private String buildUnifiedPrintText(List<OrderLine> pendingLines, int totalQty) {
+    private String buildUnifiedPrintText(List<PendingPrintLine> pendingLines, int totalQty) {
         StringBuilder out = new StringBuilder();
         appendPrintHeader(out);
         out.append("COMANDA UNIFICADA  ").append(totalQty).append(" productos").append('\n');
         out.append(THERMAL_SEPARATOR).append('\n');
-        for (OrderLine line : pendingLines) {
-            appendLineWithWrap(out, line.getPendingQty(), line.getProductName());
-            appendNoteWithWrap(out, line.getNote());
+        for (PendingPrintLine line : pendingLines) {
+            appendLineWithWrap(out, line.qty(), line.productName());
+            appendNoteWithWrap(out, line.note());
         }
         out.append(THERMAL_SEPARATOR).append('\n');
         return out.toString();
     }
 
-    private String buildDestinationPrintText(Destination destination, List<OrderLine> linesByDest, int qty) {
+    private String buildDestinationPrintText(Destination destination, List<PendingPrintLine> linesByDest, int qty) {
         StringBuilder out = new StringBuilder();
         appendPrintHeader(out);
         out.append(destination.name()).append("  ").append(qty).append(" productos").append('\n');
         out.append(THERMAL_SEPARATOR).append('\n');
-        for (OrderLine line : linesByDest) {
-            appendLineWithWrap(out, line.getPendingQty(), line.getProductName());
-            appendNoteWithWrap(out, line.getNote());
+        for (PendingPrintLine line : linesByDest) {
+            appendLineWithWrap(out, line.qty(), line.productName());
+            appendNoteWithWrap(out, line.note());
         }
         out.append(THERMAL_SEPARATOR).append('\n');
         return out.toString();
+    }
+
+    private List<PendingPrintLine> pendingLinesForPrint(Set<Destination> destinations) {
+        try {
+            var preview = ComandaApi.preview(orderId.get());
+            if (preview != null && preview.pendingLines() != null) {
+                return preview.pendingLines().stream()
+                        .map(this::toPendingPrintLine)
+                        .filter(line -> line.qty() > 0)
+                        .filter(line -> isDestinationIncluded(line.destination(), destinations))
+                        .toList();
+            }
+        } catch (Exception ignored) {
+            // Fallback to local projection when backend preview is unavailable.
+        }
+
+        return lines.stream()
+                .filter(line -> line.getPendingQty() > 0)
+                .filter(line -> isDestinationIncluded(line.getDestination(), destinations))
+                .map(line -> new PendingPrintLine(
+                        line.getDestination(),
+                        line.getPendingQty(),
+                        line.getProductName(),
+                        line.getNote()
+                ))
+                .toList();
+    }
+
+    private PendingPrintLine toPendingPrintLine(TicketLineResponse line) {
+        Destination destination = destinationFrom(line.destination());
+        int qty = Math.max(1, line.qty());
+        return new PendingPrintLine(destination, qty, line.productName(), null);
+    }
+
+    private static Destination destinationFrom(String raw) {
+        if (raw == null) {
+            return Destination.COCINA;
+        }
+        return switch (raw.trim().toUpperCase(Locale.ROOT)) {
+            case "BAR" -> Destination.BAR;
+            case "POSTRES" -> Destination.POSTRES;
+            default -> Destination.COCINA;
+        };
     }
 
     private void appendPrintHeader(StringBuilder out) {
@@ -607,5 +654,6 @@ public class OrderViewModel {
     }
 
     private record PrintBatch(String lastComandaText, Map<String, String> printJobsByDestination) {}
+    private record PendingPrintLine(Destination destination, int qty, String productName, String note) {}
 }
 

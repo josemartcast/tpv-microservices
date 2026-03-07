@@ -431,12 +431,6 @@ public class OrderController {
             showInfoDialog("Borrar linea", msg);
             return;
         }
-        if (selected.getSentQty() > 0) {
-            String msg = "No se puede borrar una linea ya enviada.";
-            feedbackLabel.setText(msg);
-            showInfoDialog("Borrar linea", msg);
-            return;
-        }
         try {
             vm.removeLine(selected.getId());
         } catch (Exception e) {
@@ -450,10 +444,6 @@ public class OrderController {
     public void onEditLine() {
         OrderLine selected = ticketList.getSelectionModel().getSelectedItem();
         if (selected == null) {
-            return;
-        }
-        if (selected.getSentQty() > 0) {
-            showInfoDialog("Editar linea", "No se puede editar una linea ya enviada.");
             return;
         }
 

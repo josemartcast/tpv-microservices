@@ -63,6 +63,15 @@ public class TicketLine {
     @Column
     private Instant sentAt;
 
+    @Column(nullable = false)
+    private int sentQtySnapshot = 0;
+
+    @Column(nullable = false)
+    private int sentUnitPriceCentsSnapshot = 0;
+
+    @Column(nullable = false)
+    private boolean removedAfterSent = false;
+
     protected TicketLine() {
     }
 
@@ -130,6 +139,9 @@ public class TicketLine {
 
     public void changeQty(int qty) {
         this.qty = qty;
+        if (this.qty > 0) {
+            this.removedAfterSent = false;
+        }
         recalc();
     }
 
@@ -172,10 +184,39 @@ public class TicketLine {
         return sentAt;
     }
 
+    public int getSentQtySnapshot() {
+        return sentQtySnapshot;
+    }
+
+    public int getSentUnitPriceCentsSnapshot() {
+        return sentUnitPriceCentsSnapshot;
+    }
+
+    public boolean isRemovedAfterSent() {
+        return removedAfterSent;
+    }
+
+    public void markRemovedAfterSent() {
+        this.removedAfterSent = true;
+        this.qty = 0;
+        recalc();
+    }
+
+    public boolean hasPendingComandaAdjustment() {
+        return this.sent && (
+                this.removedAfterSent
+                        || this.qty != this.sentQtySnapshot
+                        || this.unitPriceCentsSnapshot != this.sentUnitPriceCentsSnapshot
+        );
+    }
+
     public void markSent() {
         this.sent = true;
         if (this.sentAt == null) {
             this.sentAt = Instant.now();
         }
+        this.sentQtySnapshot = this.qty;
+        this.sentUnitPriceCentsSnapshot = this.unitPriceCentsSnapshot;
+        this.removedAfterSent = false;
     }
 }

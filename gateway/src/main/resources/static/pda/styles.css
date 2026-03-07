@@ -349,6 +349,8 @@ select {
   border: 1px solid #3d4a6c;
   border-radius: 8px;
   padding: 8px;
+  position: relative;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .ticket-line.sent {
@@ -356,8 +358,15 @@ select {
 }
 
 .ticket-line.selected {
-  border-color: #6ba6ff;
-  box-shadow: 0 0 0 2px rgba(58, 124, 223, 0.35);
+  border-color: #ffd54a;
+  border-left: 6px solid #ffd54a;
+  background: #244273;
+  box-shadow: 0 0 0 2px rgba(255, 213, 74, 0.35);
+}
+
+.ticket-line.selected .ticket-line-name,
+.ticket-line.selected .ticket-line-price {
+  color: #fff6c3;
 }
 
 .ticket-line-top {
@@ -590,6 +599,46 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.move-table-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.move-table-row {
+  border: 1px solid #d8deea;
+  border-radius: 8px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "details action"
+    "status action";
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.move-table-details {
+  grid-area: details;
+  font-weight: 700;
+}
+
+.move-table-status {
+  grid-area: status;
+  font-size: 0.9rem;
+}
+
+.move-table-row .btn {
+  grid-area: action;
+  min-width: 110px;
 }
 
 .conflicts-list {

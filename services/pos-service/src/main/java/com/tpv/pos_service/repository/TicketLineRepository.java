@@ -17,7 +17,22 @@ public interface TicketLineRepository extends JpaRepository<TicketLine, Long> {
 
     void deleteAllByTicketId(Long ticketId);
 
-    @Query("select count(l) from TicketLine l where l.ticket.id = :ticketId and l.sent = false")
+    @Query("""
+        select count(l)
+        from TicketLine l
+        where l.ticket.id = :ticketId
+          and (
+            l.sent = false
+            or (
+              l.sent = true
+              and (
+                l.removedAfterSent = true
+                or l.qty <> l.sentQtySnapshot
+                or l.unitPriceCentsSnapshot <> l.sentUnitPriceCentsSnapshot
+              )
+            )
+          )
+    """)
     long countPendingByTicketId(@Param("ticketId") Long ticketId);
 
     @Query("select coalesce(sum(l.lineTotalCents),0) from TicketLine l where l.ticket.id = :ticketId")

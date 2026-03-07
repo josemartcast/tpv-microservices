@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
@@ -96,7 +96,7 @@
               <button class="btn btn-secondary num-pad-key" type="button" data-key="9">9</button>
               <button class="btn btn-secondary num-pad-key" type="button" data-key="C">C</button>
               <button class="btn btn-secondary num-pad-key" type="button" data-key="0">0</button>
-              <button class="btn btn-secondary num-pad-key" type="button" data-key="BACK">⌫</button>
+              <button class="btn btn-secondary num-pad-key" type="button" data-key="BACK">DEL</button>
             </div>
           </div>
           <div id="categoryTabs" class="category-tabs"></div>
@@ -168,6 +168,17 @@
     </div>
   </dialog>
 
+  <dialog id="moveTableDialog" class="dialog">
+    <h3>Mover mesa</h3>
+    <p id="moveTableInfo" class="muted"></p>
+    <div id="moveTableList" class="move-table-list"></div>
+    <div class="pay-lines-actions">
+      <form method="dialog">
+        <button class="btn btn-secondary" value="cancel">Cancelar</button>
+      </form>
+    </div>
+  </dialog>
+
   <dialog id="numberPadDialog" class="dialog">
     <h3 id="numberPadTitle">Numero</h3>
     <input id="numberPadDisplay" type="text" readonly>
@@ -183,7 +194,7 @@
       <button class="btn btn-secondary num-modal-key" type="button" data-key="9">9</button>
       <button class="btn btn-secondary num-modal-key" type="button" data-key=".">.</button>
       <button class="btn btn-secondary num-modal-key" type="button" data-key="0">0</button>
-      <button class="btn btn-secondary num-modal-key" type="button" data-key="BACK">⌫</button>
+      <button class="btn btn-secondary num-modal-key" type="button" data-key="BACK">DEL</button>
       <button class="btn btn-secondary num-modal-key" type="button" data-key="C">C</button>
     </div>
     <div class="pay-lines-actions">
@@ -199,3 +210,4 @@
   <script src="./app.js" defer></script>
 </body>
 </html>
+

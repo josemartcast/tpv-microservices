@@ -151,10 +151,6 @@ public class SalesController {
             del.setOnAction(e -> {
                 TicketLineResponse line = row.getItem();
                     if (line != null) {
-                        if (line.sent()) {
-                            setFeedbackWarn("Line already sent. Add an adjustment line.");
-                            return;
-                        }
                     deleteLine(line.id());
                 }
             });
@@ -178,10 +174,6 @@ public class SalesController {
             if (e.getClickCount() == 2) {
                 TicketLineResponse sel = linesTable.getSelectionModel().getSelectedItem();
                 if (sel != null) {
-                    if (sel.sent()) {
-                        setFeedbackWarn("Sent lines cannot be edited directly.");
-                        return;
-                    }
                     promptQtyAndUpdate(sel);
                 }
             }
@@ -714,7 +706,7 @@ public class SalesController {
         }
         if (e.getCode() == KeyCode.DELETE) {
             TicketLineResponse selected = linesTable.getSelectionModel().getSelectedItem();
-            if (selected != null && !selected.sent()) {
+            if (selected != null) {
                 deleteLine(selected.id());
                 e.consume();
             }

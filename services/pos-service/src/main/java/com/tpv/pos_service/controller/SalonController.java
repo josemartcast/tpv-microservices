@@ -3,9 +3,12 @@ package com.tpv.pos_service.controller;
 import com.tpv.pos_service.dto.SalonTableResponse;
 import com.tpv.pos_service.dto.TableLockRequest;
 import com.tpv.pos_service.dto.TableLockResponse;
+import com.tpv.pos_service.dto.TableAliasResponse;
 import com.tpv.pos_service.dto.TicketResponse;
+import com.tpv.pos_service.dto.UpdateTableAliasRequest;
 import com.tpv.pos_service.service.AuditService;
 import com.tpv.pos_service.service.SalonService;
+import com.tpv.pos_service.service.TableAliasService;
 import com.tpv.pos_service.service.TableLockService;
 import com.tpv.pos_service.util.ActorResolver;
 import java.util.List;
@@ -15,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,11 +31,18 @@ public class SalonController {
 
     private final SalonService service;
     private final TableLockService lockService;
+    private final TableAliasService tableAliasService;
     private final AuditService auditService;
 
-    public SalonController(SalonService service, TableLockService lockService, AuditService auditService) {
+    public SalonController(
+            SalonService service,
+            TableLockService lockService,
+            TableAliasService tableAliasService,
+            AuditService auditService
+    ) {
         this.service = service;
         this.lockService = lockService;
+        this.tableAliasService = tableAliasService;
         this.auditService = auditService;
     }
 
@@ -114,6 +125,25 @@ public class SalonController {
             auditService.recordSuccess("TABLE_UNLOCK", "TABLE", (long) tableNumber, actor, term, req, null);
         } catch (RuntimeException e) {
             auditService.recordFailure("TABLE_UNLOCK", "TABLE", (long) tableNumber, actor, term, req, e);
+            throw e;
+        }
+    }
+
+    @PutMapping("/tables/{tableNumber}/alias")
+    public TableAliasResponse updateAlias(
+            @PathVariable int tableNumber,
+            @Valid @RequestBody UpdateTableAliasRequest request,
+            Authentication auth,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            TableAliasResponse response = tableAliasService.upsertAliasByTableNumber(tableNumber, request.alias());
+            auditService.recordSuccess("SALON_ALIAS_UPDATE", "TABLE", (long) tableNumber, actor, term, request, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("SALON_ALIAS_UPDATE", "TABLE", (long) tableNumber, actor, term, request, e);
             throw e;
         }
     }

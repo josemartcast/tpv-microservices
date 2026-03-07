@@ -2,7 +2,9 @@ package com.tpv.desktop.ui.history;
 
 import com.tpv.desktop.api.pos.CustomerApi;
 import com.tpv.desktop.api.pos.CustomerResponse;
+import com.tpv.desktop.api.pos.InvoiceApi;
 import com.tpv.desktop.api.pos.InvoiceResponse;
+import com.tpv.desktop.api.pos.InvoiceSummaryResponse;
 import com.tpv.desktop.api.pos.PaymentApi;
 import com.tpv.desktop.api.pos.TicketApi;
 import com.tpv.desktop.api.pos.TicketHistoryApi;
@@ -28,6 +30,7 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.DatePicker;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
@@ -36,6 +39,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -175,6 +179,125 @@ public class HistoryController {
             detailErrorLabel.setText("ID de ticket no valido.");
         } catch (Exception e) {
             detailErrorLabel.setText("No se pudo cargar ticket: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    public void onInvoicesHistory() {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Facturas emitidas");
+        dialog.setHeaderText("Historial de facturas");
+        ButtonType refreshBtn = new ButtonType("Buscar", ButtonBar.ButtonData.LEFT);
+        ButtonType reprintBtn = new ButtonType("Reimprimir seleccionada", ButtonBar.ButtonData.LEFT);
+        dialog.getDialogPane().getButtonTypes().addAll(refreshBtn, reprintBtn, ButtonType.CLOSE);
+
+        TextField numberField = new TextField();
+        numberField.setPromptText("Numero factura");
+        TextField customerField = new TextField();
+        customerField.setPromptText("Cliente / NIF");
+        DatePicker fromDate = new DatePicker(LocalDate.now().minusDays(30));
+        DatePicker toDate = new DatePicker(LocalDate.now());
+
+        TableView<InvoiceSummaryResponse> invoiceTable = new TableView<>();
+        invoiceTable.setPrefHeight(460);
+
+        TableColumn<InvoiceSummaryResponse, String> colInvNumber = new TableColumn<>("Factura");
+        colInvNumber.setPrefWidth(160);
+        colInvNumber.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(blankTo(c.getValue().invoiceNumber(), "-")));
+
+        TableColumn<InvoiceSummaryResponse, String> colInvDate = new TableColumn<>("Fecha");
+        colInvDate.setPrefWidth(160);
+        colInvDate.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
+                c.getValue().issuedAt() == null ? "-" : DT.format(c.getValue().issuedAt())
+        ));
+
+        TableColumn<InvoiceSummaryResponse, String> colInvTicket = new TableColumn<>("Ticket");
+        colInvTicket.setPrefWidth(90);
+        colInvTicket.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().ticketId())));
+
+        TableColumn<InvoiceSummaryResponse, String> colInvTable = new TableColumn<>("Mesa");
+        colInvTable.setPrefWidth(90);
+        colInvTable.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
+                c.getValue().tableNumber() == null ? "-" : String.valueOf(c.getValue().tableNumber())
+        ));
+
+        TableColumn<InvoiceSummaryResponse, String> colInvCustomer = new TableColumn<>("Cliente");
+        colInvCustomer.setPrefWidth(280);
+        colInvCustomer.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(blankTo(c.getValue().customerDisplayName(), "-")));
+
+        TableColumn<InvoiceSummaryResponse, String> colInvTotal = new TableColumn<>("Total");
+        colInvTotal.setPrefWidth(120);
+        colInvTotal.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
+                MoneyUtil.centsToEuros(c.getValue().totalGrossCents()) + " EUR"
+        ));
+
+        invoiceTable.getColumns().setAll(colInvNumber, colInvDate, colInvTicket, colInvTable, colInvCustomer, colInvTotal);
+
+        Label invoiceErrorLabel = new Label();
+        invoiceErrorLabel.setStyle("-fx-text-fill: #b00020;");
+
+        Runnable load = () -> {
+            invoiceErrorLabel.setText("");
+            try {
+                InvoiceSummaryResponse[] data = InvoiceApi.list(
+                        numberField.getText(),
+                        customerField.getText(),
+                        fromDate.getValue(),
+                        toDate.getValue(),
+                        500
+                );
+                invoiceTable.getItems().setAll(data == null ? FXCollections.observableArrayList() : Arrays.asList(data));
+                if (!invoiceTable.getItems().isEmpty()) {
+                    invoiceTable.getSelectionModel().selectFirst();
+                }
+            } catch (Exception e) {
+                invoiceErrorLabel.setText("No se pudo cargar facturas: " + e.getMessage());
+            }
+        };
+
+        HBox filters = new HBox(
+                8,
+                new Label("Numero"), numberField,
+                new Label("Cliente"), customerField,
+                new Label("Desde"), fromDate,
+                new Label("Hasta"), toDate
+        );
+        HBox.setHgrow(numberField, Priority.ALWAYS);
+        HBox.setHgrow(customerField, Priority.ALWAYS);
+
+        VBox content = new VBox(10, filters, invoiceTable, invoiceErrorLabel);
+        dialog.getDialogPane().setContent(content);
+
+        load.run();
+
+        while (true) {
+            ButtonType action = dialog.showAndWait().orElse(ButtonType.CLOSE);
+            if (action == refreshBtn) {
+                load.run();
+                continue;
+            }
+            if (action == reprintBtn) {
+                InvoiceSummaryResponse selectedInvoice = invoiceTable.getSelectionModel().getSelectedItem();
+                if (selectedInvoice == null) {
+                    invoiceErrorLabel.setStyle("-fx-text-fill: #b00020;");
+                    invoiceErrorLabel.setText("Selecciona una factura para reimprimir.");
+                    continue;
+                }
+                try {
+                    InvoiceResponse invoice = TicketApi.getInvoice(selectedInvoice.ticketId());
+                    PrintUtil.printTextToPdf(
+                            buildInvoiceText(invoice),
+                            dialog.getDialogPane().getScene() == null ? null : dialog.getDialogPane().getScene().getWindow()
+                    );
+                    invoiceErrorLabel.setStyle("-fx-text-fill: #1e7e34;");
+                    invoiceErrorLabel.setText("Factura " + invoice.invoiceNumber() + " enviada a Print to PDF.");
+                } catch (Exception e) {
+                    invoiceErrorLabel.setStyle("-fx-text-fill: #b00020;");
+                    invoiceErrorLabel.setText("No se pudo reimprimir factura: " + e.getMessage());
+                }
+                continue;
+            }
+            break;
         }
     }
 

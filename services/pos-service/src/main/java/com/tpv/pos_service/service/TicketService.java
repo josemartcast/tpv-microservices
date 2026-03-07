@@ -150,9 +150,6 @@ public class TicketService {
 
         TicketLine line = lineRepo.findByIdAndTicketId(lineId, ticketId)
                 .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
-        if (line.isSent()) {
-            throw new ConflictException("Cannot edit a sent line: " + lineId);
-        }
 
         line.changeQty(qty);
 
@@ -168,10 +165,11 @@ public class TicketService {
         TicketLine line = lineRepo.findByIdAndTicketId(lineId, ticketId)
                 .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
         if (line.isSent()) {
-            throw new ConflictException("Cannot delete a sent line: " + lineId);
+            line.markRemovedAfterSent();
+            lineRepo.save(line);
+        } else {
+            lineRepo.delete(line);
         }
-
-        lineRepo.delete(line);
 
         recalcTotal(ticketId);
         List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
@@ -212,9 +210,6 @@ public class TicketService {
 
         TicketLine line = lineRepo.findByIdAndTicketId(lineId, ticketId)
                 .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
-        if (line.isSent()) {
-            throw new ConflictException("Cannot edit a sent line: " + lineId);
-        }
         if (priceCents < 0) {
             throw new ConflictException("Price must be >= 0");
         }
@@ -453,6 +448,7 @@ public class TicketService {
 
     private TicketResponse toResponse(Ticket t, List<TicketLine> lines) {
         List<TicketLineResponse> lineDtos = lines.stream()
+                .filter(l -> l.getQty() > 0)
                 .map(this::toLineResponse)
                 .toList();
 
@@ -545,6 +541,7 @@ public class TicketService {
                 remaining,
                 ticket.getCreatedAt(),
                 lines.stream()
+                        .filter(l -> l.getQty() > 0)
                         .map(l -> new TicketSummaryResponse.TicketLineSummary(
                         l.getId(),
                         l.getProduct().getId(),

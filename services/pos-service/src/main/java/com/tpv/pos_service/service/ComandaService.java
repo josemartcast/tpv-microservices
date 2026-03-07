@@ -10,6 +10,7 @@ import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.exception.NotFoundException;
 import com.tpv.pos_service.repository.TicketLineRepository;
 import com.tpv.pos_service.repository.TicketRepository;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,9 +36,9 @@ public class ComandaService {
         if (t.getStatus() != TicketStatus.OPEN) {
             throw new ConflictException("Ticket is not OPEN: " + ticketId);
         }
-        List<TicketLineResponse> pending = lineRepo.findAllByTicketIdAndSentFalseOrderByIdAsc(ticketId)
+        List<TicketLineResponse> pending = buildPendingItems(ticketId)
                 .stream()
-                .map(this::toLineResponse)
+                .map(PendingComandaItem::preview)
                 .toList();
         return new SendPreviewResponse(ticketId, pending);
     }
@@ -66,14 +67,40 @@ public class ComandaService {
         }
 
         String normalized = normalizeDestination(destination);
-        List<TicketLine> pending = lineRepo.findAllByTicketIdAndSentFalseOrderByIdAsc(ticketId);
-        List<TicketLine> selected = pending.stream()
-                .filter(l -> "ALL".equals(normalized) || normalized.equals(destinationFor(l)))
+        List<PendingComandaItem> selected = buildPendingItems(ticketId).stream()
+                .filter(item -> "ALL".equals(normalized) || normalized.equals(item.preview().destination()))
                 .toList();
 
-        selected.forEach(TicketLine::markSent);
-        List<Long> ids = selected.stream().map(TicketLine::getId).toList();
+        selected.forEach(item -> {
+            TicketLine line = item.line();
+            if (!line.isSent()) {
+                line.markSent();
+                return;
+            }
+            if (line.isRemovedAfterSent() && line.getQty() == 0) {
+                lineRepo.delete(line);
+                return;
+            }
+            line.markSent();
+        });
+
+        List<Long> ids = selected.stream().map(item -> item.line().getId()).toList();
         return new SendComandaResponse(ticketId, normalized, ids.size(), ids);
+    }
+
+    private List<PendingComandaItem> buildPendingItems(Long ticketId) {
+        List<TicketLine> allLines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+        List<PendingComandaItem> out = new ArrayList<>();
+        for (TicketLine line : allLines) {
+            if (!line.isSent()) {
+                out.add(new PendingComandaItem(line, toLineResponse(line)));
+                continue;
+            }
+            if (line.hasPendingComandaAdjustment()) {
+                out.add(new PendingComandaItem(line, toAdjustmentPreview(line)));
+            }
+        }
+        return out;
     }
 
     private TicketLineResponse toLineResponse(TicketLine l) {
@@ -88,6 +115,45 @@ public class ComandaService {
                 l.getLineTotalCents(),
                 l.getCreatedAt(),
                 l.getUpdatedAt()
+        );
+    }
+
+    private TicketLineResponse toAdjustmentPreview(TicketLine line) {
+        String baseName = line.getProductNameSnapshot() == null ? "-" : line.getProductNameSnapshot();
+        int deltaQty = line.getQty() - line.getSentQtySnapshot();
+        boolean priceChanged = line.getUnitPriceCentsSnapshot() != line.getSentUnitPriceCentsSnapshot();
+
+        String actionPrefix;
+        int adjustmentQty;
+        if (line.isRemovedAfterSent() && line.getQty() == 0) {
+            actionPrefix = "[ELIM]";
+            adjustmentQty = Math.max(1, line.getSentQtySnapshot());
+        } else if (deltaQty > 0) {
+            actionPrefix = "[MOD +]";
+            adjustmentQty = deltaQty;
+        } else if (deltaQty < 0) {
+            actionPrefix = "[MOD -]";
+            adjustmentQty = Math.abs(deltaQty);
+        } else {
+            actionPrefix = "[MOD PRECIO]";
+            adjustmentQty = Math.max(1, line.getQty());
+        }
+
+        String productName = actionPrefix + " " + baseName + (priceChanged ? " (precio)" : "");
+        int unitPrice = Math.max(0, line.getUnitPriceCentsSnapshot());
+        int lineTotal = adjustmentQty * unitPrice;
+
+        return new TicketLineResponse(
+                line.getId(),
+                line.getProduct().getId(),
+                productName,
+                destinationFor(line),
+                false,
+                unitPrice,
+                adjustmentQty,
+                lineTotal,
+                line.getCreatedAt(),
+                line.getUpdatedAt()
         );
     }
 
@@ -110,5 +176,8 @@ public class ComandaService {
             return "BAR";
         }
         return "COCINA";
+    }
+
+    private record PendingComandaItem(TicketLine line, TicketLineResponse preview) {
     }
 }

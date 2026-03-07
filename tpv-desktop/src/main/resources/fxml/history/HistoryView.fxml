@@ -15,6 +15,7 @@
       <Label text="Ticket #"/>
       <TextField fx:id="ticketIdSearchField" promptText="ID" prefWidth="110"/>
       <Button text="Cargar" onAction="#onLoadTicketById"/>
+      <Button text="Facturas emitidas" onAction="#onInvoicesHistory"/>
       <Button text="Refrescar" onAction="#onRefresh"/>
     </HBox>
   </top>

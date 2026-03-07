@@ -9,6 +9,7 @@ import com.tpv.pos_service.domain.TicketLine;
 import com.tpv.pos_service.domain.TicketStatus;
 import com.tpv.pos_service.dto.InvoiceLineResponse;
 import com.tpv.pos_service.dto.InvoiceResponse;
+import com.tpv.pos_service.dto.InvoiceSummaryResponse;
 import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.exception.NotFoundException;
 import com.tpv.pos_service.repository.BusinessProfileRepository;
@@ -16,8 +17,11 @@ import com.tpv.pos_service.repository.CustomerRepository;
 import com.tpv.pos_service.repository.InvoiceRepository;
 import com.tpv.pos_service.repository.TicketLineRepository;
 import com.tpv.pos_service.repository.TicketRepository;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -138,6 +142,36 @@ public class InvoiceService {
         return toResponse(invoice);
     }
 
+    @Transactional(readOnly = true)
+    public List<InvoiceSummaryResponse> list(
+            String invoiceNumber,
+            String customer,
+            LocalDate issuedFrom,
+            LocalDate issuedTo,
+            Integer limit
+    ) {
+        String invoiceFilter = normalizeFilter(invoiceNumber);
+        String customerFilter = normalizeFilter(customer);
+        Instant fromInstant = issuedFrom == null
+                ? null
+                : issuedFrom.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant toInstant = issuedTo == null
+                ? null
+                : issuedTo.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+        int size = (limit == null || limit <= 0) ? 200 : Math.min(limit, 1000);
+
+        return invoiceRepository.search(
+                        invoiceFilter,
+                        customerFilter,
+                        fromInstant,
+                        toInstant,
+                        PageRequest.of(0, size)
+                ).stream()
+                .map(this::toSummaryResponse)
+                .toList();
+    }
+
     private InvoiceResponse toResponse(Invoice invoice) {
         List<InvoiceLineResponse> lines = invoice.getLines().stream()
                 .map(line -> new InvoiceLineResponse(
@@ -185,5 +219,28 @@ public class InvoiceService {
                 invoice.getTotalVatCents(),
                 lines
         );
+    }
+
+    private InvoiceSummaryResponse toSummaryResponse(Invoice invoice) {
+        return new InvoiceSummaryResponse(
+                invoice.getId(),
+                invoice.getInvoiceNumber(),
+                invoice.getIssuedAt(),
+                invoice.getIssuedBy(),
+                invoice.getTicket().getId(),
+                invoice.getTicket().getTableNumber(),
+                invoice.getCustomer().getId(),
+                invoice.getCustomerDisplayName(),
+                invoice.getCustomerTaxId(),
+                invoice.getTotalGrossCents()
+        );
+    }
+
+    private static String normalizeFilter(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

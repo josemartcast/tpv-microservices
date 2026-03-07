@@ -76,6 +76,15 @@ public class TableAliasService {
     }
 
     @Transactional
+    public TableAliasResponse upsertAliasByTableNumber(int tableNumber, String aliasRaw) {
+        SalonArea salon = salonAreaRepo.findAllByActiveTrueOrderByFirstTableNumberAsc().stream()
+                .filter(s -> s.containsTable(tableNumber))
+                .findFirst()
+                .orElseThrow(() -> new ConflictException("Table is not configured in any active salon: " + tableNumber));
+        return upsertAlias(salon.getId(), tableNumber, aliasRaw);
+    }
+
+    @Transactional
     public void clearAliasesForTables(List<Integer> tableNumbers) {
         if (tableNumbers == null || tableNumbers.isEmpty()) {
             return;
@@ -104,4 +113,3 @@ public class TableAliasService {
         return alias.toUpperCase(Locale.ROOT);
     }
 }
-
