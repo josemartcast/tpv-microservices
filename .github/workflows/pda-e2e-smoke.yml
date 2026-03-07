@@ -82,20 +82,41 @@ jobs:
           ) > .ci-logs/gateway.log 2>&1 &
           echo $! > .ci-logs/gateway.pid
 
-          for port in 8081 8082 8080; do
-            echo "Waiting for port $port..."
-            for _ in $(seq 1 180); do
+          wait_for_port() {
+            local name="$1"
+            local port="$2"
+            local pid_file="$3"
+            local log_file="$4"
+
+            echo "Waiting for $name on port $port..."
+            for _ in $(seq 1 300); do
               if timeout 1 bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
-                echo "Port $port is up"
-                break
+                echo "Port $port is up ($name)"
+                return 0
+              fi
+
+              if [ -f "$pid_file" ]; then
+                local pid
+                pid="$(cat "$pid_file")"
+                if ! kill -0 "$pid" >/dev/null 2>&1; then
+                  echo "$name process exited before opening port $port"
+                  echo "=== $log_file (tail) ==="
+                  tail -n 400 "$log_file" || true
+                  return 1
+                fi
               fi
               sleep 1
             done
-            if ! timeout 1 bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
-              echo "Port $port did not open in time"
-              exit 1
-            fi
-          done
+
+            echo "Port $port did not open in time ($name)"
+            echo "=== $log_file (tail) ==="
+            tail -n 400 "$log_file" || true
+            return 1
+          }
+
+          wait_for_port "auth-service" 8081 ".ci-logs/auth-service.pid" ".ci-logs/auth-service.log"
+          wait_for_port "pos-service" 8082 ".ci-logs/pos-service.pid" ".ci-logs/pos-service.log"
+          wait_for_port "gateway" 8080 ".ci-logs/gateway.pid" ".ci-logs/gateway.log"
 
           pwsh -NoProfile -File ./scripts/pda-e2e-smoke.ps1 \
             -GatewayBaseUrl "http://127.0.0.1:8080" \
