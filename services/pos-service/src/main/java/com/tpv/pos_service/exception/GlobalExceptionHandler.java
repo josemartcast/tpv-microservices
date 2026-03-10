@@ -50,6 +50,17 @@ public class GlobalExceptionHandler {
         return body;
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Map<String, Object> handleForbidden(ForbiddenException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", Instant.now());
+        body.put("status", 403);
+        body.put("error", "Forbidden");
+        body.put("message", ex.getMessage());
+        return body;
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, Object> handleIllegalArgument(IllegalArgumentException ex) {

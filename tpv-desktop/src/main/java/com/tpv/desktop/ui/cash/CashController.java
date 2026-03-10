@@ -10,18 +10,27 @@ import com.tpv.desktop.api.pos.CashIncidentResponse;
 import com.tpv.desktop.api.pos.FiscalExerciseResponse;
 import com.tpv.desktop.api.pos.ResolveOpenTicketsResponse;
 import com.tpv.desktop.core.MoneyUtil;
-import com.tpv.desktop.ui.components.NumericPadController;
 import java.time.Year;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.FXML;
+import javafx.geometry.Point2D;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+import javafx.stage.Window;
+import javafx.stage.WindowEvent;
+import com.tpv.desktop.ui.components.NumericPadController;
 
 public class CashController {
 
@@ -33,7 +42,6 @@ public class CashController {
   @FXML private TextField openingEurosField;
   @FXML private TextField openNoteField;
   @FXML private Button openBtn;
-  @FXML private NumericPadController cashPadController;
 
   @FXML private TextField closingEurosField;
   @FXML private TextField closeNoteField;
@@ -47,6 +55,8 @@ public class CashController {
 
   private CashSessionResponse current;
   private FiscalExerciseResponse currentFiscalExercise;
+  private Stage numericPadStage;
+  private NumericPadController numericPadController;
 
   private static final DateTimeFormatter DT =
       DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
@@ -56,10 +66,93 @@ public class CashController {
   public void initialize() {
     incidentDirectionChoice.getItems().setAll("IN", "OUT");
     incidentDirectionChoice.setValue("OUT");
-    if (cashPadController != null) {
-      cashPadController.bindTargets(openingEurosField, incidentEurosField, closingEurosField);
-    }
+    setupNumericPadPopup();
     onRefresh();
+  }
+
+  private void setupNumericPadPopup() {
+    configureNumericField(openingEurosField);
+    configureNumericField(incidentEurosField);
+    configureNumericField(closingEurosField);
+
+    openingEurosField.sceneProperty().addListener((obsScene, oldScene, newScene) -> {
+      if (newScene == null) {
+        return;
+      }
+      newScene.windowProperty().addListener((obsWindow, oldWindow, newWindow) -> {
+        if (newWindow != null) {
+          newWindow.addEventHandler(WindowEvent.WINDOW_HIDDEN, evt -> closeNumericPad());
+        }
+      });
+    });
+  }
+
+  private void configureNumericField(TextField field) {
+    if (field == null) {
+      return;
+    }
+    field.focusedProperty().addListener((obs, oldV, focused) -> {
+      if (Boolean.TRUE.equals(focused)) {
+        showNumericPadFor(field);
+      }
+    });
+    field.setOnMouseClicked(evt -> showNumericPadFor(field));
+  }
+
+  private void showNumericPadFor(TextField field) {
+    if (field == null) {
+      return;
+    }
+    try {
+      ensureNumericPadLoaded(field);
+      numericPadController.setTarget(field);
+      placeNumericPadNearField(field);
+      if (!numericPadStage.isShowing()) {
+        numericPadStage.show();
+      } else {
+        numericPadStage.toFront();
+      }
+    } catch (Exception e) {
+      errorLabel.setText("No se pudo abrir teclado numerico: " + e.getMessage());
+    }
+  }
+
+  private void ensureNumericPadLoaded(TextField field) throws Exception {
+    if (numericPadStage != null && numericPadController != null) {
+      return;
+    }
+    FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/components/NumericPad.fxml"));
+    Parent root = loader.load();
+    numericPadController = loader.getController();
+
+    numericPadStage = new Stage(StageStyle.UTILITY);
+    Window owner = field.getScene() == null ? null : field.getScene().getWindow();
+    if (owner != null) {
+      numericPadStage.initOwner(owner);
+    }
+    numericPadStage.initModality(Modality.NONE);
+    numericPadStage.setAlwaysOnTop(true);
+    numericPadStage.setResizable(false);
+    numericPadStage.setTitle("Teclado numerico");
+    numericPadStage.setScene(new Scene(root));
+  }
+
+  private void placeNumericPadNearField(TextField field) {
+    if (numericPadStage == null || field.getScene() == null) {
+      return;
+    }
+    Point2D screen = field.localToScreen(0, 0);
+    if (screen == null) {
+      return;
+    }
+    numericPadStage.setX(screen.getX() + field.getWidth() + 12);
+    numericPadStage.setY(Math.max(20, screen.getY() - 20));
+  }
+
+  private void closeNumericPad() {
+    if (numericPadStage != null) {
+      numericPadStage.hide();
+    }
   }
 
   @FXML

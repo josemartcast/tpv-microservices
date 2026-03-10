@@ -7,8 +7,9 @@ import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.Destination;
 import com.tpv.desktop.tpv.domain.model.Product;
 import com.tpv.desktop.tpv.services.CatalogService;
-
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 public class RealCatalogService implements CatalogService {
 
@@ -16,11 +17,11 @@ public class RealCatalogService implements CatalogService {
     public List<Category> categories() {
         try {
             CategoryResponse[] response = CatalogApi.categories();
-            return java.util.Arrays.stream(response)
-                    .map(c -> new Category(c.id(), c.name()))
+            return Arrays.stream(response)
+                    .map(c -> new Category(c.id(), c.name(), normalizeDestination(c.printDestination())))
                     .toList();
         } catch (Exception e) {
-            throw new RuntimeException("No se pudo cargar catálogo (categorías): " + e.getMessage(), e);
+            throw new RuntimeException("No se pudo cargar catalogo (categorias): " + e.getMessage(), e);
         }
     }
 
@@ -28,11 +29,11 @@ public class RealCatalogService implements CatalogService {
     public List<Product> productsByCategory(long categoryId) {
         try {
             ProductResponse[] response = CatalogApi.products(categoryId);
-            return java.util.Arrays.stream(response)
+            return Arrays.stream(response)
                     .map(this::toDomain)
                     .toList();
         } catch (Exception e) {
-            throw new RuntimeException("No se pudo cargar catálogo (productos): " + e.getMessage(), e);
+            throw new RuntimeException("No se pudo cargar catalogo (productos): " + e.getMessage(), e);
         }
     }
 
@@ -40,7 +41,7 @@ public class RealCatalogService implements CatalogService {
     public Product productById(long productId) {
         try {
             ProductResponse[] all = CatalogApi.products(null);
-            return java.util.Arrays.stream(all)
+            return Arrays.stream(all)
                     .filter(p -> p.id() == productId)
                     .findFirst()
                     .map(this::toDomain)
@@ -51,20 +52,20 @@ public class RealCatalogService implements CatalogService {
     }
 
     @Override
-    public Category createCategory(String name) {
+    public Category createCategory(String name, String printDestination) {
         try {
-            CategoryResponse response = CatalogApi.createCategory(name);
-            return new Category(response.id(), response.name());
+            CategoryResponse response = CatalogApi.createCategory(name, normalizeDestination(printDestination));
+            return new Category(response.id(), response.name(), normalizeDestination(response.printDestination()));
         } catch (Exception e) {
             throw new RuntimeException("No se pudo crear categoria: " + e.getMessage(), e);
         }
     }
 
     @Override
-    public Category updateCategory(long id, String name) {
+    public Category updateCategory(long id, String name, String printDestination) {
         try {
-            CategoryResponse response = CatalogApi.updateCategory(id, name);
-            return new Category(response.id(), response.name());
+            CategoryResponse response = CatalogApi.updateCategory(id, name, normalizeDestination(printDestination));
+            return new Category(response.id(), response.name(), normalizeDestination(response.printDestination()));
         } catch (Exception e) {
             throw new RuntimeException("No se pudo actualizar categoria: " + e.getMessage(), e);
         }
@@ -109,7 +110,11 @@ public class RealCatalogService implements CatalogService {
     }
 
     private Product toDomain(ProductResponse p) {
-        Destination destination = inferDestination(p.categoryName(), p.name());
+        Destination destination = destinationFromCategory(
+                p.categoryPrintDestination(),
+                p.categoryName(),
+                p.name()
+        );
         String colorClass = switch (destination) {
             case BAR -> "prod-teal";
             case COCINA -> "prod-dark";
@@ -118,11 +123,37 @@ public class RealCatalogService implements CatalogService {
         return new Product(p.id(), p.categoryId(), p.name(), p.priceCents(), p.vatRateBps(), destination, colorClass);
     }
 
-    private static Destination inferDestination(String categoryName, String productName) {
-        String c = categoryName == null ? "" : categoryName.toLowerCase();
-        String p = productName == null ? "" : productName.toLowerCase();
-        if (c.contains("bebida") || c.contains("bar")) return Destination.BAR;
-        if (c.contains("postre") || p.contains("tarta") || p.contains("helado")) return Destination.POSTRES;
+    private static Destination destinationFromCategory(String categoryDestination, String categoryName, String productName) {
+        String explicit = normalizeDestination(categoryDestination);
+        if ("BAR".equals(explicit)) {
+            return Destination.BAR;
+        }
+        if ("POSTRES".equals(explicit)) {
+            return Destination.POSTRES;
+        }
+        if ("COCINA".equals(explicit)) {
+            return Destination.COCINA;
+        }
+
+        String category = categoryName == null ? "" : categoryName.toLowerCase(Locale.ROOT);
+        String product = productName == null ? "" : productName.toLowerCase(Locale.ROOT);
+        if (category.contains("bebida") || category.contains("bar")) {
+            return Destination.BAR;
+        }
+        if (category.contains("postre") || product.contains("tarta") || product.contains("helado")) {
+            return Destination.POSTRES;
+        }
         return Destination.COCINA;
+    }
+
+    private static String normalizeDestination(String value) {
+        if (value == null || value.isBlank()) {
+            return "COCINA";
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if ("BAR".equals(normalized) || "COCINA".equals(normalized) || "POSTRES".equals(normalized)) {
+            return normalized;
+        }
+        return "COCINA";
     }
 }

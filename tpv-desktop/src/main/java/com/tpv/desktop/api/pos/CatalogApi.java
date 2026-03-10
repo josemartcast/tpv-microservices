@@ -16,11 +16,27 @@ public final class CatalogApi {
   }
 
   public static CategoryResponse createCategory(String name) throws Exception {
-    return ApiClient.post("/api/v1/pos/categories", new CreateCategoryRequest(name), CategoryResponse.class);
+    return createCategory(name, "COCINA");
+  }
+
+  public static CategoryResponse createCategory(String name, String printDestination) throws Exception {
+    return ApiClient.post(
+        "/api/v1/pos/categories",
+        new CreateCategoryRequest(name, printDestination),
+        CategoryResponse.class
+    );
   }
 
   public static CategoryResponse updateCategory(long id, String name) throws Exception {
-    return ApiClient.put("/api/v1/pos/categories/" + id, new UpdateCategoryRequest(name), CategoryResponse.class);
+    return updateCategory(id, name, "COCINA");
+  }
+
+  public static CategoryResponse updateCategory(long id, String name, String printDestination) throws Exception {
+    return ApiClient.put(
+        "/api/v1/pos/categories/" + id,
+        new UpdateCategoryRequest(name, printDestination),
+        CategoryResponse.class
+    );
   }
 
   public static void deleteCategory(long id) throws Exception {

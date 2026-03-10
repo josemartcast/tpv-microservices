@@ -1,6 +1,7 @@
 package com.tpv.pos_service.controller;
 
 import com.tpv.pos_service.dto.*;
+import com.tpv.pos_service.exception.ForbiddenException;
 import com.tpv.pos_service.service.AuditService;
 import com.tpv.pos_service.service.CashIncidentService;
 import com.tpv.pos_service.service.CashSessionService;
@@ -66,8 +67,10 @@ public class CashSessionController {
     public CashSessionResponse open(
             @Valid @RequestBody OpenCashSessionRequest req,
             Authentication auth,
+            @RequestHeader(value = "X-Client-App", required = false) String clientApp,
             @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
     ) {
+        ensureCashManagedFromDesktop(clientApp);
         String actor = ActorResolver.usernameFrom(auth);
         String term = ActorResolver.terminalFromHeader(terminalId);
         try {
@@ -104,8 +107,10 @@ public class CashSessionController {
     public CashSessionResponse close(@PathVariable Long id,
                                     @Valid @RequestBody CloseCashSessionRequest req,
                                     Authentication auth,
+                                    @RequestHeader(value = "X-Client-App", required = false) String clientApp,
                                     @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                     @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId) {
+        ensureCashManagedFromDesktop(clientApp);
         String actor = ActorResolver.usernameFrom(auth);
         String term = ActorResolver.terminalFromHeader(terminalId);
         try {
@@ -115,6 +120,12 @@ public class CashSessionController {
         } catch (RuntimeException e) {
             auditService.recordFailure("CASH_CLOSE", "CASH_SESSION", id, actor, term, req, e);
             throw e;
+        }
+    }
+
+    private static void ensureCashManagedFromDesktop(String clientApp) {
+        if (clientApp != null && "PDA".equalsIgnoreCase(clientApp.trim())) {
+            throw new ForbiddenException("Cash session open/close is only allowed from TPV Desktop");
         }
     }
 }

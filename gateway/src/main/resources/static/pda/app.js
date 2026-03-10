@@ -1314,6 +1314,7 @@
     const headers = Object.assign({}, options && options.headers ? options.headers : {});
     if (state.token) { headers.Authorization = "Bearer " + state.token; }
     if (state.terminalId) { headers["X-Terminal-Id"] = state.terminalId; }
+    headers["X-Client-App"] = "PDA";
     if (options && options.body && !headers["Content-Type"]) { headers["Content-Type"] = "application/json"; }
 
     const startedAt = performance.now();

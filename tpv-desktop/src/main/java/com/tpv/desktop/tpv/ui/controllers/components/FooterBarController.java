@@ -12,6 +12,8 @@ import com.tpv.desktop.api.pos.SalonAreaResponse;
 import com.tpv.desktop.api.pos.TableAliasResponse;
 import com.tpv.desktop.api.pos.UpdateCustomerRequest;
 import com.tpv.desktop.core.AuthStore;
+import com.tpv.desktop.core.PrinterSettingsStore;
+import com.tpv.desktop.core.PrinterSettingsStore.PrinterProfile;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -277,20 +279,27 @@ public class FooterBarController {
         try {
             ObservableList<Category> categories = FXCollections.observableArrayList(AppContext.get().catalogService().categories());
             ObservableList<Category> rows = FXCollections.observableArrayList(categories);
+            ObservableList<PrinterChoice> printerChoices = FXCollections.observableArrayList(buildPrinterChoices());
 
             TextField searchField = new TextField();
             searchField.setPromptText("Buscar categoria...");
 
             TextField newCategoryField = new TextField();
             newCategoryField.setPromptText("Nueva categoria");
+            ComboBox<PrinterChoice> newCategoryPrinterBox = new ComboBox<>(printerChoices);
             Button createCategoryBtn = new Button("Crear");
 
             TextField renameCategoryField = new TextField();
             renameCategoryField.setPromptText("Renombrar categoria seleccionada");
+            ComboBox<PrinterChoice> editCategoryPrinterBox = new ComboBox<>(printerChoices);
             Button renameCategoryBtn = new Button("Guardar cambios");
             Button deleteCategoryBtn = new Button("Eliminar");
             renameCategoryBtn.setDisable(true);
             deleteCategoryBtn.setDisable(true);
+            configurePrinterChoiceCombo(newCategoryPrinterBox);
+            configurePrinterChoiceCombo(editCategoryPrinterBox);
+            selectPrinterChoiceByDestination(newCategoryPrinterBox, "COCINA");
+            selectPrinterChoiceByDestination(editCategoryPrinterBox, "COCINA");
 
             ListView<Category> list = new ListView<>(rows);
             list.setPrefHeight(430);
@@ -298,12 +307,14 @@ public class FooterBarController {
                 @Override
                 protected void updateItem(Category item, boolean empty) {
                     super.updateItem(item, empty);
-                    setText(empty || item == null ? null : item.name());
+                    setText(empty || item == null ? null : item.name() + "  [" + normalizePrinterDestination(item.printDestination()) + "]");
                 }
             });
 
             Runnable refresh = () -> {
                 categories.setAll(AppContext.get().catalogService().categories());
+                printerChoices.setAll(buildPrinterChoices());
+                selectPrinterChoiceByDestination(newCategoryPrinterBox, "COCINA");
                 String filter = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
                 if (filter.isBlank()) {
                     rows.setAll(categories);
@@ -321,8 +332,10 @@ public class FooterBarController {
                 deleteCategoryBtn.setDisable(!enabled);
                 if (selected != null) {
                     renameCategoryField.setText(selected.name());
+                    selectPrinterChoiceByDestination(editCategoryPrinterBox, selected.printDestination());
                 } else {
                     renameCategoryField.clear();
+                    selectPrinterChoiceByDestination(editCategoryPrinterBox, "COCINA");
                 }
             });
 
@@ -332,7 +345,9 @@ public class FooterBarController {
                     showError("Nombre de categoria invalido (min 2 caracteres).");
                     return;
                 }
-                AppContext.get().catalogService().createCategory(name);
+                PrinterChoice printerChoice = newCategoryPrinterBox.getValue();
+                String destination = printerChoice == null ? "COCINA" : printerChoice.destination();
+                AppContext.get().catalogService().createCategory(name, destination);
                 newCategoryField.clear();
                 refresh.run();
             });
@@ -348,7 +363,9 @@ public class FooterBarController {
                     showError("Nombre de categoria invalido (min 2 caracteres).");
                     return;
                 }
-                AppContext.get().catalogService().updateCategory(selected.id(), name);
+                PrinterChoice printerChoice = editCategoryPrinterBox.getValue();
+                String destination = printerChoice == null ? "COCINA" : printerChoice.destination();
+                AppContext.get().catalogService().updateCategory(selected.id(), name, destination);
                 refresh.run();
             });
 
@@ -396,10 +413,19 @@ public class FooterBarController {
             HBox createRow = new HBox(8, new Label("Nueva"), newCategoryField, createCategoryBtn);
             HBox.setHgrow(newCategoryField, Priority.ALWAYS);
 
+            HBox printerRow = new HBox(8,
+                    new Label("Impresora nueva"),
+                    newCategoryPrinterBox,
+                    new Label("Impresora seleccionada"),
+                    editCategoryPrinterBox
+            );
+            HBox.setHgrow(newCategoryPrinterBox, Priority.ALWAYS);
+            HBox.setHgrow(editCategoryPrinterBox, Priority.ALWAYS);
+
             HBox editRow = new HBox(8, new Label("Editar"), renameCategoryField, renameCategoryBtn, deleteCategoryBtn);
             HBox.setHgrow(renameCategoryField, Priority.ALWAYS);
 
-            VBox root = new VBox(10, searchRow, createRow, editRow, list);
+            VBox root = new VBox(10, searchRow, createRow, printerRow, editRow, list);
             root.setPadding(new Insets(12));
 
             Stage modal = new Stage();
@@ -978,6 +1004,75 @@ public class FooterBarController {
         });
     }
 
+    private static List<PrinterChoice> buildPrinterChoices() {
+        List<PrinterChoice> choices = new ArrayList<>();
+        for (PrinterProfile profile : PrinterSettingsStore.getProfiles()) {
+            if (!profile.enabled()) {
+                continue;
+            }
+            String destination = normalizePrinterDestination(profile.destination());
+            if ("ALL".equals(destination)) {
+                continue;
+            }
+            choices.add(new PrinterChoice(profile.logicalName(), destination));
+        }
+        if (choices.isEmpty()) {
+            choices.add(new PrinterChoice("Cocina", "COCINA"));
+            choices.add(new PrinterChoice("Barra", "BAR"));
+            choices.add(new PrinterChoice("Postres", "POSTRES"));
+        }
+        return choices;
+    }
+
+    private static void configurePrinterChoiceCombo(ComboBox<PrinterChoice> combo) {
+        combo.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(PrinterChoice value) {
+                if (value == null) {
+                    return "";
+                }
+                return value.label() + " [" + value.destination() + "]";
+            }
+
+            @Override
+            public PrinterChoice fromString(String string) {
+                return null;
+            }
+        });
+        combo.setCellFactory(listView -> new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(PrinterChoice item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.label() + " [" + item.destination() + "]");
+            }
+        });
+    }
+
+    private static void selectPrinterChoiceByDestination(ComboBox<PrinterChoice> combo, String destination) {
+        if (combo == null || combo.getItems() == null || combo.getItems().isEmpty()) {
+            return;
+        }
+        String normalized = normalizePrinterDestination(destination);
+        for (PrinterChoice item : combo.getItems()) {
+            if (item.destination().equals(normalized)) {
+                combo.setValue(item);
+                return;
+            }
+        }
+        combo.setValue(combo.getItems().getFirst());
+    }
+
+    private static String normalizePrinterDestination(String value) {
+        if (value == null || value.isBlank()) {
+            return "COCINA";
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if ("BAR".equals(normalized) || "COCINA".equals(normalized) || "POSTRES".equals(normalized)) {
+            return normalized;
+        }
+        return "COCINA";
+    }
+
     private static String formatProductRow(Product product) {
         return String.format(
                 Locale.US,
@@ -1018,4 +1113,6 @@ public class FooterBarController {
         out.append("\n\nQuieres continuar?");
         return out.toString();
     }
+
+    private record PrinterChoice(String label, String destination) {}
 }

@@ -26,6 +26,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -146,5 +148,31 @@ class CashSessionSecurityTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("Conflict"))
                 .andExpect(jsonPath("$.message").value("Cannot close cash session with OPEN tickets"));
+    }
+
+    @Test
+    void open_deniesPdaClientHeaderEvenForAdminRole() throws Exception {
+        mockMvc.perform(post("/api/v1/pos/cash-sessions/open")
+                        .contentType("application/json")
+                        .content("{\"openingCashCents\":1000,\"note\":\"apertura\"}")
+                        .header("X-Client-App", "PDA")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Forbidden"));
+
+        verify(cashSessionService, never()).open(any(), anyString());
+    }
+
+    @Test
+    void close_deniesPdaClientHeaderEvenForAdminRole() throws Exception {
+        mockMvc.perform(post("/api/v1/pos/cash-sessions/1/close")
+                        .contentType("application/json")
+                        .content("{\"closingCashCents\":12000,\"note\":\"cierre\"}")
+                        .header("X-Client-App", "PDA")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Forbidden"));
+
+        verify(cashSessionService, never()).close(anyLong(), any(CloseCashSessionRequest.class), anyString(), any());
     }
 }

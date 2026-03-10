@@ -471,7 +471,7 @@ public class TicketService {
                 l.getId(),
                 l.getProduct().getId(),
                 l.getProductNameSnapshot(),
-                destinationFor(l.getProductNameSnapshot()),
+                l.getDestinationSnapshot(),
                 l.isSent(),
                 l.getUnitPriceCentsSnapshot(),
                 l.getQty(),
@@ -484,19 +484,6 @@ public class TicketService {
     private TicketResponse toResponseWithLines(Ticket t) {
         List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(t.getId());
         return toResponse(t, lines);
-    }
-
-    private String destinationFor(String productName) {
-        if (productName == null) {
-            return "COCINA";
-        }
-        String p = productName.toLowerCase();
-        if (p.contains("cerveza") || p.contains("refresco") || p.contains("vino")
-                || p.contains("cafe") || p.contains("agua") || p.contains("cola")
-                || p.contains("beer") || p.contains("drink")) {
-            return "BAR";
-        }
-        return "COCINA";
     }
 
     @Transactional(readOnly = true)

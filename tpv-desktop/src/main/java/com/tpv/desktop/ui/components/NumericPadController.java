@@ -47,8 +47,14 @@ public class NumericPadController {
         if (".".equals(value) && target.getText() != null && target.getText().contains(".")) {
             return;
         }
-        int caret = target.getCaretPosition();
+        String text = target.getText();
+        int textLength = text == null ? 0 : text.length();
+        int caret = target.isFocused() ? target.getCaretPosition() : textLength;
+        if (caret < 0 || caret > textLength) {
+            caret = textLength;
+        }
         target.insertText(caret, value);
+        target.positionCaret(caret + value.length());
     }
 
     @FXML
@@ -66,11 +72,12 @@ public class NumericPadController {
             target.deleteText(start, end);
             return;
         }
-        int caret = target.getCaretPosition();
+        int caret = target.isFocused() ? target.getCaretPosition() : text.length();
         if (caret <= 0) {
             return;
         }
         target.deleteText(caret - 1, caret);
+        target.positionCaret(caret - 1);
     }
 
     @FXML

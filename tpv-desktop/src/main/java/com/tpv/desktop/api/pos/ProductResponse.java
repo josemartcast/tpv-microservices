@@ -9,6 +9,7 @@ public record ProductResponse(
     boolean active,
     long categoryId,
     String categoryName,
+    String categoryPrintDestination,
     Instant createdAt,
     Instant updatedAt,
     int vatRateBps

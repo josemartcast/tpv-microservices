@@ -204,12 +204,12 @@ class OrderViewModelSendQueueTest {
         }
 
         @Override
-        public Category createCategory(String name) {
+        public Category createCategory(String name, String printDestination) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Category updateCategory(long id, String name) {
+        public Category updateCategory(long id, String name, String printDestination) {
             throw new UnsupportedOperationException();
         }
 

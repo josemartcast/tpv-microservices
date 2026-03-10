@@ -28,10 +28,10 @@ public class FakeDataStore {
     }
 
     private void seedCatalog() {
-        addCategory("Entrantes");
-        addCategory("Bebidas");
-        addCategory("Pizzas");
-        addCategory("Postres");
+        addCategory("Entrantes", "COCINA");
+        addCategory("Bebidas", "BAR");
+        addCategory("Pizzas", "COCINA");
+        addCategory("Postres", "POSTRES");
 
         addProduct(1, "Bravas", 650, 1000, Destination.COCINA, "prod-dark");
         addProduct(1, "Ensalada", 900, 1000, Destination.COCINA, "prod-green");
@@ -52,22 +52,22 @@ public class FakeDataStore {
         addProduct(4, "Helado", 500, 1000, Destination.POSTRES, "prod-teal");
     }
 
-    private Category addCategory(String name) {
+    private Category addCategory(String name, String printDestination) {
         long id = categorySeq.incrementAndGet();
-        Category category = new Category(id, name);
+        Category category = new Category(id, name, normalizeDestination(printDestination));
         categories.add(category);
         return category;
     }
 
-    synchronized Category createCategory(String name) {
-        return addCategory(name);
+    synchronized Category createCategory(String name, String printDestination) {
+        return addCategory(name, printDestination);
     }
 
-    synchronized Category updateCategory(long id, String name) {
+    synchronized Category updateCategory(long id, String name, String printDestination) {
         for (int i = 0; i < categories.size(); i++) {
             Category current = categories.get(i);
             if (current.id() == id) {
-                Category updated = new Category(id, name);
+                Category updated = new Category(id, name, normalizeDestination(printDestination));
                 categories.set(i, updated);
                 return updated;
             }
@@ -78,6 +78,17 @@ public class FakeDataStore {
     synchronized void deleteCategory(long id) {
         products.entrySet().removeIf(entry -> entry.getValue().categoryId() == id);
         categories.removeIf(c -> c.id() == id);
+    }
+
+    private static String normalizeDestination(String value) {
+        if (value == null || value.isBlank()) {
+            return "COCINA";
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if ("BAR".equals(normalized) || "COCINA".equals(normalized) || "POSTRES".equals(normalized)) {
+            return normalized;
+        }
+        return "COCINA";
     }
 
     private Product addProduct(long categoryId, String name, int price, int vatRateBps, Destination destination, String colorClass) {

@@ -119,6 +119,7 @@ public class ProductService {
                 p.isActive(),
                 c.getId(),
                 c.getName(),
+                c.getPrintDestination(),
                 p.getCreatedAt(),
                 p.getUpdatedAt(),
                 p.getVatRateBps()

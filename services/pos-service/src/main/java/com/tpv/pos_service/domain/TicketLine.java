@@ -2,6 +2,7 @@ package com.tpv.pos_service.domain;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.Locale;
 import com.tpv.pos_service.util.PriceCalc;
 
 @Entity
@@ -57,6 +58,9 @@ public class TicketLine {
     @Column(nullable = false)
     private int vatLineTotalCents;
 
+    @Column(length = 24)
+    private String destinationSnapshot;
+
     @Column(nullable = false)
     private boolean sent = false;
 
@@ -81,6 +85,9 @@ public class TicketLine {
 
         this.productNameSnapshot = product.getName();
         this.unitPriceCentsSnapshot = product.getPriceCents();
+        this.destinationSnapshot = normalizeDestination(product.getCategory() == null
+                ? Category.DEFAULT_DESTINATION
+                : product.getCategory().getPrintDestination());
 
         this.vatRateBpsSnapshot = product.getVatRateBps();
         this.netUnitPriceCentsSnapshot = PriceCalc.netFromGross(this.unitPriceCentsSnapshot, this.vatRateBpsSnapshot);
@@ -167,6 +174,10 @@ public class TicketLine {
         return vatLineTotalCents;
     }
 
+    public String getDestinationSnapshot() {
+        return normalizeDestination(destinationSnapshot);
+    }
+
     private void recalc() {
         int grossLine = this.unitPriceCentsSnapshot * this.qty;
         int netLine = this.netUnitPriceCentsSnapshot * this.qty;
@@ -218,5 +229,16 @@ public class TicketLine {
         this.sentQtySnapshot = this.qty;
         this.sentUnitPriceCentsSnapshot = this.unitPriceCentsSnapshot;
         this.removedAfterSent = false;
+    }
+
+    private static String normalizeDestination(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Category.DEFAULT_DESTINATION;
+        }
+        String value = raw.trim().toUpperCase(Locale.ROOT);
+        if (Category.DEST_BAR.equals(value) || Category.DEST_COCINA.equals(value) || Category.DEST_POSTRES.equals(value)) {
+            return value;
+        }
+        return Category.DEFAULT_DESTINATION;
     }
 }

@@ -31,9 +31,10 @@ public class CatalogSeedService {
 
         Map<String, Category> categoriesByName = new LinkedHashMap<>();
         for (String categoryName : DEFAULT_CATEGORIES) {
+            String desiredDestination = DEFAULT_CATEGORY_DESTINATIONS.getOrDefault(categoryName, Category.DEFAULT_DESTINATION);
             Category category = categoryRepository.findByNameIgnoreCase(categoryName).orElse(null);
             if (category == null) {
-                category = categoryRepository.save(new Category(categoryName));
+                category = categoryRepository.save(new Category(categoryName, desiredDestination));
                 counter.categoriesCreated++;
             } else {
                 counter.categoriesReused++;
@@ -41,6 +42,7 @@ public class CatalogSeedService {
                     category.activate();
                     counter.categoriesReactivated++;
                 }
+                category.changePrintDestination(desiredDestination);
             }
             categoriesByName.put(categoryName, category);
         }
@@ -152,6 +154,15 @@ public class CatalogSeedService {
             "Platos",
             "Postres",
             "Cafes"
+    );
+
+    private static final Map<String, String> DEFAULT_CATEGORY_DESTINATIONS = Map.of(
+            "Bebidas", Category.DEST_BAR,
+            "Cervezas", Category.DEST_BAR,
+            "Cafes", Category.DEST_BAR,
+            "Postres", Category.DEST_POSTRES,
+            "Entrantes", Category.DEST_COCINA,
+            "Platos", Category.DEST_COCINA
     );
 
     private static final List<SeedProduct> DEFAULT_PRODUCTS = List.of(

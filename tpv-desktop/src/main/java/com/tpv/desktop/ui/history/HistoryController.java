@@ -231,7 +231,13 @@ public class HistoryController {
                 MoneyUtil.centsToEuros(c.getValue().totalGrossCents()) + " EUR"
         ));
 
-        invoiceTable.getColumns().setAll(colInvNumber, colInvDate, colInvTicket, colInvTable, colInvCustomer, colInvTotal);
+        invoiceTable.getColumns().clear();
+        invoiceTable.getColumns().add(colInvNumber);
+        invoiceTable.getColumns().add(colInvDate);
+        invoiceTable.getColumns().add(colInvTicket);
+        invoiceTable.getColumns().add(colInvTable);
+        invoiceTable.getColumns().add(colInvCustomer);
+        invoiceTable.getColumns().add(colInvTotal);
 
         Label invoiceErrorLabel = new Label();
         invoiceErrorLabel.setStyle("-fx-text-fill: #b00020;");

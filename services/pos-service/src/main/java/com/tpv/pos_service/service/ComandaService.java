@@ -108,7 +108,7 @@ public class ComandaService {
                 l.getId(),
                 l.getProduct().getId(),
                 l.getProductNameSnapshot(),
-                destinationFor(l),
+                l.getDestinationSnapshot(),
                 l.isSent(),
                 l.getUnitPriceCentsSnapshot(),
                 l.getQty(),
@@ -147,7 +147,7 @@ public class ComandaService {
                 line.getId(),
                 line.getProduct().getId(),
                 productName,
-                destinationFor(line),
+                line.getDestinationSnapshot(),
                 false,
                 unitPrice,
                 adjustmentQty,
@@ -162,20 +162,10 @@ public class ComandaService {
             return "ALL";
         }
         String d = destination.trim().toUpperCase();
-        if (!d.equals("ALL") && !d.equals("BAR") && !d.equals("COCINA")) {
+        if (!d.equals("ALL") && !d.equals("BAR") && !d.equals("COCINA") && !d.equals("POSTRES")) {
             throw new ConflictException("Unsupported destination: " + destination);
         }
         return d;
-    }
-
-    private String destinationFor(TicketLine line) {
-        String p = line.getProductNameSnapshot() == null ? "" : line.getProductNameSnapshot().toLowerCase();
-        if (p.contains("cerveza") || p.contains("refresco") || p.contains("vino")
-                || p.contains("cafe") || p.contains("agua") || p.contains("cola")
-                || p.contains("beer") || p.contains("drink")) {
-            return "BAR";
-        }
-        return "COCINA";
     }
 
     private record PendingComandaItem(TicketLine line, TicketLineResponse preview) {

@@ -35,13 +35,13 @@ public class FakeCatalogService implements CatalogService {
     }
 
     @Override
-    public Category createCategory(String name) {
-        return store.createCategory(name);
+    public Category createCategory(String name, String printDestination) {
+        return store.createCategory(name, printDestination);
     }
 
     @Override
-    public Category updateCategory(long id, String name) {
-        return store.updateCategory(id, name);
+    public Category updateCategory(long id, String name, String printDestination) {
+        return store.updateCategory(id, name, printDestination);
     }
 
     @Override
@@ -67,11 +67,18 @@ public class FakeCatalogService implements CatalogService {
     }
 
     private Destination inferDestination(long categoryId, String productName) {
-        String categoryName = store.categories.stream()
+        Category category = store.categories.stream()
                 .filter(c -> c.id() == categoryId)
-                .map(Category::name)
                 .findFirst()
-                .orElse("");
+                .orElse(null);
+        if (category != null) {
+            String destination = category.printDestination() == null ? "" : category.printDestination().trim().toUpperCase(Locale.ROOT);
+            if ("BAR".equals(destination)) return Destination.BAR;
+            if ("POSTRES".equals(destination)) return Destination.POSTRES;
+            if ("COCINA".equals(destination)) return Destination.COCINA;
+        }
+
+        String categoryName = category == null ? "" : category.name();
         String c = categoryName.toLowerCase(Locale.ROOT);
         String p = productName == null ? "" : productName.toLowerCase(Locale.ROOT);
         if (c.contains("bebida") || c.contains("bar")) return Destination.BAR;

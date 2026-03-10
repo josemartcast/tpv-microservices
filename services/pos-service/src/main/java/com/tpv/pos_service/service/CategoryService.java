@@ -1,6 +1,7 @@
 package com.tpv.pos_service.service;
 
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +55,7 @@ public class CategoryService {
             throw new ConflictException("Category name already exists: " + name);
         }
 
-        Category c = repo.save(new Category(name));
+        Category c = repo.save(new Category(name, normalizeDestination(req.printDestination())));
         return toResponse(c);
     }
 
@@ -73,6 +74,7 @@ public class CategoryService {
         }
 
         c.rename(newName);
+        c.changePrintDestination(normalizeDestination(req.printDestination()));
         return toResponse(c);
     }
 
@@ -119,10 +121,22 @@ public class CategoryService {
         return n.isBlank() ? null : n;
     }
 
+    private String normalizeDestination(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Category.DEFAULT_DESTINATION;
+        }
+        String value = raw.trim().toUpperCase(Locale.ROOT);
+        if (Category.DEST_BAR.equals(value) || Category.DEST_COCINA.equals(value) || Category.DEST_POSTRES.equals(value)) {
+            return value;
+        }
+        return Category.DEFAULT_DESTINATION;
+    }
+
     private CategoryResponse toResponse(Category c) {
         return new CategoryResponse(
             c.getId(),
             c.getName(),
+            c.getPrintDestination(),
             c.isActive(),
             c.getCreatedAt(),
             c.getUpdatedAt()

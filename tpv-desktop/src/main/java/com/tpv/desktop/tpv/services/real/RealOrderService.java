@@ -270,7 +270,7 @@ public class RealOrderService implements OrderService {
         return switch (d) {
             case BAR -> "BAR";
             case COCINA -> "COCINA";
-            case POSTRES -> "ALL";
+            case POSTRES -> "POSTRES";
         };
     }
 
