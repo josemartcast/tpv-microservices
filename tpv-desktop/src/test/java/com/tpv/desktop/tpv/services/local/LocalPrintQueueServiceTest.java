@@ -76,7 +76,11 @@ class LocalPrintQueueServiceTest {
         );
         try {
             service.enqueue("POSTRES", "failed print");
-            waitUntil(() -> service.pendingJobsProperty().get() == 0, 7000);
+            waitUntil(() ->
+                    attempts.get() == 3
+                            && service.pendingJobsProperty().get() == 0
+                            && service.stateProperty().get() == PrintQueueState.ERROR,
+                    10000);
 
             assertEquals(3, attempts.get());
             assertEquals(PrintQueueState.ERROR, service.stateProperty().get());
