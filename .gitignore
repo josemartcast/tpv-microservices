@@ -37,6 +37,7 @@ Thumbs.db
 ############################
 logs/
 *.log
+.runlogs/
 
 ############################
 # Environment / Secrets
