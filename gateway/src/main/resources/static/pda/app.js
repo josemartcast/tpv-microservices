@@ -121,6 +121,7 @@
   boot();
 
   function boot() {
+    initViewportTracking();
     bindEvents();
     renderQtyInput();
     els.apiBaseInput.value = window.location.origin;
@@ -139,6 +140,44 @@
     registerServiceWorker();
     startQueueWorker();
     recoverOrShowLogin();
+  }
+
+  function initViewportTracking() {
+    const onViewportChange = function () {
+      applyViewportMetrics();
+    };
+    applyViewportMetrics();
+    window.addEventListener("resize", onViewportChange, { passive: true });
+    window.addEventListener("orientationchange", onViewportChange, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", onViewportChange, { passive: true });
+      window.visualViewport.addEventListener("scroll", onViewportChange, { passive: true });
+    }
+  }
+
+  function applyViewportMetrics() {
+    const vv = window.visualViewport;
+    const width = Math.max(1, Math.round((vv ? vv.width : window.innerWidth) || window.innerWidth || 1));
+    const height = Math.max(1, Math.round((vv ? vv.height : window.innerHeight) || window.innerHeight || 1));
+    const orientation = width >= height ? "landscape" : "portrait";
+    const compact = width < 430;
+
+    document.documentElement.style.setProperty("--app-width", width + "px");
+    document.documentElement.style.setProperty("--app-height", height + "px");
+    document.documentElement.style.setProperty("--vh", (height * 0.01).toFixed(4) + "px");
+    document.documentElement.style.setProperty("--vw", (width * 0.01).toFixed(4) + "px");
+
+    document.body.classList.toggle("pda-landscape", orientation === "landscape");
+    document.body.classList.toggle("pda-portrait", orientation === "portrait");
+    document.body.classList.toggle("pda-compact", compact);
+
+    const updateTopbarHeight = function () {
+      const topbar = document.querySelector(".topbar");
+      const topbarHeight = topbar ? Math.max(50, Math.round(topbar.getBoundingClientRect().height)) : 56;
+      document.documentElement.style.setProperty("--topbar-height", topbarHeight + "px");
+    };
+    updateTopbarHeight();
+    window.requestAnimationFrame(updateTopbarHeight);
   }
 
   function bindEvents() {
@@ -1795,6 +1834,7 @@
     els.loginScreen.classList.toggle("hidden", name !== "login");
     els.tablesScreen.classList.toggle("hidden", name !== "tables");
     els.orderScreen.classList.toggle("hidden", name !== "order");
+    applyViewportMetrics();
   }
 
   function toast(message) {

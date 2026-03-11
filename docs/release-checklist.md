@@ -10,6 +10,7 @@ Estado: COMPLETADO (2026-02-27)
 - Congelar cambios no criticos durante ventana de despliegue.
 - Verificar migraciones DB en entorno de staging.
 - Verificar backups recientes y restauracion de prueba.
+- Ejecutar procedimiento documentado en `docs/backup-restore.md`.
 
 ## 2) Seguridad y acceso
 - JWT secret no default en produccion.

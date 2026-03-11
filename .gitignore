@@ -38,6 +38,8 @@ Thumbs.db
 logs/
 *.log
 .runlogs/
+.backups/
+tools/cloudflared.exe
 
 ############################
 # Environment / Secrets
@@ -64,3 +66,5 @@ out/
 *.tmp
 *.bak
 *.swp
+tmp-dump*.sql
+tmp-dump*.err

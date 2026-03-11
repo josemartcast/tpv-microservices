@@ -12,6 +12,11 @@
   --danger: #c33737;
   --locked: #f7ede0;
   --locked-border: #dd9f3a;
+  --app-width: 100vw;
+  --app-height: 100vh;
+  --vh: 1vh;
+  --vw: 1vw;
+  --topbar-height: 56px;
 }
 
 * {
@@ -25,16 +30,28 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: "Segoe UI", Roboto, sans-serif;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  min-height: var(--app-height);
+  overflow-x: hidden;
 }
 
 .topbar {
-  height: 56px;
+  min-height: 56px;
+  height: auto;
   background: linear-gradient(180deg, #253257 0%, #1f2a44 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  padding: 0 max(12px, env(safe-area-inset-left)) 0 max(12px, env(safe-area-inset-right));
+  padding-top: 6px;
+  padding-bottom: 6px;
   border-bottom: 1px solid #1a253d;
   position: sticky;
   top: 0;
@@ -50,6 +67,10 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .badge {
@@ -81,7 +102,8 @@ body {
 }
 
 .main {
-  padding: 10px;
+  padding: 10px max(10px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  min-height: calc(var(--app-height) - var(--topbar-height));
 }
 
 .screen {
@@ -111,6 +133,58 @@ body {
 .screen-head h1 {
   margin: 0;
   font-size: 1.4rem;
+}
+
+body.pda-compact .screen-head h1 {
+  font-size: 1.2rem;
+}
+
+body.pda-compact .topbar {
+  min-height: 50px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+body.pda-compact .brand {
+  font-size: 1rem;
+  line-height: 1.15;
+  max-width: 45vw;
+}
+
+body.pda-compact .badge {
+  padding: 3px 6px;
+  font-size: 0.7rem;
+}
+
+body.pda-compact .topbar-btn {
+  padding: 3px 7px;
+  font-size: 0.72rem;
+}
+
+body.pda-compact .status {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+body.pda-compact .screen-head {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+body.pda-compact .actions {
+  width: 100%;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+body.pda-compact #orderScreen .screen-head > button {
+  flex: 1 1 calc(50% - 4px);
+}
+
+body.pda-compact #orderScreen .screen-head > div {
+  order: 3;
+  width: 100%;
 }
 
 h1,
@@ -207,6 +281,11 @@ select {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
   gap: 10px;
+}
+
+body.pda-compact .tables-grid {
+  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  gap: 8px;
 }
 
 .tables-toolbar {
@@ -490,6 +569,10 @@ select {
   gap: 8px;
 }
 
+body.pda-compact .products-grid {
+  grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
+}
+
 .product-btn {
   border: none;
   color: #fff;
@@ -544,6 +627,23 @@ select {
   border: 1px solid #9ca8bf;
   border-radius: 10px;
   padding: 14px;
+}
+
+body.pda-landscape .main {
+  padding-top: 8px;
+  min-height: calc(var(--app-height) - 56px);
+}
+
+body.pda-landscape .order-layout {
+  grid-template-columns: minmax(280px, 36%) 1fr;
+}
+
+body.pda-landscape .ticket-lines {
+  max-height: calc(var(--app-height) - 290px);
+}
+
+body.pda-landscape .products-grid {
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
 }
 
 .errors-list {
