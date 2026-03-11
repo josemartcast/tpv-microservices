@@ -1,4 +1,4 @@
-const CACHE_NAME = "tpv-pda-v5";
+const CACHE_NAME = "tpv-pda-v6";
 const ASSETS = [
   "./index.html",
   "./styles.css",

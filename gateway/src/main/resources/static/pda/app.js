@@ -67,6 +67,11 @@
     apiBaseInput: byId("apiBaseInput"),
     networkBadge: byId("networkBadge"),
     sessionBadge: byId("sessionBadge"),
+    serverBtn: byId("serverBtn"),
+    serverDialog: byId("serverDialog"),
+    serverUrlInput: byId("serverUrlInput"),
+    serverSaveBtn: byId("serverSaveBtn"),
+    serverTestBtn: byId("serverTestBtn"),
     conflictsBtn: byId("conflictsBtn"),
     errorsBtn: byId("errorsBtn"),
     conflictsDialog: byId("conflictsDialog"),
@@ -203,6 +208,9 @@
         onQtyPadKey(btn.dataset.key || "");
       });
     });
+    els.serverBtn.addEventListener("click", openServerDialog);
+    els.serverSaveBtn.addEventListener("click", onSaveServerUrl);
+    els.serverTestBtn.addEventListener("click", onTestServerUrl);
     els.conflictsBtn.addEventListener("click", openConflictsDialog);
     els.errorsBtn.addEventListener("click", openErrorsDialog);
     els.methodChoiceButtons.forEach(function (btn) {
@@ -248,6 +256,80 @@
     startTablesPolling();
     processQueue();
     refreshBusinessBrand();
+  }
+
+  function openServerDialog() {
+    const fallback = normalizeBase(els.apiBaseInput.value || window.location.origin);
+    els.serverUrlInput.value = state.apiBase || fallback;
+    if (typeof els.serverDialog.showModal === "function") {
+      els.serverDialog.showModal();
+    }
+  }
+
+  async function onTestServerUrl() {
+    const raw = els.serverUrlInput.value;
+    const base = normalizeBase(raw);
+    if (!base) {
+      toast("URL de servidor invalida");
+      return;
+    }
+    els.serverTestBtn.disabled = true;
+    try {
+      const res = await fetch(base + "/pda/index.html", { method: "GET", cache: "no-store" });
+      if (!res.ok) {
+        throw new Error("HTTP " + res.status);
+      }
+      toast("Conexion OK con " + base);
+    } catch (err) {
+      pushError(err);
+      toast("No conecta: " + err.message);
+    } finally {
+      els.serverTestBtn.disabled = false;
+    }
+  }
+
+  function onSaveServerUrl() {
+    const raw = els.serverUrlInput.value;
+    const base = normalizeBase(raw);
+    if (!base) {
+      toast("URL de servidor invalida");
+      return;
+    }
+
+    const hadSession = !!state.token;
+    const rememberedUsername = state.username || els.usernameInput.value.trim();
+    const rememberedTerminal = state.terminalId || sanitizeTerminalId(els.terminalInput.value);
+
+    if (hadSession) {
+      leaveTableQuick();
+      stopHeartbeat();
+      stopTablesPolling();
+      state.currentTableNumber = null;
+      state.currentTicket = null;
+      state.sendPreview = null;
+      state.paymentSummary = null;
+      state.lockLeaseExpiresAt = null;
+      state.selectedLineId = null;
+      state.actionQueue = [];
+      saveQueue();
+    }
+
+    state.apiBase = base;
+    state.token = "";
+    state.username = rememberedUsername;
+    state.terminalId = rememberedTerminal;
+    els.apiBaseInput.value = base;
+    els.usernameInput.value = rememberedUsername;
+    els.terminalInput.value = rememberedTerminal;
+    persistSession();
+    updateSessionBadge();
+    setBrand(DEFAULT_BRAND);
+    showScreen("login");
+
+    if (els.serverDialog.open) {
+      els.serverDialog.close("saved");
+    }
+    toast(hadSession ? "Servidor actualizado. Inicia sesion de nuevo." : "Servidor guardado.");
   }
 
   function loadSession() {

@@ -15,6 +15,7 @@
     <div class="status">
       <span id="networkBadge" class="badge badge-offline">OFFLINE</span>
       <span id="sessionBadge" class="badge badge-muted">SIN SESION</span>
+      <button id="serverBtn" class="btn btn-ghost topbar-btn" type="button">Servidor</button>
       <button id="conflictsBtn" class="btn btn-ghost topbar-btn" type="button">Conflictos</button>
       <button id="errorsBtn" class="btn btn-ghost topbar-btn" type="button">Errores</button>
     </div>
@@ -164,6 +165,21 @@
       <button id="payLinesApplyBtn" class="btn btn-primary" type="button">Aplicar</button>
       <form method="dialog">
         <button class="btn btn-secondary" value="cancel">Cancelar</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="serverDialog" class="dialog">
+    <h3>Servidor PDA</h3>
+    <label>API Base URL
+      <input id="serverUrlInput" type="url" placeholder="https://host:8080">
+    </label>
+    <p class="muted">Ejemplos: <code>https://jose.tail079f7b.ts.net</code> o <code>http://100.84.227.77:8080</code></p>
+    <div class="pay-lines-actions">
+      <button id="serverSaveBtn" class="btn btn-primary" type="button">Guardar</button>
+      <button id="serverTestBtn" class="btn btn-secondary" type="button">Test conexion</button>
+      <form method="dialog">
+        <button class="btn btn-secondary" value="cancel">Cerrar</button>
       </form>
     </div>
   </dialog>
