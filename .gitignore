@@ -61,6 +61,16 @@ application-*.properties
 out/
 
 ############################
+# Android / Gradle
+############################
+.gradle/
+**/.gradle/
+**/build/
+*.apk
+*.aab
+local.properties
+
+############################
 # Temporary files
 ############################
 *.tmp

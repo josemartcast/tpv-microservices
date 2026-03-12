@@ -70,3 +70,12 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 }
+
+tasks.register("runDebug") {
+    group = "tpv"
+    description = "Build debug APK for PDA quickly (alias of assembleDebug)."
+    dependsOn("assembleDebug")
+    doLast {
+        println("APK: app/build/outputs/apk/debug/app-debug.apk")
+    }
+}

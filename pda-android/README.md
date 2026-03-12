@@ -21,6 +21,27 @@ App Android nativa inicial para la PDA, conectada al backend actual sin cambiar 
    - Tailscale/MagicDNS: `https://jose.tail079f7b.ts.net`
 5. Inicia sesión con usuario real (`admin` / `admin123` o el que uses).
 
+## Build rapido (CLI)
+
+Desde raiz del repo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-pda-android.ps1
+```
+
+Opciones:
+
+- `-Clean` limpia antes de compilar.
+- `-Install` instala en dispositivo/emulador ADB conectado.
+- `-OpenStudio` abre Android Studio al terminar.
+
+Tambien disponible tarea Gradle:
+
+```powershell
+cd pda-android
+.\gradlew.bat :app:runDebug
+```
+
 ## Siguiente bloque recomendado
 
 - Pantalla de ticket (abrir mesa, líneas, editar, borrar, enviar comanda, cobro).
