@@ -354,7 +354,49 @@ Assert-True (-not $emptyCancelTableAfter.ticketId) 'table should not keep ticket
 Assert-True ([string]$emptyCancelTableAfter.status -eq 'FREE') 'table should be FREE after cancel-empty'
 Write-Host '[OK] cancel-empty releases empty table'
 
-# 6) Find candidate table (not locked by other)
+# 6) cancel-empty must fail when ticket has lines (table must stay occupied)
+$tablesForNonEmptyCancel = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
+$nonEmptyCancelCandidate = $tablesForNonEmptyCancel.Json | Where-Object { -not $_.lockedTerminalId -and -not $_.ticketId } | Select-Object -First 1
+if (-not $nonEmptyCancelCandidate) {
+  throw 'No table without lock/ticket available for non-empty cancel-empty scenario'
+}
+$nonEmptyCancelTable = [int]$nonEmptyCancelCandidate.tableNumber
+Write-Host "[INFO] cancel-empty(non-empty) scenario table=$nonEmptyCancelTable"
+
+$lockNonEmptyCancel = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$nonEmptyCancelTable/lock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(200)
+Assert-True ($lockNonEmptyCancel.Json.terminalId -eq $TerminalA) 'non-empty cancel-empty scenario lock should be owned by terminal A'
+
+$openNonEmptyCancel = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$nonEmptyCancelTable/open-ticket" -Token $token -TerminalId $TerminalA -Expected @(201,409)
+if ($openNonEmptyCancel.Status -eq 201) {
+  $nonEmptyCancelTicketId = [int64]$openNonEmptyCancel.Json.id
+} else {
+  $tablesAfterOpenNonEmptyConflict = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
+  $resolvedNonEmptyTable = $tablesAfterOpenNonEmptyConflict.Json | Where-Object { [int]$_.tableNumber -eq $nonEmptyCancelTable } | Select-Object -First 1
+  if (-not $resolvedNonEmptyTable -or -not $resolvedNonEmptyTable.ticketId) {
+    throw "Could not resolve ticket for non-empty cancel-empty scenario on table $nonEmptyCancelTable"
+  }
+  $nonEmptyCancelTicketId = [int64]$resolvedNonEmptyTable.ticketId
+}
+
+$ticketNonEmptyAdded = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$nonEmptyCancelTicketId/lines" -Token $token -TerminalId $TerminalA -Body @{ productId = $productId; qty = 1 } -Expected @(201)
+Assert-True ($ticketNonEmptyAdded.Json.lines.Count -gt 0) 'non-empty cancel-empty ticket should have at least one line'
+
+$cancelNonEmpty = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$nonEmptyCancelTicketId/cancel-empty" -Token $token -TerminalId $TerminalA -Expected @(409)
+
+$tablesAfterNonEmptyCancel = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
+$nonEmptyTableAfter = $tablesAfterNonEmptyCancel.Json | Where-Object { [int]$_.tableNumber -eq $nonEmptyCancelTable } | Select-Object -First 1
+Assert-True ($null -ne $nonEmptyTableAfter) 'non-empty cancel-empty table should exist after scenario'
+Assert-True ($nonEmptyTableAfter.ticketId -eq $nonEmptyCancelTicketId) 'table should keep same ticket when cancel-empty fails'
+Assert-True ([string]$nonEmptyTableAfter.status -ne 'FREE') 'table should not be FREE when cancel-empty fails'
+
+# cleanup this scenario
+$cancelNonEmptyCleanup = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$nonEmptyCancelTicketId/cancel" -Token $token -TerminalId $TerminalA -Expected @(200,409)
+$unlockNonEmptyCleanup = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$nonEmptyCancelTable/unlock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(204,409)
+if ($cancelNonEmptyCleanup.Status -eq 409) { Write-Host '[INFO] non-empty cancel-empty cleanup cancel returned 409' }
+if ($unlockNonEmptyCleanup.Status -eq 409) { Write-Host '[INFO] non-empty cancel-empty cleanup unlock returned 409' }
+Write-Host '[OK] cancel-empty blocked for non-empty ticket'
+
+# 7) Find candidate table (not locked by other)
 $tables = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
 $candidate = $tables.Json | Where-Object { $_.status -eq 'FREE' -and -not $_.lockedTerminalId } | Select-Object -First 1
 if (-not $candidate) {
@@ -377,7 +419,7 @@ Assert-True ($null -ne $aliasTable) 'table should exist after alias update'
 Assert-True ([string]$aliasTable.tableAlias -eq $aliasValue) 'tables list should expose updated alias'
 Write-Host '[OK] alias update by table'
 
-# 7) Lock race A vs B in parallel
+# 8) Lock race A vs B in parallel
 $raceResults = Invoke-LockRace -GatewayBaseUrl $GatewayBaseUrl -Token $token -TableNumber $tableNumber -TerminalA $TerminalA -TerminalB $TerminalB
 $race200 = @($raceResults | Where-Object { $_.Status -eq 200 })
 $raceDenied = @($raceResults | Where-Object { @(
@@ -395,18 +437,18 @@ Write-Host "[OK] lock race winner=$raceWinner loser=$raceLoser"
 $unlockRace = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/unlock" -Token $token -TerminalId $raceWinner -Body @{ terminalId = $raceWinner } -Expected @(204,409)
 if ($unlockRace.Status -eq 204) { Write-Host '[OK] race cleanup unlock' } else { Write-Host '[INFO] race cleanup unlock returned 409' }
 
-# 8) Lock A + collision B (baseline deterministic for rest of test)
+# 9) Lock A + collision B (baseline deterministic for rest of test)
 $lockA = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/lock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(200)
 Assert-True ($lockA.Json.terminalId -eq $TerminalA) 'lock owner should be terminal A after race cleanup'
 $lockB = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/lock" -Token $token -TerminalId $TerminalB -Body @{ terminalId = $TerminalB } -Expected @(409)
 Write-Host '[OK] lock baseline A owner + B conflict'
 
-# 9) Heartbeat A
+# 10) Heartbeat A
 $hbA = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/heartbeat" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(200)
 Assert-True ($hbA.Json.terminalId -eq $TerminalA) 'heartbeat should keep terminal A lock'
 Write-Host '[OK] heartbeat'
 
-# 10) Open or reuse ticket
+# 11) Open or reuse ticket
 $ticketId = $candidate.ticketId
 if (-not $ticketId) {
   $opened = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/open-ticket" -Token $token -TerminalId $TerminalA -Expected @(201,409)
@@ -423,12 +465,12 @@ if (-not $ticketId) {
 }
 Write-Host "[OK] ticket id=$ticketId"
 
-# 11) Add line
+# 12) Add line
 $ticketAfterAdd = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$ticketId/lines" -Token $token -TerminalId $TerminalA -Body @{ productId = $productId; qty = 1 } -Expected @(201)
 Assert-True ($ticketAfterAdd.Json.lines.Count -gt 0) 'ticket should have at least one line after add'
 Write-Host '[OK] add line'
 
-# 11b) Edit unsent line (qty + price) and delete line
+# 12b) Edit unsent line (qty + price) and delete line
 $lineToEdit = @($ticketAfterAdd.Json.lines | Where-Object { -not $_.sent } | Select-Object -Last 1)
 Assert-True ($lineToEdit.Count -eq 1) 'should have one unsent line to edit'
 $lineId = [int64]$lineToEdit[0].id
@@ -451,18 +493,18 @@ $deletedLine = @($afterDelete.Json.lines | Where-Object { [int64]$_.id -eq $line
 Assert-True ($deletedLine.Count -eq 0) 'line should be removed after delete'
 Write-Host '[OK] edit line qty/price + delete line'
 
-# 12) Re-add line, then send preview + send
+# 13) Re-add line, then send preview + send
 $ticketAfterReAdd = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$ticketId/lines" -Token $token -TerminalId $TerminalA -Body @{ productId = $productId; qty = 1 } -Expected @(201)
 Assert-True ($ticketAfterReAdd.Json.lines.Count -gt 0) 'ticket should have at least one line after re-add'
 
-# 13) Send preview + send
+# 14) Send preview + send
 $preview = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$ticketId/send-preview" -Token $token -TerminalId $TerminalA -Expected @(200)
 Assert-True ($preview.Json.pendingLines.Count -gt 0) 'send-preview should include pending lines'
 $send = Invoke-Api -Method 'POST' -Path "/api/v1/pos/tickets/$ticketId/send" -Token $token -TerminalId $TerminalA -Body @{ destination = 'ALL' } -Expected @(200)
 Assert-True ($send.Json.sentCount -ge 1) 'send should report at least one sent line'
 Write-Host '[OK] send comanda'
 
-# 14) Payment summary and payment (full pending)
+# 15) Payment summary and payment (full pending)
 $summary = Invoke-Api -Method 'GET' -Path "/api/v1/pos/tickets/$ticketId/payment-summary" -Token $token -TerminalId $TerminalA -Expected @(200)
 $pending = [int]$summary.Json.pendingCents
 if ($pending -gt 0) {
@@ -473,11 +515,11 @@ if ($pending -gt 0) {
   Write-Host '[INFO] pending already 0, skipping payment'
 }
 
-# 15) Unlock cleanup
+# 16) Unlock cleanup
 $unlock = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$tableNumber/unlock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(204,409)
 if ($unlock.Status -eq 204) { Write-Host '[OK] unlock cleanup' } else { Write-Host '[INFO] unlock cleanup returned 409 (already released/expired)' }
 
-# 16) Offline/reconnect replay semantics via idempotency (SEND + PAYMENT)
+# 17) Offline/reconnect replay semantics via idempotency (SEND + PAYMENT)
 $tablesReplay = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
 $replayCandidate = $tablesReplay.Json | Where-Object {
   $_.tableNumber -ne $tableNumber -and $_.status -eq 'FREE' -and -not $_.lockedTerminalId -and -not $_.ticketId
@@ -540,7 +582,7 @@ Write-Host '[OK] idempotent replay for PAYMENT'
 $unlockReplay = Invoke-Api -Method 'POST' -Path "/api/v1/pos/salon/tables/$replayTable/unlock" -Token $token -TerminalId $TerminalA -Body @{ terminalId = $TerminalA } -Expected @(204,409)
 if ($unlockReplay.Status -eq 204) { Write-Host '[OK] unlock replay cleanup' } else { Write-Host '[INFO] unlock replay cleanup returned 409' }
 
-# 17) Concurrent move-table race (two tickets -> same destination)
+# 18) Concurrent move-table race (two tickets -> same destination)
 $tablesMove = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
 $moveCandidates = @($tablesMove.Json | Where-Object { $_.status -eq 'FREE' -and -not $_.lockedTerminalId -and -not $_.ticketId } | Select-Object -First 3)
 Assert-True ($moveCandidates.Count -ge 3) "need at least 3 free tables for move race (got $($moveCandidates.Count))"
@@ -583,7 +625,7 @@ if ($cancelWinner.Status -eq 200 -and $cancelLoser.Status -eq 200) {
   Write-Host '[INFO] cleanup move race tickets returned conflict on one ticket'
 }
 
-# 18) Partial payment race (same pending amount in parallel)
+# 19) Partial payment race (same pending amount in parallel)
 $tablesPayRace = Invoke-Api -Method 'GET' -Path '/api/v1/pos/salon/tables' -Token $token -TerminalId $TerminalA -Expected @(200)
 $payRaceCandidate = $tablesPayRace.Json | Where-Object { $_.status -eq 'FREE' -and -not $_.lockedTerminalId -and -not $_.ticketId } | Select-Object -First 1
 if (-not $payRaceCandidate) {
