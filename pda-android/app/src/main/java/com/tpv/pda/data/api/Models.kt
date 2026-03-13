@@ -25,6 +25,17 @@ data class SalonTableResponse(
     val lockExpiresAt: String?
 )
 
+data class TableLockRequest(
+    val terminalId: String
+)
+
+data class TableLockResponse(
+    val tableNumber: Int,
+    val terminalId: String,
+    val lockedBy: String?,
+    val expiresAt: String?
+)
+
 data class CategoryResponse(
     val id: Long,
     val name: String,

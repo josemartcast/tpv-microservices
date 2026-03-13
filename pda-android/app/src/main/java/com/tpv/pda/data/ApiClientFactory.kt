@@ -54,6 +54,7 @@ class ApiClientFactory {
                 if (terminalId.isNotBlank()) {
                     reqBuilder.header("X-Terminal-Id", terminalId)
                 }
+                reqBuilder.header("X-Client-App", "PDA")
                 chain.proceed(reqBuilder.build())
             })
         }

@@ -45,6 +45,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets").hasAnyRole("CAMARERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(RegexRequestMatcher.regexMatcher(HttpMethod.POST, "/api/v1/pos/tickets/?$")).hasAnyRole("CAMARERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/pay").denyAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/cancel-empty").hasAnyRole("CAMARERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/cancel").hasAnyRole("ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/payments").hasAnyRole("CAMARERO", "CAJERO", "ENCARGADO", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/pos/tickets/*/refunds").hasAnyRole("ENCARGADO", "ADMIN")

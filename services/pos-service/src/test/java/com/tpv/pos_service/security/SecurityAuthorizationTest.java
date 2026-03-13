@@ -7,6 +7,7 @@ import com.tpv.pos_service.domain.TicketStatus;
 import com.tpv.pos_service.dto.PaymentResponse;
 import com.tpv.pos_service.dto.TicketResponse;
 import com.tpv.pos_service.service.AuditService;
+import com.tpv.pos_service.service.InvoiceService;
 import com.tpv.pos_service.service.PaymentService;
 import com.tpv.pos_service.service.TicketService;
 import java.time.Instant;
@@ -45,6 +46,9 @@ class SecurityAuthorizationTest {
     private AuditService auditService;
 
     @MockitoBean
+    private InvoiceService invoiceService;
+
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
@@ -74,11 +78,11 @@ class SecurityAuthorizationTest {
     }
 
     @Test
-    void addPayment_deniesCamareroRole() throws Exception {
+    void addPayment_deniesUnknownRole() throws Exception {
         mockMvc.perform(post("/api/v1/pos/tickets/1/payments")
                 .contentType("application/json")
                 .content("{\"method\":\"CASH\",\"amountCents\":100}")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -92,6 +96,22 @@ class SecurityAuthorizationTest {
                 .content("{\"method\":\"CASH\",\"amountCents\":100}")
                 .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void cancelEmpty_allowsCamareroRole() throws Exception {
+        when(ticketService.cancelIfEmpty(anyLong())).thenReturn(sampleTicket());
+
+        mockMvc.perform(post("/api/v1/pos/tickets/1/cancel-empty")
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void cancel_deniesCamareroRole() throws Exception {
+        mockMvc.perform(post("/api/v1/pos/tickets/1/cancel")
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CAMARERO"))))
+                .andExpect(status().isForbidden());
     }
 
     @Test

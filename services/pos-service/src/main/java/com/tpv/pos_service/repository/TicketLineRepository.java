@@ -14,6 +14,7 @@ public interface TicketLineRepository extends JpaRepository<TicketLine, Long> {
     Optional<TicketLine> findFirstByTicketIdAndProduct_IdAndSentFalseOrderByIdAsc(Long ticketId, Long productId);
 
     Optional<TicketLine> findByIdAndTicketId(Long id, Long ticketId);
+    long countByTicket_IdAndQtyGreaterThan(Long ticketId, int qty);
 
     void deleteAllByTicketId(Long ticketId);
 

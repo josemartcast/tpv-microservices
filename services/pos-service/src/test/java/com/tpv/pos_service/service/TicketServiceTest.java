@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import org.mockito.ArgumentCaptor;
@@ -141,5 +142,47 @@ class TicketServiceTest {
         assertEquals(10L, result.get(0).id());
         assertEquals("OPEN", result.get(0).status().name());
         assertEquals("PAID", result.get(1).status().name());
+    }
+
+    @Test
+    void cancelIfEmpty_cancelsOpenTicketWithoutLines() {
+        CashSession cashSession = new CashSession(0, "admin", null);
+        Ticket ticket = new Ticket(cashSession, 7);
+        ReflectionTestUtils.setField(ticket, "id", 99L);
+
+        when(ticketRepo.findByIdForUpdate(99L)).thenReturn(Optional.of(ticket));
+        when(lineRepo.countByTicket_IdAndQtyGreaterThan(99L, 0)).thenReturn(0L);
+        when(lineRepo.findAllByTicketIdOrderByIdAsc(99L)).thenReturn(List.of());
+
+        TicketResponse response = service.cancelIfEmpty(99L);
+
+        assertEquals(TicketStatus.CANCELLED, response.status());
+        assertEquals(TicketStatus.CANCELLED, ticket.getStatus());
+    }
+
+    @Test
+    void cancelIfEmpty_rejectsWhenTicketHasLines() {
+        CashSession cashSession = new CashSession(0, "admin", null);
+        Ticket ticket = new Ticket(cashSession, 7);
+        ReflectionTestUtils.setField(ticket, "id", 100L);
+
+        when(ticketRepo.findByIdForUpdate(100L)).thenReturn(Optional.of(ticket));
+        when(lineRepo.countByTicket_IdAndQtyGreaterThan(100L, 0)).thenReturn(2L);
+
+        assertThrows(ConflictException.class, () -> service.cancelIfEmpty(100L));
+        verify(lineRepo, org.mockito.Mockito.never()).findAllByTicketIdOrderByIdAsc(eq(100L));
+    }
+
+    @Test
+    void cancelIfEmpty_rejectsWhenTicketIsNotOpen() {
+        CashSession cashSession = new CashSession(0, "admin", null);
+        Ticket ticket = new Ticket(cashSession, 7);
+        ticket.markPaid();
+        ReflectionTestUtils.setField(ticket, "id", 101L);
+
+        when(ticketRepo.findByIdForUpdate(101L)).thenReturn(Optional.of(ticket));
+
+        assertThrows(ConflictException.class, () -> service.cancelIfEmpty(101L));
+        verify(lineRepo, org.mockito.Mockito.never()).countByTicket_IdAndQtyGreaterThan(eq(101L), eq(0));
     }
 }

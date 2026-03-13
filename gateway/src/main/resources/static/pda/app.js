@@ -745,8 +745,16 @@
     state.lockLeaseExpiresAt = null;
   }
 
+  async function cancelTicket(ticketId) {
+    if (!ticketId) {
+      return;
+    }
+    await apiJson("/api/v1/pos/tickets/" + ticketId + "/cancel-empty", { method: "POST" });
+  }
+
   async function leaveTableAndBack() {
     const tableNumber = state.currentTableNumber;
+    const currentTicket = state.currentTicket;
     stopHeartbeat();
     state.currentTableNumber = null;
     state.currentTicket = null;
@@ -759,6 +767,16 @@
     startTablesPolling();
     await refreshTablesSafe();
     if (!tableNumber) { return; }
+    if (currentTicket && currentTicket.id && Array.isArray(currentTicket.lines) && currentTicket.lines.length === 0) {
+      try {
+        await cancelTicket(currentTicket.id);
+      } catch (err) {
+        if (err.status !== 404 && err.status !== 409) {
+          pushError(err);
+          toast("No se pudo cerrar ticket vacio: " + err.message);
+        }
+      }
+    }
     try {
       await unlockTable(tableNumber);
     } catch (err) {

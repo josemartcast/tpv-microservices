@@ -222,6 +222,25 @@ public class TicketService {
     }
 
     @Transactional
+    public TicketResponse cancelIfEmpty(Long ticketId) {
+        Ticket t = ticketRepo.findByIdForUpdate(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+
+        if (t.getStatus() != TicketStatus.OPEN) {
+            throw new ConflictException("Only OPEN tickets can be auto-cancelled");
+        }
+
+        long activeLines = lineRepo.countByTicket_IdAndQtyGreaterThan(ticketId, 0);
+        if (activeLines > 0) {
+            throw new ConflictException("Ticket is not empty and cannot be auto-cancelled");
+        }
+
+        t.cancel();
+        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+        return toResponse(t, lines);
+    }
+
+    @Transactional
     public TicketResponse setBillRequested(Long ticketId, boolean requested) {
         Ticket t = getOpenTicket(ticketId);
         t.setBillRequested(requested);

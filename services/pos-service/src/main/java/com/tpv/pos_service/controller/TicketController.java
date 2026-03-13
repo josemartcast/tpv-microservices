@@ -181,6 +181,24 @@ public class TicketController {
         }
     }
 
+    @PostMapping("/{id}/cancel-empty")
+    public TicketResponse cancelEmpty(
+            @PathVariable Long id,
+            Authentication auth,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            TicketResponse response = service.cancelIfEmpty(id);
+            auditService.recordSuccess("TICKET_CANCEL_EMPTY", "TICKET", id, actor, term, null, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("TICKET_CANCEL_EMPTY", "TICKET", id, actor, term, null, e);
+            throw e;
+        }
+    }
+
     @PostMapping("/{id}/bill-requested")
     public TicketResponse setBillRequested(
             @PathVariable Long id,

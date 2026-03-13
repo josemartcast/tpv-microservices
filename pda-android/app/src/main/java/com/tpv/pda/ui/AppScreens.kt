@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tpv.pda.data.api.ProductResponse
 import com.tpv.pda.data.api.SalonTableResponse
@@ -310,6 +311,8 @@ private fun OrderScreen(
     val topScroll = rememberScrollState()
     val config = LocalConfiguration.current
     val isCompactMobile = config.screenWidthDp < 600
+
+    BackHandler(onBack = onBack)
 
     Column(
         modifier = modifier.padding(8.dp),

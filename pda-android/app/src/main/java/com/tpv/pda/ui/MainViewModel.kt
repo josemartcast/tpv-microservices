@@ -11,13 +11,17 @@ import com.tpv.pda.data.api.CategoryResponse
 import com.tpv.pda.data.api.LoginRequest
 import com.tpv.pda.data.api.ProductResponse
 import com.tpv.pda.data.api.SalonTableResponse
+import com.tpv.pda.data.api.TableLockRequest
 import com.tpv.pda.data.api.TicketResponse
 import com.tpv.pda.data.api.UpdateLinePriceRequest
 import com.tpv.pda.data.api.UpdateLineQtyRequest
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -50,9 +54,15 @@ data class MainUiState(
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
+    companion object {
+        private const val HEARTBEAT_MS = 10_000L
+    }
+
     private val sessionStore = SessionStore(app.applicationContext)
     private val apiFactory = ApiClientFactory()
     private val productsCache = linkedMapOf<Long, List<ProductResponse>>()
+    private var lockHeartbeatJob: Job? = null
+    private var lockedTableNumber: Int? = null
 
     private val _ui = MutableStateFlow(MainUiState())
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
@@ -133,23 +143,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun logout() {
-        sessionStore.clearToken()
-        productsCache.clear()
-        _ui.update {
-            it.copy(
-                token = "",
-                loggedIn = false,
-                tables = emptyList(),
-                currentTable = null,
-                currentTicket = null,
-                categories = emptyList(),
-                products = emptyList(),
-                activeCategoryId = null,
-                selectedLineId = null,
-                password = "",
-                screen = ScreenMode.LOGIN,
-                message = "Sesion cerrada"
-            )
+        val tableToUnlock = _ui.value.currentTable?.tableNumber ?: lockedTableNumber
+        val emptyTicketId = _ui.value.currentTicket?.takeIf { it.lines.isEmpty() }?.id
+        viewModelScope.launch {
+            cancelEmptyTicket(emptyTicketId, reportErrors = false)
+            releaseLock(tableToUnlock, reportErrors = false)
+            lockHeartbeatJob?.cancel()
+            lockHeartbeatJob = null
+            lockedTableNumber = null
+            sessionStore.clearToken()
+            productsCache.clear()
+            _ui.update {
+                it.copy(
+                    token = "",
+                    loggedIn = false,
+                    tables = emptyList(),
+                    currentTable = null,
+                    currentTicket = null,
+                    categories = emptyList(),
+                    products = emptyList(),
+                    activeCategoryId = null,
+                    selectedLineId = null,
+                    password = "",
+                    screen = ScreenMode.LOGIN,
+                    message = "Sesion cerrada"
+                )
+            }
         }
     }
 
@@ -190,9 +209,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null, message = null) }
+            val tableNumber = table.tableNumber
+            var locked = false
             try {
                 val pos = posApi()
-                val ticket = table.ticketId?.let { pos.getTicket(it) } ?: pos.openTicket(table.tableNumber)
+                pos.lockTable(tableNumber, TableLockRequest(state.terminalId))
+                locked = true
+                lockedTableNumber = tableNumber
+                startHeartbeat(tableNumber)
+
+                val ticket = table.ticketId?.let { pos.getTicket(it) } ?: pos.openTicket(tableNumber)
 
                 val categories = if (state.categories.isNotEmpty()) {
                     state.categories
@@ -218,18 +244,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         products = products,
                         selectedLineId = null,
                         qtyInput = "1",
-                        message = "Mesa ${table.tableNumber} abierta"
+                        message = "Mesa $tableNumber abierta"
                     )
                 }
                 refreshOrderSummaries(ticket.id)
                 refreshTablesSilent()
             } catch (e: Exception) {
+                if (locked) {
+                    releaseLock(tableNumber, reportErrors = false)
+                }
+                lockHeartbeatJob?.cancel()
+                lockHeartbeatJob = null
+                lockedTableNumber = null
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo abrir mesa", e)) }
             }
         }
     }
 
     fun backToTables() {
+        val tableToUnlock = _ui.value.currentTable?.tableNumber ?: lockedTableNumber
+        val emptyTicketId = _ui.value.currentTicket?.takeIf { it.lines.isEmpty() }?.id
+        lockHeartbeatJob?.cancel()
+        lockHeartbeatJob = null
+        lockedTableNumber = null
         _ui.update {
             it.copy(
                 screen = ScreenMode.TABLES,
@@ -239,7 +276,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 qtyInput = "1"
             )
         }
-        refreshTablesSilent()
+        viewModelScope.launch {
+            cancelEmptyTicket(emptyTicketId, reportErrors = true)
+            releaseLock(tableToUnlock, reportErrors = true)
+            refreshTablesSilent()
+        }
     }
 
     fun selectCategory(categoryId: Long) {
@@ -421,6 +462,73 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun startHeartbeat(tableNumber: Int) {
+        lockHeartbeatJob?.cancel()
+        lockHeartbeatJob = viewModelScope.launch {
+            while (isActive) {
+                delay(HEARTBEAT_MS)
+                try {
+                    val terminalId = _ui.value.terminalId.trim()
+                    if (terminalId.isBlank()) continue
+                    posApi().heartbeatTable(tableNumber, TableLockRequest(terminalId))
+                } catch (_: Exception) {
+                    try {
+                        val terminalId = _ui.value.terminalId.trim()
+                        if (terminalId.isNotBlank()) {
+                            posApi().lockTable(tableNumber, TableLockRequest(terminalId))
+                            _ui.update {
+                                it.copy(message = "Lock recuperado en mesa $tableNumber")
+                            }
+                            continue
+                        }
+                    } catch (_: Exception) {
+                    }
+
+                    lockedTableNumber = null
+                    _ui.update {
+                        it.copy(
+                            screen = ScreenMode.TABLES,
+                            currentTable = null,
+                            currentTicket = null,
+                            selectedLineId = null,
+                            qtyInput = "1",
+                            error = "Se perdio el lock de mesa $tableNumber. Vuelve a abrir la mesa."
+                        )
+                    }
+                    refreshTablesSilent()
+                    break
+                }
+            }
+        }
+    }
+
+    private suspend fun releaseLock(tableNumber: Int?, reportErrors: Boolean) {
+        if (tableNumber == null) return
+        val terminalId = _ui.value.terminalId.trim()
+        if (terminalId.isBlank()) return
+        try {
+            posApi().unlockTable(tableNumber, TableLockRequest(terminalId))
+        } catch (e: Exception) {
+            if (reportErrors) {
+                _ui.update { it.copy(error = errorText("No se pudo liberar lock mesa $tableNumber", e)) }
+            }
+        }
+    }
+
+    private suspend fun cancelEmptyTicket(ticketId: Long?, reportErrors: Boolean) {
+        if (ticketId == null) return
+        try {
+            posApi().cancelEmptyTicket(ticketId)
+        } catch (e: Exception) {
+            if (e is HttpException && (e.code() == 404 || e.code() == 409)) {
+                return
+            }
+            if (reportErrors) {
+                _ui.update { it.copy(error = errorText("No se pudo cerrar ticket vacio $ticketId", e)) }
+            }
+        }
+    }
+
     private suspend fun loadProductsForCategory(categoryId: Long, pos: com.tpv.pda.data.api.PosApi): List<ProductResponse> {
         val cached = productsCache[categoryId]
         if (cached != null) return cached
@@ -466,4 +574,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun toEur(cents: Int): String = String.format("%.2f EUR", cents / 100.0)
+
+    override fun onCleared() {
+        lockHeartbeatJob?.cancel()
+        lockHeartbeatJob = null
+        super.onCleared()
+    }
 }

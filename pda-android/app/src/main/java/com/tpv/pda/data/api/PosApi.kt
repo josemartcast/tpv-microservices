@@ -12,6 +12,24 @@ interface PosApi {
     @GET("/api/v1/pos/salon/tables")
     suspend fun listTables(): List<SalonTableResponse>
 
+    @POST("/api/v1/pos/salon/tables/{tableNumber}/lock")
+    suspend fun lockTable(
+        @Path("tableNumber") tableNumber: Int,
+        @Body request: TableLockRequest
+    ): TableLockResponse
+
+    @POST("/api/v1/pos/salon/tables/{tableNumber}/heartbeat")
+    suspend fun heartbeatTable(
+        @Path("tableNumber") tableNumber: Int,
+        @Body request: TableLockRequest
+    ): TableLockResponse
+
+    @POST("/api/v1/pos/salon/tables/{tableNumber}/unlock")
+    suspend fun unlockTable(
+        @Path("tableNumber") tableNumber: Int,
+        @Body request: TableLockRequest
+    )
+
     @POST("/api/v1/pos/salon/tables/{tableNumber}/open-ticket")
     suspend fun openTicket(@Path("tableNumber") tableNumber: Int): TicketResponse
 
@@ -43,6 +61,9 @@ interface PosApi {
 
     @DELETE("/api/v1/pos/tickets/{id}/lines/{lineId}")
     suspend fun deleteLine(@Path("id") id: Long, @Path("lineId") lineId: Long): TicketResponse
+
+    @POST("/api/v1/pos/tickets/{id}/cancel-empty")
+    suspend fun cancelEmptyTicket(@Path("id") id: Long): TicketResponse
 
     @GET("/api/v1/pos/tickets/{id}/send-preview")
     suspend fun sendPreview(@Path("id") id: Long): SendPreviewResponse
