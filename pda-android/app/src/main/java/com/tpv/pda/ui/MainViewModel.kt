@@ -143,11 +143,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun logout() {
-        val tableToUnlock = _ui.value.currentTable?.tableNumber ?: lockedTableNumber
-        val emptyTicketId = _ui.value.currentTicket?.takeIf { it.lines.isEmpty() }?.id
+        val exitPlan = TableExitPolicy.buildPlan(
+            currentTable = _ui.value.currentTable,
+            currentTicket = _ui.value.currentTicket,
+            lockedTableNumber = lockedTableNumber
+        )
         viewModelScope.launch {
-            cancelEmptyTicket(emptyTicketId, reportErrors = false)
-            releaseLock(tableToUnlock, reportErrors = false)
+            cancelEmptyTicket(exitPlan.emptyTicketToCancel, reportErrors = false)
+            releaseLock(exitPlan.tableToUnlock, reportErrors = false)
             lockHeartbeatJob?.cancel()
             lockHeartbeatJob = null
             lockedTableNumber = null
@@ -262,8 +265,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun backToTables() {
-        val tableToUnlock = _ui.value.currentTable?.tableNumber ?: lockedTableNumber
-        val emptyTicketId = _ui.value.currentTicket?.takeIf { it.lines.isEmpty() }?.id
+        val exitPlan = TableExitPolicy.buildPlan(
+            currentTable = _ui.value.currentTable,
+            currentTicket = _ui.value.currentTicket,
+            lockedTableNumber = lockedTableNumber
+        )
         lockHeartbeatJob?.cancel()
         lockHeartbeatJob = null
         lockedTableNumber = null
@@ -277,8 +283,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         viewModelScope.launch {
-            cancelEmptyTicket(emptyTicketId, reportErrors = true)
-            releaseLock(tableToUnlock, reportErrors = true)
+            cancelEmptyTicket(exitPlan.emptyTicketToCancel, reportErrors = true)
+            releaseLock(exitPlan.tableToUnlock, reportErrors = true)
             refreshTablesSilent()
         }
     }

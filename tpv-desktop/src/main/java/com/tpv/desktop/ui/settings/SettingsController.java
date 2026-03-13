@@ -15,11 +15,15 @@ import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.ui.UiDialogs;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.awt.Desktop;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,6 +41,7 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.stage.DirectoryChooser;
 
 public class SettingsController {
   private static final String CONNECTIVITY_DIR = ".tpv-desktop/connectivity";
@@ -442,6 +447,103 @@ public class SettingsController {
   }
 
   @FXML
+  public void onCreateBackup() {
+    try {
+      Path repoRoot = resolveRepoRoot();
+      Path script = repoRoot.resolve("scripts").resolve("db-backup.ps1");
+      if (!Files.exists(script)) {
+        UiDialogs.error("Backup", "No se encontro script:\n" + script);
+        return;
+      }
+      Path backupRoot = repoRoot.resolve(".backups");
+      Files.createDirectories(backupRoot);
+      statusLabel.setText("Creando backup...");
+      String output = runPowerShellScript(repoRoot, script, List.of(
+              "-OutputRoot", backupRoot.toString()
+      ));
+      statusLabel.setText("Backup completado.");
+      UiDialogs.info("Backup", "Backup completado.\n\n" + trimForDialog(output));
+    } catch (Exception e) {
+      String msg = "No se pudo crear backup:\n" + e.getMessage();
+      statusLabel.setText(msg);
+      UiDialogs.error("Backup", msg);
+    }
+  }
+
+  @FXML
+  public void onRestoreBackup() {
+    try {
+      Path repoRoot = resolveRepoRoot();
+      Path script = repoRoot.resolve("scripts").resolve("db-restore.ps1");
+      if (!Files.exists(script)) {
+        UiDialogs.error("Restore", "No se encontro script:\n" + script);
+        return;
+      }
+      Path backupRoot = repoRoot.resolve(".backups");
+      Files.createDirectories(backupRoot);
+
+      DirectoryChooser chooser = new DirectoryChooser();
+      chooser.setTitle("Selecciona carpeta de backup");
+      chooser.setInitialDirectory(backupRoot.toFile());
+      var selected = chooser.showDialog(statusLabel.getScene().getWindow());
+      if (selected == null) {
+        return;
+      }
+      Path backupDir = selected.toPath();
+      if (!Files.isDirectory(backupDir)) {
+        UiDialogs.warn("Restore", "Seleccion no valida.");
+        return;
+      }
+
+      boolean confirm = UiDialogs.confirm(
+              "Restaurar backup",
+              "Se restauraran las bases tpv_auth y tpv_pos desde:\n" + backupDir + "\n\nEsto sobrescribe datos actuales. Continuar?"
+      );
+      if (!confirm) {
+        return;
+      }
+      boolean confirm2 = UiDialogs.confirm(
+              "Confirmacion final",
+              "Ultima confirmacion: vas a sobrescribir la base de datos actual.\n\nQuieres continuar con la restauracion?"
+      );
+      if (!confirm2) {
+        return;
+      }
+
+      statusLabel.setText("Restaurando backup...");
+      String output = runPowerShellScript(repoRoot, script, List.of(
+              "-BackupDir", backupDir.toString(),
+              "-AllowProductionRestore"
+      ));
+      statusLabel.setText("Restore completado.");
+      UiDialogs.info("Restore", "Restore completado.\n\n" + trimForDialog(output));
+    } catch (Exception e) {
+      String msg = "No se pudo restaurar backup:\n" + e.getMessage();
+      statusLabel.setText(msg);
+      UiDialogs.error("Restore", msg);
+    }
+  }
+
+  @FXML
+  public void onOpenBackupsFolder() {
+    try {
+      Path repoRoot = resolveRepoRoot();
+      Path backupRoot = repoRoot.resolve(".backups");
+      Files.createDirectories(backupRoot);
+      if (!Desktop.isDesktopSupported()) {
+        statusLabel.setText("No se puede abrir explorador en este sistema.");
+        return;
+      }
+      Desktop.getDesktop().open(backupRoot.toFile());
+      statusLabel.setText("Carpeta de backups abierta.");
+    } catch (Exception e) {
+      String msg = "No se pudo abrir carpeta backups: " + e.getMessage();
+      statusLabel.setText(msg);
+      UiDialogs.error("Backups", msg);
+    }
+  }
+
+  @FXML
   public void onPrinterSave() {
     String logicalName = normalize(printerLogicalNameField == null ? "" : printerLogicalNameField.getText());
     String destination = normalize(printerDestinationCombo == null ? "" : printerDestinationCombo.getValue()).toUpperCase(Locale.ROOT);
@@ -675,5 +777,58 @@ public class SettingsController {
     if (printerEnabledCheck != null) {
       printerEnabledCheck.setSelected(true);
     }
+  }
+
+  private static Path resolveRepoRoot() {
+    Path current = Paths.get(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
+    for (int i = 0; i < 8 && current != null; i++) {
+      Path backup = current.resolve("scripts").resolve("db-backup.ps1");
+      Path restore = current.resolve("scripts").resolve("db-restore.ps1");
+      if (Files.exists(backup) && Files.exists(restore)) {
+        return current;
+      }
+      current = current.getParent();
+    }
+    throw new IllegalStateException("No se encontro la raiz del repo (scripts/db-backup.ps1).");
+  }
+
+  private static String runPowerShellScript(Path workDir, Path script, List<String> args) throws Exception {
+    List<String> command = new ArrayList<>();
+    command.add("powershell");
+    command.add("-NoProfile");
+    command.add("-ExecutionPolicy");
+    command.add("Bypass");
+    command.add("-File");
+    command.add(script.toString());
+    command.addAll(args);
+
+    ProcessBuilder pb = new ProcessBuilder(command);
+    pb.directory(workDir.toFile());
+    pb.redirectErrorStream(true);
+    Process process = pb.start();
+
+    StringBuilder output = new StringBuilder();
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        output.append(line).append('\n');
+      }
+    }
+    int exit = process.waitFor();
+    if (exit != 0) {
+      throw new IllegalStateException("Exit code " + exit + "\n" + output);
+    }
+    return output.toString();
+  }
+
+  private static String trimForDialog(String value) {
+    if (value == null || value.isBlank()) {
+      return "(sin salida)";
+    }
+    String trimmed = value.trim();
+    if (trimmed.length() <= 2000) {
+      return trimmed;
+    }
+    return trimmed.substring(0, 2000) + "\n...(truncado)";
   }
 }
