@@ -8,6 +8,7 @@ import com.tpv.desktop.tpv.domain.model.OrderLine;
 import com.tpv.desktop.tpv.domain.model.Product;
 import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
+import com.tpv.desktop.core.PrinterSettingsStore;
 import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.ui.controllers.components.ProductButtonController;
 import com.tpv.desktop.tpv.ui.controllers.components.TicketLineCellController;
@@ -58,6 +59,7 @@ public class OrderController {
     @FXML private Button prebillBtn;
     @FXML private Button moveBtn;
     @FXML private Button discountBtn;
+    @FXML private Button openDrawerBtn;
     @FXML private Button noteBtn;
     @FXML private Button deleteBtn;
     @FXML private Button editBtn;
@@ -416,6 +418,27 @@ public class OrderController {
     }
 
     @FXML
+    public void onOpenDrawer() {
+        try {
+            String printerName = resolveDrawerPrinter();
+            if (printerName == null || printerName.isBlank()) {
+                String msg = "No hay impresora configurada para abrir cajon. Configura una impresora en Settings.";
+                feedbackLabel.setText(msg);
+                showInfoDialog("Abrir cajon", msg);
+                return;
+            }
+            PrintUtil.openCashDrawer(printerName);
+            String msg = "Senal de apertura enviada a: " + printerName;
+            feedbackLabel.setText(msg);
+            showInfoDialog("Abrir cajon", msg);
+        } catch (Exception e) {
+            String msg = "No se pudo abrir cajon: " + e.getMessage();
+            feedbackLabel.setText(msg);
+            showErrorDialog("Abrir cajon", msg);
+        }
+    }
+
+    @FXML
     public void onNote() {
         TextInputDialog d = new TextInputDialog("");
         d.setHeaderText("Nota para ultima linea pendiente");
@@ -723,6 +746,27 @@ public class OrderController {
 
     private static String money(int cents) {
         return String.format(Locale.US, "%.2f EUR", cents / 100.0);
+    }
+
+    private String resolveDrawerPrinter() {
+        String printer = firstUsablePrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("ALL"));
+        if (printer != null) return printer;
+        printer = firstUsablePrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("BAR"));
+        if (printer != null) return printer;
+        printer = firstUsablePrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("COCINA"));
+        if (printer != null) return printer;
+        return firstUsablePrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("POSTRES"));
+    }
+
+    private static String firstUsablePrinter(java.util.List<String> printers) {
+        if (printers == null) return null;
+        for (String p : printers) {
+            if (p == null || p.isBlank()) continue;
+            String lower = p.toLowerCase(Locale.ROOT);
+            if (lower.contains("pdf")) continue;
+            return p.trim();
+        }
+        return null;
     }
 
     private String buildPrebillText() {

@@ -68,6 +68,7 @@
         <Button fx:id="prebillBtn" text="IMPRIMIR PRECUENTA" onAction="#onPrebill" styleClass="action-btn-green"/>
         <Button fx:id="moveBtn" text="Mover Mesa" onAction="#onMoveTable" styleClass="action-btn-dark"/>
         <Button fx:id="discountBtn" text="Descuento" onAction="#onDiscount" styleClass="action-btn-danger"/>
+        <Button fx:id="openDrawerBtn" text="Abrir Cajón" onAction="#onOpenDrawer" styleClass="action-btn-dark"/>
         <Region VBox.vgrow="ALWAYS"/>
         <Label fx:id="feedbackLabel" text="" styleClass="feedback-label" wrapText="true"/>
       </VBox>

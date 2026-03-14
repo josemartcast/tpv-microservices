@@ -40,6 +40,7 @@ logs/
 .runlogs/
 .backups/
 tools/cloudflared.exe
+tools/wix314/
 
 ############################
 # Environment / Secrets
