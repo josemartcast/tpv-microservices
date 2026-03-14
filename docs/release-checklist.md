@@ -25,6 +25,7 @@ Estado: COMPLETADO (2026-02-27)
 - Logs activos y rotacion configurada.
 - NTP/hora correcta en portatil TPV y dispositivos PDA.
 - Prueba de arranque en frio (reinicio completo y recuperacion).
+- Acceso PDA remoto validado via Tailscale (ver `docs/pda-tailscale-setup.md`).
 
 ## 4) Impresion y perifericos
 - Prueba de comanda BAR/COCINA en impresora termica real.
