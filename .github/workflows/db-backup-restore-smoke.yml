@@ -1,0 +1,153 @@
+name: DB Backup Restore Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  db-backup-restore-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Start MySQL container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker rm -f tpv-mysql >/dev/null 2>&1 || true
+          docker run -d --name tpv-mysql \
+            -e MYSQL_ROOT_PASSWORD=root \
+            -p 3306:3306 \
+            mysql:8.0 \
+            --character-set-server=utf8mb4 \
+            --collation-server=utf8mb4_unicode_ci
+
+          for _ in $(seq 1 120); do
+            if docker exec tpv-mysql mysqladmin ping -h 127.0.0.1 -uroot -proot --silent >/dev/null 2>&1; then
+              echo "MySQL is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "MySQL did not become ready in time"
+          docker logs tpv-mysql || true
+          exit 1
+
+      - name: Run services + backup restore smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          chmod +x services/auth-service/mvnw services/pos-service/mvnw
+
+          cleanup() {
+            set +e
+            if [ -f .ci-logs/auth-service.pid ]; then kill "$(cat .ci-logs/auth-service.pid)" >/dev/null 2>&1 || true; fi
+            if [ -f .ci-logs/pos-service.pid ]; then kill "$(cat .ci-logs/pos-service.pid)" >/dev/null 2>&1 || true; fi
+            docker rm -f tpv-mysql >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          (
+            cd services/auth-service
+            DB_URL='jdbc:mysql://127.0.0.1:3306/tpv_auth?createDatabaseIfNotExist=true' \
+            DB_USERNAME='root' \
+            DB_PASSWORD='root' \
+            JWT_SECRET='1234567890123456789012345678901234567890123456789012345678901234' \
+            ./mvnw -q -DskipTests spring-boot:run
+          ) > .ci-logs/auth-service.log 2>&1 &
+          echo $! > .ci-logs/auth-service.pid
+
+          (
+            cd services/pos-service
+            DB_URL='jdbc:mysql://127.0.0.1:3306/tpv_pos?createDatabaseIfNotExist=true' \
+            DB_USERNAME='root' \
+            DB_PASSWORD='root' \
+            JWT_SECRET='1234567890123456789012345678901234567890123456789012345678901234' \
+            ./mvnw -q -DskipTests spring-boot:run
+          ) > .ci-logs/pos-service.log 2>&1 &
+          echo $! > .ci-logs/pos-service.pid
+
+          wait_for_port() {
+            local name="$1"
+            local port="$2"
+            local pid_file="$3"
+            local log_file="$4"
+
+            echo "Waiting for $name on port $port..."
+            for _ in $(seq 1 300); do
+              if timeout 1 bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
+                echo "Port $port is up ($name)"
+                return 0
+              fi
+              if [ -f "$pid_file" ]; then
+                local pid
+                pid="$(cat "$pid_file")"
+                if ! kill -0 "$pid" >/dev/null 2>&1; then
+                  echo "$name exited before opening port $port"
+                  echo "=== $log_file (tail) ==="
+                  tail -n 400 "$log_file" || true
+                  return 1
+                fi
+              fi
+              sleep 1
+            done
+            echo "Port $port did not open in time ($name)"
+            echo "=== $log_file (tail) ==="
+            tail -n 400 "$log_file" || true
+            return 1
+          }
+
+          wait_for_port "auth-service" 8081 ".ci-logs/auth-service.pid" ".ci-logs/auth-service.log"
+          wait_for_port "pos-service" 8082 ".ci-logs/pos-service.pid" ".ci-logs/pos-service.log"
+
+          # Ensure DB schema is present before running smoke
+          for _ in $(seq 1 60); do
+            POS_TABLES="$(docker exec tpv-mysql mysql -uroot -proot -Nse "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='tpv_pos';" || echo 0)"
+            AUTH_TABLES="$(docker exec tpv-mysql mysql -uroot -proot -Nse "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='tpv_auth';" || echo 0)"
+            if [ "${POS_TABLES:-0}" -gt 0 ] && [ "${AUTH_TABLES:-0}" -gt 0 ]; then
+              echo "Schema detected: tpv_auth=$AUTH_TABLES tpv_pos=$POS_TABLES"
+              break
+            fi
+            sleep 1
+          done
+
+          pwsh -NoProfile -File ./scripts/db-backup-restore-smoke.ps1 \
+            -Container "tpv-mysql" \
+            -RootPassword "root" \
+            -OutputRoot ".backups" \
+            2>&1 | tee .ci-logs/db-backup-restore-smoke.log
+
+      - name: Print logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo "=== auth-service.log ==="
+          tail -n 300 .ci-logs/auth-service.log || true
+          echo "=== pos-service.log ==="
+          tail -n 300 .ci-logs/pos-service.log || true
+          echo "=== db-backup-restore-smoke.log ==="
+          tail -n 300 .ci-logs/db-backup-restore-smoke.log || true
+          echo "=== docker logs tpv-mysql ==="
+          docker logs tpv-mysql | tail -n 300 || true
+
+      - name: Upload logs and backup artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-restore-smoke
+          path: |
+            .ci-logs/
+            .backups/
+          if-no-files-found: ignore
+
