@@ -1,23 +1,36 @@
 # Instalacion Windows Bar (TPV + Backend)
 
-## 1. Generar paquete en equipo de desarrollo
+## 1. Generar instalador maestro en equipo de desarrollo
 
 Desde la raiz del repo:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-installer.ps1 -Version 1.0.0-rc2
+powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-setup-exe.ps1 -Version 1.0.0-rc2 -SkipPackageBuild
 ```
 
 Salida:
 
 - Carpeta: `dist\bar-package-1.0.0-rc2\`
 - ZIP: `dist\bar-package-1.0.0-rc2.zip`
+- Instalador maestro: `dist\TPV-Bar-Setup-1.0.0-rc2.exe`
 
-## 2. Copiar paquete al portatil del bar
+## 2. Instalacion en portatil limpio (recomendado)
+
+Copiar `dist\TPV-Bar-Setup-<version>.exe` al portatil destino y ejecutar **como Administrador**.
+
+El instalador maestro hace:
+
+- copia runtime a `C:\TPV-Bar`
+- instala prerequisitos (Git, JDK 21, Docker Desktop; Tailscale opcional)
+- instala TPV Desktop
+- crea accesos directos en escritorio:
+  - `Iniciar TPV (Backend + UI)`
+  - `Parar Backend TPV`
+
+## 3. Modo manual (si no usas instalador maestro)
 
 Copiar el contenido de `dist\bar-package-<version>\` al portatil destino.
-
-## 3. Instalar prerequisitos en portatil del bar
 
 Abrir PowerShell como administrador y ejecutar:
 
@@ -32,7 +45,7 @@ Esto instala:
 - Docker Desktop (si no existe)
 - Tailscale (si se usa opcion `-InstallTailscale`)
 
-## 4. Instalar TPV Desktop (EXE)
+## 4. Instalar TPV Desktop (manual)
 
 En `.\installers\`, ejecutar el instalador `TPV-Desktop-*.exe`.
 
