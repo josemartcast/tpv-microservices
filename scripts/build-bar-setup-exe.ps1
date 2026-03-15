@@ -10,21 +10,38 @@ function Invoke-Step([string]$Title, [scriptblock]$Action) {
     & $Action
 }
 
-function Ensure-Command([string]$Name, [string]$Hint) {
-    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "No se encontro '$Name'. $Hint"
+function Ensure-CSharpCompiler {
+    $csc = Get-Command csc.exe -ErrorAction SilentlyContinue
+    if ($csc) {
+        return $csc.Source
     }
+
+    $frameworkCandidates = @(
+        "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe",
+        "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+    )
+
+    foreach ($candidate in $frameworkCandidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    throw "No se encontro compilador C# (csc.exe)."
 }
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $PayloadZip = Join-Path $RepoRoot ("dist\bar-package-" + $Version + ".zip")
 $BuildDir = Join-Path $RepoRoot ("dist\setup-builder-" + $Version)
+$BundleDir = Join-Path $BuildDir "bundle"
+$BundleZip = Join-Path $BuildDir "bundle.zip"
+$StubExe = Join-Path $BuildDir "TPV-Bar-Setup.stub.exe"
 $OutputExe = Join-Path $RepoRoot ("dist\TPV-Bar-Setup-" + $Version + ".exe")
-$SedPath = Join-Path $BuildDir "tpv-bar-setup.sed"
+$BootstrapperCs = Join-Path $PSScriptRoot "bar-installer\SetupBootstrapper.cs"
 
 if (-not $SkipPackageBuild) {
     Invoke-Step "Generando paquete base bar-package-$Version.zip" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-bar-installer.ps1") -Version $Version
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-bar-installer.ps1") -Version $Version -BundlePrereqs
         if ($LASTEXITCODE -ne 0) {
             throw "Fallo build-bar-installer.ps1"
         }
@@ -35,81 +52,62 @@ if (-not (Test-Path $PayloadZip)) {
     throw "No existe payload: $PayloadZip"
 }
 
-Ensure-Command "iexpress.exe" "IExpress viene con Windows. Verifica C:\Windows\System32\iexpress.exe"
+if (-not (Test-Path $BootstrapperCs)) {
+    throw "No existe bootstrapper C#: $BootstrapperCs"
+}
+
+$cscPath = Ensure-CSharpCompiler
 
 Invoke-Step "Preparando staging para instalador maestro" {
     if (Test-Path $BuildDir) {
         Remove-Item $BuildDir -Recurse -Force
     }
-    New-Item -ItemType Directory -Path $BuildDir | Out-Null
+    New-Item -ItemType Directory -Path $BundleDir -Force | Out-Null
 
-    Copy-Item $PayloadZip (Join-Path $BuildDir "tpv-bar-payload.zip") -Force
-    Copy-Item (Join-Path $PSScriptRoot "bar-installer\setup.ps1") (Join-Path $BuildDir "setup.ps1") -Force
-    Copy-Item (Join-Path $PSScriptRoot "bar-installer\setup-launcher.cmd") (Join-Path $BuildDir "setup-launcher.cmd") -Force
+    Copy-Item $PayloadZip (Join-Path $BundleDir "tpv-bar-payload.zip") -Force
+    Copy-Item (Join-Path $PSScriptRoot "bar-installer\setup.ps1") (Join-Path $BundleDir "setup.ps1") -Force
+    Copy-Item (Join-Path $PSScriptRoot "bar-installer\setup-launcher.cmd") (Join-Path $BundleDir "setup-launcher.cmd") -Force
 }
 
-$sourceDir = (Resolve-Path $BuildDir).Path + "\"
-$targetExePath = (Resolve-Path (Join-Path $RepoRoot "dist")).Path + "\" + ("TPV-Bar-Setup-" + $Version + ".exe")
-
-$sed = @"
-[Version]
-Class=IEXPRESS
-SEDVersion=3
-[Options]
-PackagePurpose=InstallApp
-ShowInstallProgramWindow=1
-HideExtractAnimation=0
-UseLongFileName=1
-InsideCompressed=1
-CAB_FixedSize=0
-CAB_ResvCodeSigning=0
-RebootMode=N
-InstallPrompt=
-DisplayLicense=
-FinishMessage=Instalacion completada.
-TargetName=$targetExePath
-FriendlyName=TPV Bar Setup
-AppLaunched=setup-launcher.cmd
-PostInstallCmd=<None>
-AdminQuietInstCmd=
-UserQuietInstCmd=
-SourceFiles=SourceFiles
-[SourceFiles]
-SourceFiles0=$sourceDir
-[SourceFiles0]
-%FILE0%=
-%FILE1%=
-%FILE2%=
-[Strings]
-FILE0=setup-launcher.cmd
-FILE1=setup.ps1
-FILE2=tpv-bar-payload.zip
-"@
-
-Invoke-Step "Generando fichero SED" {
-    Set-Content -Path $SedPath -Value $sed -Encoding ASCII
+Invoke-Step "Generando bundle ZIP interno" {
+    Compress-Archive -Path (Join-Path $BundleDir "*") -DestinationPath $BundleZip -Force
 }
 
-Invoke-Step "Construyendo TPV-Bar-Setup.exe con IExpress" {
+Invoke-Step "Compilando bootstrapper EXE" {
+    & $cscPath /nologo /target:exe /out:$StubExe /reference:System.IO.Compression.FileSystem.dll $BootstrapperCs
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $StubExe)) {
+        throw "No se pudo compilar el bootstrapper EXE."
+    }
+}
+
+Invoke-Step "Adjuntando payload al EXE final" {
+    $finalOutput = $OutputExe
     if (Test-Path $OutputExe) {
-        Remove-Item $OutputExe -Force
-    }
-
-    $proc = Start-Process -FilePath "iexpress.exe" -ArgumentList @("/N", $SedPath) -Wait -PassThru
-    $iexit = $proc.ExitCode
-
-    # IExpress puede devolver exit code 1 aun generando correctamente el EXE.
-    # Validamos por artefacto final para evitar falsos negativos.
-    if (-not (Test-Path $OutputExe)) {
-        if ($iexit -ne 0) {
-            throw "IExpress devolvio codigo $iexit y no genero el instalador."
+        try {
+            Remove-Item $OutputExe -Force
+        } catch {
+            $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+            $finalOutput = Join-Path $RepoRoot ("dist\TPV-Bar-Setup-" + $Version + "-" + $timestamp + ".exe")
+            Write-Warning "El instalador principal esta bloqueado. Se generara: $finalOutput"
         }
-        throw "No se genero el instalador esperado: $OutputExe"
     }
 
-    if ($iexit -ne 0) {
-        Write-Warning "IExpress devolvio codigo $iexit pero el instalador se genero correctamente."
+    $marker = [System.Text.Encoding]::ASCII.GetBytes("TPVBUNDL")
+    $payloadBytes = [System.IO.File]::ReadAllBytes($BundleZip)
+    $lengthBytes = [System.BitConverter]::GetBytes([Int64]$payloadBytes.Length)
+
+    $out = [System.IO.File]::Open($finalOutput, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    try {
+        $stubBytes = [System.IO.File]::ReadAllBytes($StubExe)
+        $out.Write($stubBytes, 0, $stubBytes.Length)
+        $out.Write($payloadBytes, 0, $payloadBytes.Length)
+        $out.Write($lengthBytes, 0, $lengthBytes.Length)
+        $out.Write($marker, 0, $marker.Length)
+    } finally {
+        $out.Dispose()
     }
+
+    $script:OutputExe = $finalOutput
 }
 
 Write-Host ""
