@@ -5,7 +5,8 @@
 Desde la raiz del repo:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-installer.ps1 -Version 1.0.0-rc2
+powershell -ExecutionPolicy Bypass -File .\scripts\download-bar-prereqs.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-installer.ps1 -Version 1.0.0-rc2 -BundlePrereqs
 powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-setup-exe.ps1 -Version 1.0.0-rc2 -SkipPackageBuild
 ```
 
@@ -22,7 +23,10 @@ Copiar `dist\TPV-Bar-Setup-<version>.exe` al portatil destino y ejecutar **como 
 El instalador maestro hace:
 
 - copia runtime a `C:\TPV-Bar`
-- instala prerequisitos (Git, JDK 21, Docker Desktop; Tailscale opcional)
+- instala prerequisitos offline incluidos en el paquete:
+  - JDK 21
+  - Docker Desktop
+  - Tailscale opcional
 - instala TPV Desktop
 - crea accesos directos en escritorio:
   - `Iniciar TPV (Backend + UI)`
@@ -35,14 +39,13 @@ Copiar el contenido de `dist\bar-package-<version>\` al portatil destino.
 Abrir PowerShell como administrador y ejecutar:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install-portatil-prereqs.ps1 -InstallTailscale
+powershell -ExecutionPolicy Bypass -File .\scripts\install-portatil-prereqs.ps1 -OfflineMediaRoot .\prereqs -InstallTailscale
 ```
 
 Esto instala:
 
-- Git
 - JDK 21
-- Docker Desktop (si no existe)
+- Docker Desktop
 - Tailscale (si se usa opcion `-InstallTailscale`)
 
 ## 4. Instalar TPV Desktop (manual)
@@ -63,10 +66,24 @@ En `.\installers\`, ejecutar el instalador `TPV-Desktop-*.exe`.
 .\scripts\start-all.cmd
 ```
 
+`start-all.cmd` arranca:
+
+- MySQL en Docker (`tpv-mysql`)
+- auth-service
+- pos-service
+- gateway
+- TPV Desktop
+
 ## 6. Parar backend
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\stop-backend.ps1 -Force
+```
+
+Parar MySQL:
+
+```cmd
+.\scripts\stop-db.cmd
 ```
 
 ## 7. Base de datos: backup y restore
@@ -103,3 +120,4 @@ http://<host>.tail<id>.ts.net:8080
 - No abrir puertos del router.
 - Validar impresoras en `Settings` del TPV.
 - Antes de cambios de catalogo/precios en produccion, ejecutar backup.
+- La primera vez, Docker Desktop puede tardar en inicializar motor y pedir aceptar licencia/reiniciar sesion.

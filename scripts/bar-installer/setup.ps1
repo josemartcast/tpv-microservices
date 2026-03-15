@@ -47,6 +47,7 @@ if (-not (Test-Path $payloadZip)) {
 $installRoot = "C:\TPV-Bar"
 $stagingRoot = Join-Path $env:TEMP "tpv-bar-setup"
 $extractRoot = Join-Path $stagingRoot "payload"
+$offlineMediaRoot = Join-Path $installRoot "prereqs"
 
 Invoke-Step "Preparando carpetas de instalacion" {
     if (Test-Path $stagingRoot) {
@@ -78,7 +79,9 @@ if (-not $SkipPrereqs) {
         $args = @(
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
-            "-File", $prereqScript
+            "-File", $prereqScript,
+            "-OfflineMediaRoot", $offlineMediaRoot,
+            "-JdkTargetRoot", (Join-Path $installRoot "jdk")
         )
         if ($InstallTailscale) {
             $args += "-InstallTailscale"
@@ -119,4 +122,7 @@ Invoke-Step "Creando accesos directos" {
 Write-Host ""
 Write-Host "Instalacion completada." -ForegroundColor Green
 Write-Host "Ruta de instalacion: $installRoot"
+if (Test-Path $offlineMediaRoot) {
+    Write-Host "Prerequisitos offline: $offlineMediaRoot"
+}
 Write-Host "Siguiente paso: ejecutar 'Iniciar TPV (Backend + UI)' desde el escritorio."

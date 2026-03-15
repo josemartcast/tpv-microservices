@@ -7,7 +7,9 @@ set LOG_DIR=%ROOT%\logs
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
-if defined JAVA_HOME (
+if exist "%ROOT%\jdk\bin\java.exe" (
+  set JAVA_BIN=%ROOT%\jdk\bin\java.exe
+) else if defined JAVA_HOME (
   set JAVA_BIN=%JAVA_HOME%\bin\java.exe
 ) else (
   set JAVA_BIN=java

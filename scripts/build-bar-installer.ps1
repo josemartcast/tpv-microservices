@@ -1,7 +1,8 @@
 param(
     [string]$Version = "1.0.0-rc2",
     [switch]$SkipBuild,
-    [switch]$SkipDesktopInstaller
+    [switch]$SkipDesktopInstaller,
+    [switch]$BundlePrereqs
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,6 +56,8 @@ $ScriptsOut = Join-Path $DistRoot "scripts"
 $InstallersOut = Join-Path $DistRoot "installers"
 $DocsOut = Join-Path $DistRoot "docs"
 $DesktopInput = Join-Path $DistRoot "_desktop_input"
+$DockerOut = Join-Path $DistRoot "docker"
+$PrereqsOut = Join-Path $DistRoot "prereqs"
 
 Invoke-Step "Preparando estructura de salida" {
     if (Test-Path $DistRoot) {
@@ -65,6 +68,7 @@ Invoke-Step "Preparando estructura de salida" {
     New-Item -ItemType Directory -Path $InstallersOut | Out-Null
     New-Item -ItemType Directory -Path $DocsOut | Out-Null
     New-Item -ItemType Directory -Path $DesktopInput | Out-Null
+    New-Item -ItemType Directory -Path $DockerOut | Out-Null
 }
 
 if (-not $SkipBuild) {
@@ -89,12 +93,32 @@ Invoke-Step "Copiando backend jars al paquete" {
 }
 
 Invoke-Step "Copiando scripts operativos (start/stop + backup/restore)" {
+    Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\start-db.cmd") (Join-Path $ScriptsOut "start-db.cmd") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\start-backend.cmd") (Join-Path $ScriptsOut "start-backend.cmd") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\start-all.cmd") (Join-Path $ScriptsOut "start-all.cmd") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\stop-backend.ps1") (Join-Path $ScriptsOut "stop-backend.ps1") -Force
+    Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\stop-db.cmd") (Join-Path $ScriptsOut "stop-db.cmd") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\db-backup.ps1") (Join-Path $ScriptsOut "db-backup.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\db-restore.ps1") (Join-Path $ScriptsOut "db-restore.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\install-portatil-prereqs.ps1") (Join-Path $ScriptsOut "install-portatil-prereqs.ps1") -Force
+    Copy-Item (Join-Path $RepoRoot "scripts\download-bar-prereqs.ps1") (Join-Path $ScriptsOut "download-bar-prereqs.ps1") -Force
+}
+
+Invoke-Step "Copiando runtime Docker de MySQL" {
+    Copy-Item (Join-Path $RepoRoot "docker\docker-compose.yml") (Join-Path $DockerOut "docker-compose.yml") -Force
+    New-Item -ItemType Directory -Path (Join-Path $DockerOut "mysql") -Force | Out-Null
+    Copy-Item (Join-Path $RepoRoot "docker\mysql\init.sql") (Join-Path $DockerOut "mysql\init.sql") -Force
+}
+
+if ($BundlePrereqs) {
+    Invoke-Step "Copiando prerequisitos offline al paquete" {
+        $sourcePrereqs = Join-Path $RepoRoot "dist\prereqs"
+        if (-not (Test-Path $sourcePrereqs)) {
+            throw "No existe dist\prereqs. Ejecuta antes scripts\download-bar-prereqs.ps1"
+        }
+        New-Item -ItemType Directory -Path $PrereqsOut -Force | Out-Null
+        Copy-Item (Join-Path $sourcePrereqs "*") $PrereqsOut -Recurse -Force
+    }
 }
 
 Invoke-Step "Copiando documentacion de instalacion" {
@@ -110,6 +134,11 @@ Invoke-Step "Copiando documentacion de instalacion" {
 if (-not $SkipDesktopInstaller) {
     Invoke-Step "Generando instalador EXE TPV Desktop (jpackage)" {
         Ensure-Command "jpackage" "Instala JDK 21+ (Temurin) y reinicia terminal."
+
+        $wixLocal = Join-Path $RepoRoot "tools\wix314"
+        if ((Test-Path (Join-Path $wixLocal "candle.exe")) -and (Test-Path (Join-Path $wixLocal "light.exe"))) {
+            $env:PATH = "$wixLocal;$env:PATH"
+        }
 
         $desktopJar = Get-ChildItem (Join-Path $RepoRoot "tpv-desktop\target") -Filter "tpv-desktop-*.jar" -File |
             Where-Object { $_.Name -notmatch "original|sources|javadoc" } |
