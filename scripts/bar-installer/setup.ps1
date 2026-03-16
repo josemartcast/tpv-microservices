@@ -57,6 +57,36 @@ function Invoke-Step([string]$Title, [scriptblock]$Action) {
     & $Action
 }
 
+function Stop-ExistingInstall {
+    param([string]$Root)
+
+    if (-not (Test-Path $Root)) {
+        return
+    }
+
+    $stopBackend = Join-Path $Root "scripts\stop-backend.ps1"
+    if (Test-Path $stopBackend) {
+        try {
+            Start-Process -FilePath "powershell.exe" `
+                -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $stopBackend, "-Force") `
+                -Wait -NoNewWindow | Out-Null
+        } catch {
+            Write-Warning "No se pudo ejecutar stop-backend.ps1: $($_.Exception.Message)"
+        }
+    }
+
+    $stopDb = Join-Path $Root "scripts\stop-db.cmd"
+    if (Test-Path $stopDb) {
+        try {
+            Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $stopDb) -Wait -NoNewWindow | Out-Null
+        } catch {
+            Write-Warning "No se pudo ejecutar stop-db.cmd: $($_.Exception.Message)"
+        }
+    }
+
+    Start-Sleep -Seconds 2
+}
+
 Assert-Admin
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -83,13 +113,26 @@ Invoke-Step "Extrayendo paquete TPV" {
 }
 
 Invoke-Step "Copiando archivos a $installRoot" {
+    $reuseExistingRoot = $false
     if (Test-Path $installRoot) {
+        Stop-ExistingInstall -Root $installRoot
         $backupPath = "$installRoot.bak-" + (Get-Date -Format "yyyyMMdd-HHmmss")
-        Move-Item $installRoot $backupPath
-        Write-Host "Instalacion anterior movida a: $backupPath" -ForegroundColor Yellow
+        try {
+            Move-Item $installRoot $backupPath -ErrorAction Stop
+            Write-Host "Instalacion anterior movida a: $backupPath" -ForegroundColor Yellow
+        } catch {
+            $reuseExistingRoot = $true
+            Write-Warning "No se pudo mover '$installRoot' a backup. Se actualizara en el mismo directorio. Motivo: $($_.Exception.Message)"
+        }
     }
-    New-Item -ItemType Directory -Path $installRoot | Out-Null
-    Copy-Item (Join-Path $extractRoot "*") $installRoot -Recurse -Force
+    if (-not $reuseExistingRoot) {
+        New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
+    }
+    try {
+        Copy-Item (Join-Path $extractRoot "*") $installRoot -Recurse -Force -ErrorAction Stop
+    } catch {
+        throw "No se pudieron copiar los archivos al directorio de instalacion '$installRoot'. Cierra cualquier app TPV abierta e intentalo de nuevo. Detalle: $($_.Exception.Message)"
+    }
 }
 
 if (-not $SkipPrereqs) {
