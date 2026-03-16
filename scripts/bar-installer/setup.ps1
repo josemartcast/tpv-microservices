@@ -163,6 +163,17 @@ if (-not $SkipPrereqs) {
             throw "La instalacion de prerequisitos fallo con codigo $($proc.ExitCode)."
         }
     }
+
+    Invoke-Step "Validando servicio MySQL" {
+        $service = Get-Service -Name "TPVMySQL" -ErrorAction SilentlyContinue
+        if (-not $service) {
+            throw "No se encontro el servicio TPVMySQL tras instalar prerequisitos."
+        }
+        if ($service.Status -ne "Running") {
+            Start-Service -Name "TPVMySQL"
+            Start-Sleep -Seconds 2
+        }
+    }
 }
 
 Invoke-Step "Instalando TPV Desktop" {
