@@ -209,7 +209,7 @@ function Wait-MySqlReady {
     )
     $mysqladmin = Join-Path $MySqlBin "mysqladmin.exe"
     for ($i = 0; $i -lt 90; $i++) {
-        & $mysqladmin -h127.0.0.1 -P3306 -uroot "-p$RootPassword" ping --silent *> $null
+        & $mysqladmin "--host=localhost" "--port=3306" "--user=root" "--password=$RootPassword" ping --silent *> $null
         if ($LASTEXITCODE -eq 0) {
             return
         }
@@ -295,7 +295,7 @@ function Install-MySqlFromZip {
     Start-Service -Name $ServiceName
 
     for ($i = 0; $i -lt 90; $i++) {
-        & $mysql -h127.0.0.1 -P3306 -uroot -e "SELECT 1;" *> $null
+        & $mysql "--host=localhost" "--port=3306" "--user=root" -e "SELECT 1;" *> $null
         if ($LASTEXITCODE -eq 0) {
             break
         }
@@ -319,7 +319,7 @@ CREATE USER IF NOT EXISTS '$AppUser'@'127.0.0.1' IDENTIFIED BY '$AppPassword';
         $bootstrapSql += "`nsource $normalizedInitSql;"
     }
 
-    & $mysql -h127.0.0.1 -P3306 -uroot -e $bootstrapSql
+    & $mysql "--host=localhost" "--port=3306" "--user=root" -e $bootstrapSql
     if ($LASTEXITCODE -ne 0) {
         throw "No se pudo bootstrapear MySQL."
     }

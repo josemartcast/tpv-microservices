@@ -151,10 +151,10 @@ function Invoke-DatabaseQuery {
             $mysqlExe = Join-Path $Connection.MysqlBinDir "mysql.exe"
             $args = @(
                 "--protocol=TCP",
-                "-h127.0.0.1",
-                "-P3306",
-                "-u$User",
-                "-p$Password",
+                "--host=localhost",
+                "--port=3306",
+                "--user=$User",
+                "--password=$Password",
                 "--default-character-set=utf8mb4"
             )
             if ($TabSeparated) {
@@ -171,7 +171,7 @@ function Invoke-DatabaseQuery {
         } else {
             $dockerArgs = @(
                 "exec", $Connection.Container, "mysql",
-                "-uroot", "-p$Password",
+                "--user=root", "--password=$Password",
                 "--default-character-set=utf8mb4"
             )
             if ($TabSeparated) {
@@ -273,10 +273,10 @@ function Backup-DatabaseToFile {
             $dumpExe = Join-Path $Connection.MysqlBinDir "mysqldump.exe"
             $args = @(
                 "--protocol=TCP",
-                "-h127.0.0.1",
-                "-P3306",
-                "-u$User",
-                "-p$Password",
+                "--host=localhost",
+                "--port=3306",
+                "--user=$User",
+                "--password=$Password",
                 "--single-transaction",
                 "--quick",
                 "--routines",
@@ -290,7 +290,7 @@ function Backup-DatabaseToFile {
         } else {
             $dockerArgs = @(
                 "exec", $Connection.Container, "mysqldump",
-                "-uroot", "-p$Password",
+                "--user=root", "--password=$Password",
                 "--single-transaction", "--quick",
                 "--routines", "--triggers", "--events",
                 "--set-gtid-purged=OFF",
@@ -322,10 +322,10 @@ function Restore-DatabaseFromFile {
             $mysqlExe = Join-Path $Connection.MysqlBinDir "mysql.exe"
             $args = @(
                 "--protocol=TCP",
-                "-h127.0.0.1",
-                "-P3306",
-                "-u$User",
-                "-p$Password",
+                "--host=localhost",
+                "--port=3306",
+                "--user=$User",
+                "--password=$Password",
                 "--default-character-set=utf8mb4",
                 $DbName
             )
@@ -346,7 +346,7 @@ function Restore-DatabaseFromFile {
             try {
                 $dockerArgs = @(
                     "exec", $Connection.Container, "mysql",
-                    "-uroot", "-p$Password",
+                    "--user=root", "--password=$Password",
                     "--default-character-set=utf8mb4",
                     $DbName,
                     "-e", "source $containerSql"

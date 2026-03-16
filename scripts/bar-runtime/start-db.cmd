@@ -31,7 +31,7 @@ if errorlevel 1 (
 
 echo [INFO] Esperando a que MySQL responda...
 for /l %%i in (1,1,60) do (
-  "%MYSQLADMIN%" -h127.0.0.1 -P3306 -uroot -p%MYSQL_ROOT_PASSWORD% ping --silent >nul 2>nul
+  "%MYSQLADMIN%" --host=localhost --port=3306 --user=root --password=%MYSQL_ROOT_PASSWORD% ping --silent >nul 2>nul
   if not errorlevel 1 goto mysql_ready
   timeout /t 2 >nul
 )
