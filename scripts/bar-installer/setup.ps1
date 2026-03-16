@@ -191,9 +191,11 @@ Invoke-Step "Instalando TPV Desktop" {
     $silentArgs = @("/quiet", "/norestart", "/log", $desktopLog)
     $proc = Start-Process -FilePath $desktopInstaller.FullName -ArgumentList $silentArgs -Wait -PassThru
 
-    if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 3010) {
+    if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 3010 -or $proc.ExitCode -eq 1638) {
         if ($proc.ExitCode -eq 3010) {
             Write-Warning "TPV Desktop instalado, pero Windows solicita reinicio (codigo 3010)."
+        } elseif ($proc.ExitCode -eq 1638) {
+            Write-Warning "TPV Desktop ya estaba instalado (codigo 1638). Se continua con la instalacion."
         }
     } else {
         Write-Warning "Instalacion silenciosa fallo con codigo $($proc.ExitCode). Se intentara modo interactivo."
