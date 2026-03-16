@@ -7,18 +7,39 @@ set LOG_DIR=%ROOT%\logs
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
+set JAVA_BIN=
+
 if exist "%ROOT%\jdk\bin\java.exe" (
   set JAVA_BIN=%ROOT%\jdk\bin\java.exe
 ) else if defined JAVA_HOME (
-  set JAVA_BIN=%JAVA_HOME%\bin\java.exe
+  if exist "%JAVA_HOME%\bin\java.exe" (
+    set JAVA_BIN=%JAVA_HOME%\bin\java.exe
+  )
 ) else (
+  where java >nul 2>nul
+  if errorlevel 1 (
+    echo [ERROR] Java no encontrado. Instala JDK 21 o define JAVA_HOME.
+    exit /b 1
+  )
   set JAVA_BIN=java
 )
 
-where "%JAVA_BIN%" >nul 2>nul
-if errorlevel 1 (
+if "%JAVA_BIN%"=="" (
   echo [ERROR] Java no encontrado. Instala JDK 21 o define JAVA_HOME.
   exit /b 1
+)
+
+if /I not "%JAVA_BIN%"=="java" (
+  if not exist "%JAVA_BIN%" (
+    echo [ERROR] Java no encontrado en %JAVA_BIN%
+    exit /b 1
+  )
+) else (
+  where java >nul 2>nul
+  if errorlevel 1 (
+    echo [ERROR] Java no encontrado. Instala JDK 21 o define JAVA_HOME.
+    exit /b 1
+  )
 )
 
 if "%DB_USERNAME%"=="" set DB_USERNAME=tpv_user
