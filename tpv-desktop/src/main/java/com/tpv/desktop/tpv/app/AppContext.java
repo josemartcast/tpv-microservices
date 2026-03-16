@@ -52,7 +52,7 @@ public class AppContext {
         RuntimeMode mode = readMode();
         if (mode == RuntimeMode.REAL || mode == RuntimeMode.AUTO) {
             boolean ready = ensureRealSession();
-            if (ready) {
+            if (ready || mode == RuntimeMode.REAL) {
                 this.appState.runtimeModeProperty().set("REAL");
                 this.apiClient = new RealApiClient();
                 this.catalogService = new RealCatalogService();
@@ -63,9 +63,6 @@ public class AppContext {
                 this.printQueueService = new LocalPrintQueueService();
                 syncBusinessProfileFromBackend();
                 return;
-            }
-            if (mode == RuntimeMode.REAL) {
-                throw new IllegalStateException("TPV_MODE=real activo pero no se pudo iniciar sesión con backend");
             }
         }
 
@@ -193,4 +190,5 @@ public class AppContext {
         AUTO
     }
 }
+
 
