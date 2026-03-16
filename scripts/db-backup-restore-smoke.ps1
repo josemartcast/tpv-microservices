@@ -1,5 +1,9 @@
 param(
+    [ValidateSet("auto", "native", "docker")]
+    [string]$Mode = "auto",
     [string]$Container = "tpv-mysql",
+    [string]$MysqlBinDir = "",
+    [string]$RootUser = "root",
     [string]$RootPassword = "root",
     [string]$OutputRoot = ".backups",
     [string]$SourceAuthDb = "tpv_auth",
@@ -9,101 +13,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Invoke-DockerChecked {
-    param([string[]]$DockerArgs)
-    $tmpOut = [System.IO.Path]::GetTempFileName()
-    $tmpErr = [System.IO.Path]::GetTempFileName()
-    try {
-        if (-not $DockerArgs -or $DockerArgs.Count -eq 0) {
-            throw "Invoke-DockerChecked received empty argument list."
-        }
-        if ($DockerArgs -contains $null) {
-            throw "Invoke-DockerChecked received null argument: $($DockerArgs -join ' | ')"
-        }
-        $previous = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & docker @DockerArgs 2> $tmpErr | Out-File -FilePath $tmpOut -Encoding utf8
-            $exitCode = $LASTEXITCODE
-        } finally {
-            $ErrorActionPreference = $previous
-        }
-        if ($exitCode -ne 0) {
-            $err = (Get-Content -Path $tmpErr -Raw)
-            throw "docker $($DockerArgs -join ' ') failed (exit $exitCode): $err"
-        }
-        return (Get-Content -Path $tmpOut -Raw)
-    } finally {
-        Remove-Item -Force -ErrorAction SilentlyContinue $tmpOut, $tmpErr
-    }
-}
-
-function Test-ContainerRunning {
-    param([string]$Name)
-    $id = (& docker ps -q -f "name=^$Name$").Trim()
-    return -not [string]::IsNullOrWhiteSpace($id)
-}
-
-function Invoke-MySqlScalar {
-    param(
-        [string]$ContainerName,
-        [string]$Password,
-        [string]$Sql
-    )
-    $result = Invoke-DockerChecked -DockerArgs @(
-        "exec", $ContainerName, "mysql", "-uroot", "-p$Password", "-Nse", $Sql
-    )
-    return $result.Trim()
-}
-
-function Invoke-MySqlList {
-    param(
-        [string]$ContainerName,
-        [string]$Password,
-        [string]$Sql
-    )
-    $raw = Invoke-DockerChecked -DockerArgs @(
-        "exec", $ContainerName, "mysql", "-uroot", "-p$Password", "-Nse", $Sql
-    )
-    if ([string]::IsNullOrWhiteSpace($raw)) {
-        return @()
-    }
-    return @($raw -split "(`r`n|`n|`r)" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
-}
-
-function Drop-DatabaseIfExists {
-    param(
-        [string]$ContainerName,
-        [string]$Password,
-        [string]$DbName
-    )
-    $null = Invoke-DockerChecked -DockerArgs @(
-        "exec", $ContainerName, "mysql", "-uroot", "-p$Password", "-e", "DROP DATABASE IF EXISTS $DbName;"
-    )
-}
-
-function Assert-DbExists {
-    param(
-        [string]$ContainerName,
-        [string]$Password,
-        [string]$DbName
-    )
-    $db = Invoke-MySqlScalar -ContainerName $ContainerName -Password $Password -Sql "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '$DbName';"
-    if ($db -ne $DbName) {
-        throw "Database '$DbName' does not exist in container '$ContainerName'."
-    }
-}
+. (Join-Path $PSScriptRoot "db-common.ps1")
 
 function Compare-DatabaseData {
     param(
-        [string]$ContainerName,
+        [hashtable]$Connection,
+        [string]$User,
         [string]$Password,
         [string]$SourceDb,
         [string]$TargetDb
     )
-    $srcTables = Invoke-MySqlList -ContainerName $ContainerName -Password $Password -Sql "SELECT table_name FROM information_schema.tables WHERE table_schema = '$SourceDb' ORDER BY table_name;"
-    $dstTables = Invoke-MySqlList -ContainerName $ContainerName -Password $Password -Sql "SELECT table_name FROM information_schema.tables WHERE table_schema = '$TargetDb' ORDER BY table_name;"
+    $srcTables = Invoke-DatabaseList -Connection $Connection -User $User -Password $Password -Sql "SELECT table_name FROM information_schema.tables WHERE table_schema = '$SourceDb' ORDER BY table_name;"
+    $dstTables = Invoke-DatabaseList -Connection $Connection -User $User -Password $Password -Sql "SELECT table_name FROM information_schema.tables WHERE table_schema = '$TargetDb' ORDER BY table_name;"
 
     $srcSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $dstSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -119,8 +40,8 @@ function Compare-DatabaseData {
 
     $mismatches = New-Object System.Collections.Generic.List[string]
     foreach ($table in $srcTables) {
-        $srcCount = Invoke-MySqlScalar -ContainerName $ContainerName -Password $Password -Sql "SELECT COUNT(*) FROM $SourceDb.$table;"
-        $dstCount = Invoke-MySqlScalar -ContainerName $ContainerName -Password $Password -Sql "SELECT COUNT(*) FROM $TargetDb.$table;"
+        $srcCount = Invoke-DatabaseScalar -Connection $Connection -User $User -Password $Password -Sql "SELECT COUNT(*) FROM $SourceDb.$table;"
+        $dstCount = Invoke-DatabaseScalar -Connection $Connection -User $User -Password $Password -Sql "SELECT COUNT(*) FROM $TargetDb.$table;"
         if ($srcCount -ne $dstCount) {
             $mismatches.Add("${table}: source=$srcCount target=$dstCount")
         }
@@ -134,12 +55,14 @@ function Compare-DatabaseData {
     return $srcTables.Count
 }
 
-if (-not (Test-ContainerRunning -Name $Container)) {
-    throw "Container '$Container' is not running."
-}
+$connection = Resolve-DatabaseMode -Mode $Mode -Container $Container -MysqlBinDir $MysqlBinDir
 
-Assert-DbExists -ContainerName $Container -Password $RootPassword -DbName $SourceAuthDb
-Assert-DbExists -ContainerName $Container -Password $RootPassword -DbName $SourcePosDb
+if (-not (Test-DatabaseExists -Connection $connection -User $RootUser -Password $RootPassword -DbName $SourceAuthDb)) {
+    throw "La base origen '$SourceAuthDb' no existe."
+}
+if (-not (Test-DatabaseExists -Connection $connection -User $RootUser -Password $RootPassword -DbName $SourcePosDb)) {
+    throw "La base origen '$SourcePosDb' no existe."
+}
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $backupScript = Join-Path $PSScriptRoot "db-backup.ps1"
@@ -165,7 +88,10 @@ try {
 
     $beforeDirs = @(Get-ChildItem -Path $outputRootPath -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
     $backupParams = @{
+        Mode = $Mode
         Container = $Container
+        MysqlBinDir = $MysqlBinDir
+        RootUser = $RootUser
         RootPassword = $RootPassword
         OutputRoot = $outputRootPath
         Databases = @($SourceAuthDb, $SourcePosDb)
@@ -187,12 +113,15 @@ try {
     }
     Write-Host "Backup dir: $backupDir"
 
-    Drop-DatabaseIfExists -ContainerName $Container -Password $RootPassword -DbName $targetAuthDb
-    Drop-DatabaseIfExists -ContainerName $Container -Password $RootPassword -DbName $targetPosDb
+    Drop-DatabaseIfExists -Connection $connection -User $RootUser -Password $RootPassword -DbName $targetAuthDb
+    Drop-DatabaseIfExists -Connection $connection -User $RootUser -Password $RootPassword -DbName $targetPosDb
 
     $restoreParams = @{
         BackupDir = $backupDir
+        Mode = $Mode
         Container = $Container
+        MysqlBinDir = $MysqlBinDir
+        RootUser = $RootUser
         RootPassword = $RootPassword
         SourceAuthDb = $SourceAuthDb
         SourcePosDb = $SourcePosDb
@@ -202,10 +131,11 @@ try {
     & $restoreScript @restoreParams
     $restoreOutputText = "(see console output above)"
 
-    $authTables = Compare-DatabaseData -ContainerName $Container -Password $RootPassword -SourceDb $SourceAuthDb -TargetDb $targetAuthDb
-    $posTables = Compare-DatabaseData -ContainerName $Container -Password $RootPassword -SourceDb $SourcePosDb -TargetDb $targetPosDb
+    $authTables = Compare-DatabaseData -Connection $connection -User $RootUser -Password $RootPassword -SourceDb $SourceAuthDb -TargetDb $targetAuthDb
+    $posTables = Compare-DatabaseData -Connection $connection -User $RootUser -Password $RootPassword -SourceDb $SourcePosDb -TargetDb $targetPosDb
 
     Write-Host "Smoke OK."
+    Write-Host "- Mode: $($connection.Mode)"
     Write-Host "- Auth tables verified: $authTables"
     Write-Host "- Pos tables verified: $posTables"
     Write-Host "- Backup directory: $backupDir"
@@ -218,8 +148,8 @@ try {
 finally {
     if (-not $KeepRestoredDbs) {
         try {
-            Drop-DatabaseIfExists -ContainerName $Container -Password $RootPassword -DbName $targetAuthDb
-            Drop-DatabaseIfExists -ContainerName $Container -Password $RootPassword -DbName $targetPosDb
+            Drop-DatabaseIfExists -Connection $connection -User $RootUser -Password $RootPassword -DbName $targetAuthDb
+            Drop-DatabaseIfExists -Connection $connection -User $RootUser -Password $RootPassword -DbName $targetPosDb
             Write-Host "Temporary restored databases dropped."
         } catch {
             Write-Warning "Could not cleanup temporary databases: $($_.Exception.Message)"

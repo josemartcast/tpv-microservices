@@ -1,7 +1,11 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$BackupDir,
+    [ValidateSet("auto", "native", "docker")]
+    [string]$Mode = "auto",
     [string]$Container = "tpv-mysql",
+    [string]$MysqlBinDir = "",
+    [string]$RootUser = "root",
     [string]$RootPassword = "root",
     [string]$SourceAuthDb = "tpv_auth",
     [string]$SourcePosDb = "tpv_pos",
@@ -11,42 +15,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Invoke-DockerChecked {
-    param([string[]]$DockerArgs)
-    $tmpOut = [System.IO.Path]::GetTempFileName()
-    $tmpErr = [System.IO.Path]::GetTempFileName()
-    try {
-        if (-not $DockerArgs -or $DockerArgs.Count -eq 0) {
-            throw "Invoke-DockerChecked received empty argument list."
-        }
-        if ($DockerArgs -contains $null) {
-            throw "Invoke-DockerChecked received null argument: $($DockerArgs -join ' | ')"
-        }
-
-        $previous = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & docker @DockerArgs 2> $tmpErr | Out-File -FilePath $tmpOut -Encoding utf8
-            $exitCode = $LASTEXITCODE
-        } finally {
-            $ErrorActionPreference = $previous
-        }
-        if ($exitCode -ne 0) {
-            $err = (Get-Content -Path $tmpErr -Raw)
-            throw "docker $($DockerArgs -join ' ') failed (exit $exitCode): $err"
-        }
-        return (Get-Content -Path $tmpOut -Raw)
-    } finally {
-        Remove-Item -Force -ErrorAction SilentlyContinue $tmpOut, $tmpErr
-    }
-}
-
-function Test-ContainerRunning {
-    param([string]$Name)
-    $id = (& docker ps -q -f "name=^$Name$").Trim()
-    return -not [string]::IsNullOrWhiteSpace($id)
-}
+. (Join-Path $PSScriptRoot "db-common.ps1")
 
 function Resolve-BackupFile {
     param(
@@ -89,47 +58,10 @@ function Expand-GzipToTemp {
     return $tmpSql
 }
 
-function Ensure-Database {
-    param(
-        [string]$ContainerName,
-        [string]$Password,
-        [string]$DbName
-    )
-    $sql = "CREATE DATABASE IF NOT EXISTS $DbName CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-    $null = Invoke-DockerChecked -DockerArgs @("exec", $ContainerName, "mysql", "-uroot", "-p$Password", "-e", $sql)
-}
-
-function Restore-SqlIntoDb {
-    param(
-        [string]$ContainerName,
-        [string]$Password,
-        [string]$SqlPath,
-        [string]$TargetDb
-    )
-
-    $containerSql = "/tmp/restore-$TargetDb-$([Guid]::NewGuid().ToString('N')).sql"
-    $null = Invoke-DockerChecked -DockerArgs @("cp", $SqlPath, "$ContainerName`:$containerSql")
-    try {
-        $restoreCmd = "source $containerSql"
-        $null = Invoke-DockerChecked -DockerArgs @(
-            "exec", $ContainerName, "mysql", "-uroot", "-p$Password", $TargetDb, "-e", $restoreCmd
-        )
-    } finally {
-        try {
-            $null = Invoke-DockerChecked -DockerArgs @("exec", $ContainerName, "rm", "-f", $containerSql)
-        } catch {
-            # best effort
-        }
-    }
-}
-
 if (-not (Test-Path $BackupDir)) {
     throw "Backup directory does not exist: $BackupDir"
 }
-
-if (-not (Test-ContainerRunning -Name $Container)) {
-    throw "Container '$Container' is not running."
-}
+$connection = Resolve-DatabaseMode -Mode $Mode -Container $Container -MysqlBinDir $MysqlBinDir
 
 $isProdTarget = ($TargetAuthDb -eq "tpv_auth") -or ($TargetPosDb -eq "tpv_pos")
 if ($isProdTarget -and -not $AllowProductionRestore) {
@@ -150,13 +82,14 @@ try {
         $tempFiles += $posFile
     }
 
-    Ensure-Database -ContainerName $Container -Password $RootPassword -DbName $TargetAuthDb
-    Ensure-Database -ContainerName $Container -Password $RootPassword -DbName $TargetPosDb
+    Ensure-Database -Connection $connection -User $RootUser -Password $RootPassword -DbName $TargetAuthDb
+    Ensure-Database -Connection $connection -User $RootUser -Password $RootPassword -DbName $TargetPosDb
 
-    Restore-SqlIntoDb -ContainerName $Container -Password $RootPassword -SqlPath $authFile -TargetDb $TargetAuthDb
-    Restore-SqlIntoDb -ContainerName $Container -Password $RootPassword -SqlPath $posFile -TargetDb $TargetPosDb
+    Restore-DatabaseFromFile -Connection $connection -User $RootUser -Password $RootPassword -DbName $TargetAuthDb -SqlPath $authFile
+    Restore-DatabaseFromFile -Connection $connection -User $RootUser -Password $RootPassword -DbName $TargetPosDb -SqlPath $posFile
 
     Write-Host "Restore completed."
+    Write-Host "Mode: $($connection.Mode)"
     Write-Host "- $SourceAuthDb -> $TargetAuthDb"
     Write-Host "- $SourcePosDb -> $TargetPosDb"
 } finally {

@@ -25,7 +25,7 @@ El instalador maestro hace:
 - copia runtime a `C:\TPV-Bar`
 - instala prerequisitos offline incluidos en el paquete:
   - JDK 21
-  - Docker Desktop
+  - MySQL Server nativo
   - Tailscale opcional
 - instala TPV Desktop
 - crea accesos directos en escritorio:
@@ -45,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-portatil-prereqs.ps1 
 Esto instala:
 
 - JDK 21
-- Docker Desktop
+- MySQL Server nativo
 - Tailscale (si se usa opcion `-InstallTailscale`)
 
 ## 4. Instalar TPV Desktop (manual)
@@ -68,7 +68,7 @@ En `.\installers\`, ejecutar el instalador `TPV-Desktop-*.exe`.
 
 `start-all.cmd` arranca:
 
-- MySQL en Docker (`tpv-mysql`)
+- servicio MySQL local (`TPVMySQL`)
 - auth-service
 - pos-service
 - gateway
@@ -97,7 +97,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\db-backup.ps1 -Compress
 Restore:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\db-restore.ps1 -FilePath "C:\ruta\backup.zip"
+powershell -ExecutionPolicy Bypass -File .\scripts\db-restore.ps1 -BackupDir "C:\ruta\backup\20260315-103000"
 ```
 
 ## 8. Configuracion PDA
@@ -120,4 +120,4 @@ http://<host>.tail<id>.ts.net:8080
 - No abrir puertos del router.
 - Validar impresoras en `Settings` del TPV.
 - Antes de cambios de catalogo/precios en produccion, ejecutar backup.
-- La primera vez, Docker Desktop puede tardar en inicializar motor y pedir aceptar licencia/reiniciar sesion.
+- Verificar en `services.msc` que `TPVMySQL` esta en ejecucion si el backend no levanta.

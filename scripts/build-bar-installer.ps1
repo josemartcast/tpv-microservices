@@ -56,7 +56,7 @@ $ScriptsOut = Join-Path $DistRoot "scripts"
 $InstallersOut = Join-Path $DistRoot "installers"
 $DocsOut = Join-Path $DistRoot "docs"
 $DesktopInput = Join-Path $DistRoot "_desktop_input"
-$DockerOut = Join-Path $DistRoot "docker"
+$ConfigOut = Join-Path $DistRoot "config"
 $PrereqsOut = Join-Path $DistRoot "prereqs"
 
 Invoke-Step "Preparando estructura de salida" {
@@ -68,7 +68,7 @@ Invoke-Step "Preparando estructura de salida" {
     New-Item -ItemType Directory -Path $InstallersOut | Out-Null
     New-Item -ItemType Directory -Path $DocsOut | Out-Null
     New-Item -ItemType Directory -Path $DesktopInput | Out-Null
-    New-Item -ItemType Directory -Path $DockerOut | Out-Null
+    New-Item -ItemType Directory -Path $ConfigOut | Out-Null
 }
 
 if (-not $SkipBuild) {
@@ -98,16 +98,16 @@ Invoke-Step "Copiando scripts operativos (start/stop + backup/restore)" {
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\start-all.cmd") (Join-Path $ScriptsOut "start-all.cmd") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\stop-backend.ps1") (Join-Path $ScriptsOut "stop-backend.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\stop-db.cmd") (Join-Path $ScriptsOut "stop-db.cmd") -Force
+    Copy-Item (Join-Path $RepoRoot "scripts\db-common.ps1") (Join-Path $ScriptsOut "db-common.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\db-backup.ps1") (Join-Path $ScriptsOut "db-backup.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\db-restore.ps1") (Join-Path $ScriptsOut "db-restore.ps1") -Force
+    Copy-Item (Join-Path $RepoRoot "scripts\db-backup-restore-smoke.ps1") (Join-Path $ScriptsOut "db-backup-restore-smoke.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\install-portatil-prereqs.ps1") (Join-Path $ScriptsOut "install-portatil-prereqs.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\download-bar-prereqs.ps1") (Join-Path $ScriptsOut "download-bar-prereqs.ps1") -Force
 }
 
-Invoke-Step "Copiando runtime Docker de MySQL" {
-    Copy-Item (Join-Path $RepoRoot "docker\docker-compose.yml") (Join-Path $DockerOut "docker-compose.yml") -Force
-    New-Item -ItemType Directory -Path (Join-Path $DockerOut "mysql") -Force | Out-Null
-    Copy-Item (Join-Path $RepoRoot "docker\mysql\init.sql") (Join-Path $DockerOut "mysql\init.sql") -Force
+Invoke-Step "Copiando configuracion de MySQL" {
+    Copy-Item (Join-Path $RepoRoot "docker\mysql\init.sql") (Join-Path $ConfigOut "mysql-init.sql") -Force
 }
 
 if ($BundlePrereqs) {

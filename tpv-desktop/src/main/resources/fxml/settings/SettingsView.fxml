@@ -146,7 +146,7 @@
 
           <TitledPane text="Copias de seguridad" expanded="false">
             <VBox spacing="10" style="-fx-padding: 10;">
-              <Label text="Crear y restaurar copias de seguridad de tpv_auth + tpv_pos (Docker: tpv-mysql)."/>
+              <Label text="Crear y restaurar copias de seguridad de tpv_auth + tpv_pos (MySQL local o Docker dev)."/>
               <HBox spacing="10">
                 <Button text="Crear backup" onAction="#onCreateBackup"/>
                 <Button text="Restaurar backup" onAction="#onRestoreBackup"/>

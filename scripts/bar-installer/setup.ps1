@@ -10,7 +10,28 @@ function Assert-Admin {
     $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw "Este instalador debe ejecutarse como Administrador."
+        $args = @(
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-File", $PSCommandPath
+        )
+        if ($InstallTailscale) {
+            $args += "-InstallTailscale"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($TailscaleAuthKey)) {
+            $args += "-TailscaleAuthKey"
+            $args += $TailscaleAuthKey
+        }
+        if ($SkipPrereqs) {
+            $args += "-SkipPrereqs"
+        }
+
+        try {
+            $proc = Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList $args -Wait -PassThru
+            exit $proc.ExitCode
+        } catch {
+            throw "La instalacion requiere permisos de administrador. Acepta el aviso de UAC para continuar."
+        }
     }
 }
 
@@ -48,6 +69,7 @@ $installRoot = "C:\TPV-Bar"
 $stagingRoot = Join-Path $env:TEMP "tpv-bar-setup"
 $extractRoot = Join-Path $stagingRoot "payload"
 $offlineMediaRoot = Join-Path $installRoot "prereqs"
+$mySqlInitSql = Join-Path $installRoot "config\mysql-init.sql"
 
 Invoke-Step "Preparando carpetas de instalacion" {
     if (Test-Path $stagingRoot) {
@@ -71,7 +93,7 @@ Invoke-Step "Copiando archivos a $installRoot" {
 }
 
 if (-not $SkipPrereqs) {
-    Invoke-Step "Instalando prerequisitos (winget)" {
+    Invoke-Step "Instalando prerequisitos" {
         $prereqScript = Join-Path $installRoot "scripts\install-portatil-prereqs.ps1"
         if (-not (Test-Path $prereqScript)) {
             throw "No se encontro script de prerequisitos: $prereqScript"
@@ -81,7 +103,10 @@ if (-not $SkipPrereqs) {
             "-ExecutionPolicy", "Bypass",
             "-File", $prereqScript,
             "-OfflineMediaRoot", $offlineMediaRoot,
-            "-JdkTargetRoot", (Join-Path $installRoot "jdk")
+            "-JdkTargetRoot", (Join-Path $installRoot "jdk"),
+            "-MySqlTargetRoot", (Join-Path $installRoot "mysql"),
+            "-MySqlDataRoot", (Join-Path $installRoot "data\mysql"),
+            "-MySqlInitSql", $mySqlInitSql
         )
         if ($InstallTailscale) {
             $args += "-InstallTailscale"
@@ -90,7 +115,10 @@ if (-not $SkipPrereqs) {
                 $args += $TailscaleAuthKey
             }
         }
-        Start-Process -FilePath "powershell.exe" -ArgumentList $args -Wait -NoNewWindow
+        $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $args -Wait -NoNewWindow -PassThru
+        if ($proc.ExitCode -ne 0) {
+            throw "La instalacion de prerequisitos fallo con codigo $($proc.ExitCode)."
+        }
     }
 }
 
@@ -101,7 +129,10 @@ Invoke-Step "Instalando TPV Desktop" {
     if (-not $desktopInstaller) {
         throw "No se encontro instalador TPV Desktop en $installRoot\installers"
     }
-    Start-Process -FilePath $desktopInstaller.FullName -Wait
+    $proc = Start-Process -FilePath $desktopInstaller.FullName -Wait -PassThru
+    if ($proc.ExitCode -ne 0) {
+        throw "El instalador de TPV Desktop fallo con codigo $($proc.ExitCode)."
+    }
 }
 
 Invoke-Step "Creando accesos directos" {

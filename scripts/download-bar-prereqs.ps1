@@ -1,6 +1,6 @@
 param(
     [string]$OutputDir = "",
-    [switch]$SkipDocker,
+    [switch]$SkipMySql,
     [switch]$SkipTailscale
 )
 
@@ -47,11 +47,11 @@ Invoke-Step "Resolviendo JDK 21 (Temurin) oficial" {
     Download-File -Url $jdkUrl -Destination (Join-Path $OutputDir $jdkName)
 }
 
-if (-not $SkipDocker) {
-    Invoke-Step "Descargando Docker Desktop oficial" {
+if (-not $SkipMySql) {
+    Invoke-Step "Descargando MySQL ZIP oficial" {
         Download-File `
-            -Url "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe" `
-            -Destination (Join-Path $OutputDir "Docker Desktop Installer.exe")
+            -Url "https://cdn.mysql.com/Downloads/MySQL-8.0/mysql-8.0.45-winx64.zip" `
+            -Destination (Join-Path $OutputDir "mysql-8.0.45-winx64.zip")
     }
 }
 

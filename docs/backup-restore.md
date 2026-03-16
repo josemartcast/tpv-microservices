@@ -1,6 +1,6 @@
 # Runbook Backup/Restore MySQL (TPV)
 
-Base de datos: MySQL en contenedor `tpv-mysql`  
+Base de datos: MySQL local nativo (`TPVMySQL`) o contenedor `tpv-mysql` en desarrollo  
 BDs de negocio: `tpv_auth` y `tpv_pos`
 
 ## 1) Operativa diaria (backup)
@@ -45,7 +45,7 @@ Script recomendado para pre-release y QA operativo:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\db-backup-restore-smoke.ps1 `
-  -Container tpv-mysql `
+  -Mode auto `
   -RootPassword root `
   -OutputRoot .backups
 ```
@@ -99,3 +99,4 @@ Antes de tag RC:
 - No guardar backups en repositorio Git.
 - Conservar al menos las ultimas 3 copias verificadas.
 - Ejecutar restore productivo solo con ventana operativa definida.
+- En instalacion de bar, por defecto los scripts intentan usar MySQL nativo antes que Docker.

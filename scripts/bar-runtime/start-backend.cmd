@@ -21,8 +21,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if "%DB_USERNAME%"=="" set DB_USERNAME=root
-if "%DB_PASSWORD%"=="" set DB_PASSWORD=root
+if "%DB_USERNAME%"=="" set DB_USERNAME=tpv_user
+if "%DB_PASSWORD%"=="" set DB_PASSWORD=tpv_pass
 if "%JWT_SECRET%"=="" set JWT_SECRET=1234567890123456789012345678901234567890123456789012345678901234
 if "%AUTH_DB_URL%"=="" set AUTH_DB_URL=jdbc:mysql://127.0.0.1:3306/tpv_auth?createDatabaseIfNotExist=true
 if "%POS_DB_URL%"=="" set POS_DB_URL=jdbc:mysql://127.0.0.1:3306/tpv_pos?createDatabaseIfNotExist=true

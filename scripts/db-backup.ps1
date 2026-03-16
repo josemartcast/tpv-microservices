@@ -1,5 +1,9 @@
 param(
+    [ValidateSet("auto", "native", "docker")]
+    [string]$Mode = "auto",
     [string]$Container = "tpv-mysql",
+    [string]$MysqlBinDir = "",
+    [string]$RootUser = "root",
     [string]$RootPassword = "root",
     [string]$OutputRoot = ".backups",
     [string[]]$Databases = @("tpv_auth", "tpv_pos"),
@@ -7,68 +11,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Invoke-DockerProcess {
-    param(
-        [string[]]$DockerArgs,
-        [string]$StdOutPath,
-        [string]$StdErrPath
-    )
-
-    if (-not $DockerArgs -or $DockerArgs.Count -eq 0) {
-        throw "Invoke-DockerProcess received empty argument list."
-    }
-    if ($DockerArgs -contains $null) {
-        throw "Invoke-DockerProcess received null argument: $($DockerArgs -join ' | ')"
-    }
-
-    $previous = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        & docker @DockerArgs 2> $StdErrPath | Out-File -FilePath $StdOutPath -Encoding utf8
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previous
-    }
-    if ($exitCode -ne 0) {
-        $err = ""
-        if (Test-Path $StdErrPath) {
-            $err = Get-Content -Path $StdErrPath -Raw
-        }
-        throw "docker $($DockerArgs -join ' ') failed (exit $exitCode): $err"
-    }
-}
-
-function Test-ContainerRunning {
-    param([string]$Name)
-    $id = (& docker ps -q -f "name=^$Name$").Trim()
-    return -not [string]::IsNullOrWhiteSpace($id)
-}
-
-function Test-DatabaseExists {
-    param(
-        [string]$ContainerName,
-        [string]$Password,
-        [string]$DbName
-    )
-    $dockerArgs = @("exec", $ContainerName, "mysql", "-uroot", "-p$Password", "-Nse", "SELECT 1", $DbName)
-    $tmpOut = [System.IO.Path]::GetTempFileName()
-    $tmpErr = [System.IO.Path]::GetTempFileName()
-    try {
-        try {
-            Invoke-DockerProcess -DockerArgs $dockerArgs -StdOutPath $tmpOut -StdErrPath $tmpErr
-            return $true
-        } catch {
-            $err = if (Test-Path $tmpErr) { Get-Content -Path $tmpErr -Raw } else { "" }
-            if ($err -match "Unknown database" -or $err -match "Access denied") {
-                return $false
-            }
-            throw
-        }
-    } finally {
-        Remove-Item -Force -ErrorAction SilentlyContinue $tmpOut, $tmpErr
-    }
-}
+. (Join-Path $PSScriptRoot "db-common.ps1")
 
 function Compress-GzipFile {
     param([string]$InputFile)
@@ -93,9 +36,7 @@ function Compress-GzipFile {
     return $outputFile
 }
 
-if (-not (Test-ContainerRunning -Name $Container)) {
-    throw "Container '$Container' is not running."
-}
+$connection = Resolve-DatabaseMode -Mode $Mode -Container $Container -MysqlBinDir $MysqlBinDir
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $targetDir = Join-Path $OutputRoot $timestamp
@@ -105,31 +46,19 @@ $meta = [ordered]@{
     createdAt = (Get-Date).ToString("o")
     host = $env:COMPUTERNAME
     gitCommit = ((git rev-parse --short HEAD) 2>$null)
+    mode = $connection.Mode
     container = $Container
+    mysqlBinDir = $connection.MysqlBinDir
     files = @()
 }
 
 foreach ($db in $Databases) {
-    if (-not (Test-DatabaseExists -ContainerName $Container -Password $RootPassword -DbName $db)) {
-        throw "Database '$db' does not exist in container '$Container'."
+    if (-not (Test-DatabaseExists -Connection $connection -User $RootUser -Password $RootPassword -DbName $db)) {
+        throw "La base de datos '$db' no existe o no es accesible."
     }
 
     $sqlPath = Join-Path $targetDir "$db.sql"
-    $errPath = Join-Path $targetDir "$db.dump.err.log"
-    $dockerArgs = @(
-        "exec", $Container, "mysqldump",
-        "-uroot", "-p$RootPassword",
-        "--single-transaction", "--quick",
-        "--routines", "--triggers", "--events",
-        "--set-gtid-purged=OFF",
-        "--default-character-set=utf8mb4",
-        $db
-    )
-
-    Invoke-DockerProcess -DockerArgs $dockerArgs -StdOutPath $sqlPath -StdErrPath $errPath
-    if ((Get-Item $sqlPath).Length -le 0) {
-        throw "Backup file is empty: $sqlPath"
-    }
+    Backup-DatabaseToFile -Connection $connection -User $RootUser -Password $RootPassword -DbName $db -OutputPath $sqlPath
 
     if ($Compress) {
         $sqlPath = Compress-GzipFile -InputFile $sqlPath
@@ -147,6 +76,7 @@ $meta | ConvertTo-Json -Depth 4 | Set-Content -Path $metaPath -Encoding UTF8
 
 Write-Host "Backup completed."
 Write-Host "Directory: $targetDir"
+Write-Host "Mode: $($connection.Mode)"
 Write-Host "Files:"
 foreach ($entry in $meta.files) {
     Write-Host ("- {0}: {1} ({2} bytes)" -f $entry.database, $entry.file, $entry.sizeBytes)

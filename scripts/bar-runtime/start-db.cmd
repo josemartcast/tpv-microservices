@@ -2,58 +2,36 @@
 setlocal
 
 set ROOT=%~dp0..
-set DOCKER_DIR=%ROOT%\docker
-set COMPOSE_FILE=%DOCKER_DIR%\docker-compose.yml
-set DOCKER_DESKTOP=%ProgramFiles%\Docker\Docker\Docker Desktop.exe
+set MYSQL_BIN=%ROOT%\mysql\bin
+set MYSQLADMIN=%MYSQL_BIN%\mysqladmin.exe
+set SERVICE_NAME=TPVMySQL
+if "%MYSQL_ROOT_PASSWORD%"=="" set MYSQL_ROOT_PASSWORD=root
 
-if not exist "%DOCKER_DESKTOP%" (
-  set DOCKER_DESKTOP=%ProgramFiles(x86)%\Docker\Docker\Docker Desktop.exe
-)
-
-where docker >nul 2>nul
-if errorlevel 1 (
-  echo [ERROR] Docker no esta disponible en PATH.
-  echo [ERROR] Instala Docker Desktop o ejecuta el instalador maestro completo.
+if not exist "%MYSQLADMIN%" (
+  echo [ERROR] No existe %MYSQLADMIN%
+  echo [ERROR] MySQL no parece instalado en %ROOT%\mysql
   exit /b 1
 )
 
-if not exist "%COMPOSE_FILE%" (
-  echo [ERROR] No existe %COMPOSE_FILE%
+sc query "%SERVICE_NAME%" >nul 2>nul
+if errorlevel 1 (
+  echo [ERROR] No existe el servicio %SERVICE_NAME%.
   exit /b 1
 )
 
-docker info >nul 2>nul
+sc query "%SERVICE_NAME%" | findstr /I "RUNNING" >nul
 if errorlevel 1 (
-  if exist "%DOCKER_DESKTOP%" (
-    echo [INFO] Iniciando Docker Desktop...
-    start "" "%DOCKER_DESKTOP%"
+  echo [INFO] Iniciando servicio %SERVICE_NAME%...
+  net start "%SERVICE_NAME%" >nul
+  if errorlevel 1 (
+    echo [ERROR] No se pudo iniciar el servicio %SERVICE_NAME%.
+    exit /b 1
   )
-
-  echo [INFO] Esperando a que Docker Engine este listo...
-  for /l %%i in (1,1,120) do (
-    docker info >nul 2>nul
-    if not errorlevel 1 goto docker_ready
-    timeout /t 2 >nul
-  )
-
-  echo [ERROR] Docker Engine no ha arrancado a tiempo.
-  exit /b 1
 )
-
-:docker_ready
-echo [INFO] Arrancando MySQL del bar...
-pushd "%DOCKER_DIR%"
-docker compose up -d mysql
-if errorlevel 1 (
-  popd
-  echo [ERROR] No se pudo arrancar el contenedor mysql.
-  exit /b 1
-)
-popd
 
 echo [INFO] Esperando a que MySQL responda...
-for /l %%i in (1,1,90) do (
-  docker exec tpv-mysql mysqladmin ping -uroot -proot --silent >nul 2>nul
+for /l %%i in (1,1,60) do (
+  "%MYSQLADMIN%" -h127.0.0.1 -P3306 -uroot -p%MYSQL_ROOT_PASSWORD% ping --silent >nul 2>nul
   if not errorlevel 1 goto mysql_ready
   timeout /t 2 >nul
 )

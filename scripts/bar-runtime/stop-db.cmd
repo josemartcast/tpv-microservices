@@ -1,30 +1,27 @@
 @echo off
 setlocal
 
-set ROOT=%~dp0..
-set DOCKER_DIR=%ROOT%\docker
-set COMPOSE_FILE=%DOCKER_DIR%\docker-compose.yml
+set SERVICE_NAME=TPVMySQL
 
-where docker >nul 2>nul
+sc query "%SERVICE_NAME%" >nul 2>nul
 if errorlevel 1 (
-  echo [WARN] Docker no esta disponible en PATH.
+  echo [WARN] No existe el servicio %SERVICE_NAME%.
   exit /b 0
 )
 
-if not exist "%COMPOSE_FILE%" (
-  echo [WARN] No existe %COMPOSE_FILE%
+sc query "%SERVICE_NAME%" | findstr /I "STOPPED" >nul
+if not errorlevel 1 (
+  echo [OK] MySQL ya estaba detenido.
   exit /b 0
 )
 
-pushd "%DOCKER_DIR%"
-docker compose stop mysql
+echo [INFO] Deteniendo servicio %SERVICE_NAME%...
+net stop "%SERVICE_NAME%" >nul
 if errorlevel 1 (
-  popd
-  echo [WARN] No se pudo detener mysql.
+  echo [WARN] No se pudo detener %SERVICE_NAME%.
   exit /b 0
 )
-popd
 
-echo [OK] MySQL detenido.
+echo [OK] MySQL detenido (%SERVICE_NAME%).
 endlocal
 exit /b 0
