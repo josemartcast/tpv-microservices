@@ -183,9 +183,24 @@ Invoke-Step "Instalando TPV Desktop" {
     if (-not $desktopInstaller) {
         throw "No se encontro instalador TPV Desktop en $installRoot\installers"
     }
-    $proc = Start-Process -FilePath $desktopInstaller.FullName -Wait -PassThru
-    if ($proc.ExitCode -ne 0) {
-        throw "El instalador de TPV Desktop fallo con codigo $($proc.ExitCode)."
+    $logsDir = Join-Path $installRoot "logs"
+    New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
+    $desktopLog = Join-Path $logsDir "tpv-desktop-installer.log"
+
+    # Try silent first to avoid hidden installer UI in elevated sessions.
+    $silentArgs = @("/quiet", "/norestart", "/log", $desktopLog)
+    $proc = Start-Process -FilePath $desktopInstaller.FullName -ArgumentList $silentArgs -Wait -PassThru
+
+    if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 3010) {
+        if ($proc.ExitCode -eq 3010) {
+            Write-Warning "TPV Desktop instalado, pero Windows solicita reinicio (codigo 3010)."
+        }
+    } else {
+        Write-Warning "Instalacion silenciosa fallo con codigo $($proc.ExitCode). Se intentara modo interactivo."
+        $procInteractive = Start-Process -FilePath $desktopInstaller.FullName -Wait -PassThru
+        if ($procInteractive.ExitCode -ne 0 -and $procInteractive.ExitCode -ne 3010) {
+            throw "El instalador de TPV Desktop fallo (silent=$($proc.ExitCode), interactive=$($procInteractive.ExitCode)). Revisa log: $desktopLog"
+        }
     }
 }
 
