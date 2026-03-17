@@ -19,13 +19,14 @@ public final class PrinterSettingsStore {
     private static final String DEST_BAR = "BAR";
     private static final String DEST_COCINA = "COCINA";
     private static final String DEST_POSTRES = "POSTRES";
+    private static final String DEST_GENERAL = "GENERAL";
     private static final String DEST_ALL = "ALL";
 
     private PrinterSettingsStore() {
     }
 
     public static List<String> supportedDestinations() {
-        return List.of(DEST_BAR, DEST_COCINA, DEST_POSTRES, DEST_ALL);
+        return List.of(DEST_BAR, DEST_COCINA, DEST_POSTRES, DEST_GENERAL, DEST_ALL);
     }
 
     public static List<PrinterProfile> getProfiles() {

@@ -1010,8 +1010,8 @@ public class FooterBarController {
             if (!profile.enabled()) {
                 continue;
             }
-            String destination = normalizePrinterDestination(profile.destination());
-            if ("ALL".equals(destination)) {
+            String destination = profile.destination() == null ? "" : profile.destination().trim().toUpperCase(Locale.ROOT);
+            if (!"BAR".equals(destination) && !"COCINA".equals(destination) && !"POSTRES".equals(destination)) {
                 continue;
             }
             choices.add(new PrinterChoice(profile.logicalName(), destination));

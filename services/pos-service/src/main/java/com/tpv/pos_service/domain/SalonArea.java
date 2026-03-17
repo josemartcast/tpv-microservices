@@ -83,4 +83,11 @@ public class SalonArea {
     public void deactivate() {
         this.active = false;
     }
+
+    public void reactivate(String name, int firstTableNumber, int tableCount) {
+        this.name = name;
+        this.firstTableNumber = firstTableNumber;
+        this.tableCount = tableCount;
+        this.active = true;
+    }
 }

@@ -12,6 +12,7 @@ import com.tpv.desktop.api.pos.TicketResponse;
 import com.tpv.desktop.api.pos.TicketSummaryResponse;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.MoneyUtil;
+import com.tpv.desktop.core.PrinterSettingsStore;
 import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
@@ -22,6 +23,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -42,7 +44,9 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -291,12 +295,15 @@ public class HistoryController {
                 }
                 try {
                     InvoiceResponse invoice = TicketApi.getInvoice(selectedInvoice.ticketId());
-                    PrintUtil.printTextToPdf(
+                    String target = printInvoiceWithPrinterSelection(
                             buildInvoiceText(invoice),
                             dialog.getDialogPane().getScene() == null ? null : dialog.getDialogPane().getScene().getWindow()
                     );
+                    if (target == null) {
+                        continue;
+                    }
                     invoiceErrorLabel.setStyle("-fx-text-fill: #1e7e34;");
-                    invoiceErrorLabel.setText("Factura " + invoice.invoiceNumber() + " enviada a Print to PDF.");
+                    invoiceErrorLabel.setText("Factura " + invoice.invoiceNumber() + " enviada a " + target + ".");
                 } catch (Exception e) {
                     invoiceErrorLabel.setStyle("-fx-text-fill: #b00020;");
                     invoiceErrorLabel.setText("No se pudo reimprimir factura: " + e.getMessage());
@@ -402,8 +409,8 @@ public class HistoryController {
             dialog.setTitle("Factura");
             dialog.setHeaderText("Factura de ticket #" + summary.id());
             ButtonType copyBtn = new ButtonType("Copiar", ButtonBar.ButtonData.LEFT);
-            ButtonType pdfBtn = new ButtonType("Print to PDF", ButtonBar.ButtonData.LEFT);
-            dialog.getDialogPane().getButtonTypes().addAll(copyBtn, pdfBtn, ButtonType.CLOSE);
+            ButtonType printBtn = new ButtonType("Imprimir", ButtonBar.ButtonData.LEFT);
+            dialog.getDialogPane().getButtonTypes().addAll(copyBtn, printBtn, ButtonType.CLOSE);
 
             HBox customerRow = new HBox(8, new Label("Cliente fiscal"), customerBox, new Region());
             HBox.setHgrow(customerBox, Priority.ALWAYS);
@@ -425,7 +432,7 @@ public class HistoryController {
                 detailErrorLabel.setText("Factura " + invoice.invoiceNumber() + " guardada y copiada.");
                 return;
             }
-            if (action == pdfBtn) {
+            if (action == printBtn) {
                 CustomerResponse selectedCustomer = customerBox.getValue();
                 if (selectedCustomer == null) {
                     detailErrorLabel.setText("Selecciona un cliente fiscal.");
@@ -433,13 +440,68 @@ public class HistoryController {
                 }
                 InvoiceResponse invoice = TicketApi.issueInvoice(selectedTicket.id(), selectedCustomer.id());
                 String finalText = buildInvoiceText(invoice);
-                PrintUtil.printTextToPdf(finalText,
-                        detailErrorLabel != null && detailErrorLabel.getScene() != null ? detailErrorLabel.getScene().getWindow() : null);
-                detailErrorLabel.setText("Factura " + invoice.invoiceNumber() + " guardada y enviada a Print to PDF.");
+                String target = printInvoiceWithPrinterSelection(
+                        finalText,
+                        detailErrorLabel != null && detailErrorLabel.getScene() != null ? detailErrorLabel.getScene().getWindow() : null
+                );
+                if (target == null) {
+                    return;
+                }
+                detailErrorLabel.setText("Factura " + invoice.invoiceNumber() + " guardada y enviada a " + target + ".");
             }
         } catch (Exception e) {
             detailErrorLabel.setText("No se pudo generar factura: " + e.getMessage());
         }
+    }
+
+    private String printInvoiceWithPrinterSelection(String text, javafx.stage.Window owner) {
+        List<String> choices = buildInvoicePrinterChoices();
+        String defaultChoice = resolveDefaultInvoiceChoice(choices);
+        ChoiceDialog<String> printerDialog = new ChoiceDialog<>(defaultChoice, choices);
+        printerDialog.setTitle("Imprimir factura");
+        printerDialog.setHeaderText("Selecciona impresora para factura");
+        printerDialog.setContentText("Impresora:");
+        String selected = printerDialog.showAndWait().orElse(null);
+        if (selected == null || selected.isBlank()) {
+            return null;
+        }
+        if ("Print to PDF".equals(selected)) {
+            PrintUtil.printTextToPdf(text, owner);
+            return "Print to PDF";
+        }
+        PrintUtil.printTextToPrinter(selected, text, owner);
+        return selected;
+    }
+
+    private static String resolveDefaultInvoiceChoice(List<String> choices) {
+        for (String printer : PrinterSettingsStore.resolveSystemPrintersForDestination("GENERAL")) {
+            if (choices.contains(printer)) {
+                return printer;
+            }
+        }
+        return choices.isEmpty() ? "Print to PDF" : choices.getFirst();
+    }
+
+    private static List<String> buildInvoicePrinterChoices() {
+        List<String> out = new ArrayList<>();
+        for (String printer : PrinterSettingsStore.resolveSystemPrintersForDestination("GENERAL")) {
+            if (printer == null || printer.isBlank()) {
+                continue;
+            }
+            if (!out.contains(printer)) {
+                out.add(printer);
+            }
+        }
+        for (String printer : PrintUtil.availablePrinterNames()) {
+            if (printer == null || printer.isBlank()) {
+                continue;
+            }
+            if (!out.contains(printer)) {
+                out.add(printer);
+            }
+        }
+        out.add("Print to PDF");
+        return out;
     }
 
     @FXML

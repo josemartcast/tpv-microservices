@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 public interface SalonAreaRepository extends JpaRepository<SalonArea, Long> {
     List<SalonArea> findAllByActiveTrueOrderByFirstTableNumberAsc();
     Optional<SalonArea> findByIdAndActiveTrue(Long id);
+    Optional<SalonArea> findByNameIgnoreCase(String name);
     boolean existsByNameIgnoreCaseAndActiveTrue(String name);
 
     @Query("""

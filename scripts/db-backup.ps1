@@ -13,6 +13,31 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "db-common.ps1")
 
+function Resolve-GitCommit {
+    $repoRoot = Split-Path -Parent $PSScriptRoot
+    if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+        return ""
+    }
+    if (-not (Test-Path (Join-Path $repoRoot ".git"))) {
+        return ""
+    }
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        return ""
+    }
+
+    $prev = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $out = & git -C $repoRoot rev-parse --short HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and $out) {
+            return (@($out)[0]).Trim()
+        }
+        return ""
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 function Compress-GzipFile {
     param([string]$InputFile)
     $outputFile = "$InputFile.gz"
@@ -45,7 +70,7 @@ New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 $meta = [ordered]@{
     createdAt = (Get-Date).ToString("o")
     host = $env:COMPUTERNAME
-    gitCommit = ((git rev-parse --short HEAD) 2>$null)
+    gitCommit = (Resolve-GitCommit)
     mode = $connection.Mode
     container = $Container
     mysqlBinDir = $connection.MysqlBinDir

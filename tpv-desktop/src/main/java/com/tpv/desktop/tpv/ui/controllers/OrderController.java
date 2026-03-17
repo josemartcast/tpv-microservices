@@ -234,6 +234,7 @@ public class OrderController {
             String mode = typeDialog.showAndWait().orElse("Total");
 
             boolean paid;
+            int paidAmountCents;
             if ("Parcial (lineas)".equalsIgnoreCase(mode)) {
                 int amountCents = promptPartialByLines(
                         pending,
@@ -243,6 +244,7 @@ public class OrderController {
                 if (amountCents <= 0) {
                     return;
                 }
+                paidAmountCents = amountCents;
                 paid = vm.payPartial(method, amountCents);
             } else if ("Parcial".equalsIgnoreCase(mode)) {
                 String defaultAmount = String.format(Locale.US, "%.2f", pending / 100.0);
@@ -255,12 +257,15 @@ public class OrderController {
                     return;
                 }
                 int amountCents = parseAmountToCents(amountText);
+                paidAmountCents = amountCents;
                 paid = vm.payPartial(method, amountCents);
             } else {
+                paidAmountCents = pending;
                 paid = vm.payFull(method);
             }
 
             if (paid) {
+                printPaidTicketSafe(method, paidAmountCents);
                 stopHeartbeat();
                 Navigator.get().goHome();
             }
@@ -297,6 +302,7 @@ public class OrderController {
 
             boolean paid = vm.payPartial(method, amountCents);
             if (paid) {
+                printPaidTicketSafe(method, amountCents);
                 stopHeartbeat();
                 Navigator.get().goHome();
                 return;
@@ -331,8 +337,9 @@ public class OrderController {
         dialog.setTitle("Precuenta");
         dialog.setHeaderText("Vista previa de pre-cuenta");
         ButtonType copyButton = new ButtonType("Copiar", ButtonBar.ButtonData.LEFT);
+        ButtonType printButton = new ButtonType("Imprimir", ButtonBar.ButtonData.LEFT);
         ButtonType printPdfButton = new ButtonType("Print to PDF", ButtonBar.ButtonData.LEFT);
-        dialog.getDialogPane().getButtonTypes().addAll(copyButton, printPdfButton, ButtonType.CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(copyButton, printButton, printPdfButton, ButtonType.CLOSE);
         dialog.getDialogPane().setContent(preview);
 
         ButtonType action = dialog.showAndWait().orElse(ButtonType.CLOSE);
@@ -344,8 +351,14 @@ public class OrderController {
             showInfoDialog("Precuenta", "Pre-cuenta copiada al portapapeles.");
             return;
         }
+        if (action == printButton) {
+            String target = printDocumentToGeneral(text);
+            feedbackLabel.setText("Pre-cuenta enviada a " + target + ".");
+            showInfoDialog("Precuenta", "Pre-cuenta enviada a " + target + ".");
+            return;
+        }
         if (action == printPdfButton) {
-            printPrebillToPdf(text);
+            PrintUtil.printTextToPdf(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
             feedbackLabel.setText("Enviado a Print to PDF.");
             showInfoDialog("Precuenta", "Enviado a Print to PDF.");
         }
@@ -749,7 +762,9 @@ public class OrderController {
     }
 
     private String resolveDrawerPrinter() {
-        String printer = firstUsablePrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("ALL"));
+        String printer = firstUsablePrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("GENERAL"));
+        if (printer != null) return printer;
+        printer = firstUsablePrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("ALL"));
         if (printer != null) return printer;
         printer = firstUsablePrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("BAR"));
         if (printer != null) return printer;
@@ -840,6 +855,38 @@ public class OrderController {
         return out.toString();
     }
 
+    private String buildPaidTicketText(String method, int paidAmountCents) {
+        StringBuilder out = new StringBuilder();
+        String restaurantName = AppContext.get().appState().restaurantNameProperty().get();
+        String legalName = SettingsStore.getFiscalLegalName();
+        String headerName = (restaurantName == null || restaurantName.isBlank() ? "RESTAURANTE" : restaurantName);
+        if (legalName != null && !legalName.isBlank()) {
+            headerName = legalName;
+        }
+
+        out.append(headerName.toUpperCase(Locale.ROOT)).append('\n');
+        out.append("TICKET CLIENTE").append('\n');
+        out.append(tableLabelForTicket()).append("  Ticket ").append(vm.orderIdProperty().get()).append('\n');
+        out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
+        out.append("--------------------------------------------").append('\n');
+        for (OrderLine line : vm.lines()) {
+            int lineTotal = line.getQty() * line.getUnitPriceCents();
+            out.append(String.format(Locale.US, "%2dx %-24s %8.2f", line.getQty(), clip(line.getProductName(), 24), lineTotal / 100.0))
+                    .append('\n');
+            if (line.getNote() != null && !line.getNote().isBlank()) {
+                out.append("   - ").append(line.getNote()).append('\n');
+            }
+        }
+        int totalCents = vm.lines().stream().mapToInt(l -> l.getQty() * l.getUnitPriceCents()).sum();
+        out.append("--------------------------------------------").append('\n');
+        out.append(String.format(Locale.US, "TOTAL:%33.2f", totalCents / 100.0)).append('\n');
+        out.append(String.format(Locale.US, "PAGADO:%32.2f", paidAmountCents / 100.0)).append('\n');
+        out.append(String.format(Locale.US, "METODO:%31s", method == null ? "-" : method.toUpperCase(Locale.ROOT))).append('\n');
+        out.append("--------------------------------------------").append('\n');
+        out.append("Gracias por su visita.").append('\n');
+        return out.toString();
+    }
+
     private static String clip(String value, int max) {
         if (value == null) {
             return "";
@@ -860,8 +907,44 @@ public class OrderController {
         return value;
     }
 
-    private void printPrebillToPdf(String text) {
+    private String tableLabelForTicket() {
+        String label = tableLabelOrFallback();
+        return label == null || label.isBlank() ? "Mesa " + vm.tableIdProperty().get() : label;
+    }
+
+    private void printPaidTicketSafe(String method, int paidAmountCents) {
+        try {
+            String target = printDocumentToGeneral(buildPaidTicketText(method, paidAmountCents));
+            feedbackLabel.setText("Cobro registrado. Ticket enviado a " + target + ".");
+        } catch (Exception e) {
+            UiDialogs.warn("Ticket cliente", "Cobro registrado, pero no se pudo imprimir ticket:\n" + e.getMessage());
+        }
+    }
+
+    private String printDocumentToGeneral(String text) {
+        String preferred = firstConfiguredPrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("GENERAL"));
+        if (preferred != null) {
+            try {
+                PrintUtil.printTextToPrinter(preferred, text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
+                return preferred;
+            } catch (Exception ignored) {
+                // Fallback controlado abajo.
+            }
+        }
         PrintUtil.printTextToPdf(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
+        return "Print to PDF";
+    }
+
+    private static String firstConfiguredPrinter(java.util.List<String> printers) {
+        if (printers == null) {
+            return null;
+        }
+        for (String printer : printers) {
+            if (printer != null && !printer.isBlank()) {
+                return printer.trim();
+            }
+        }
+        return null;
     }
 
     private void showInfoDialog(String title, String message) {

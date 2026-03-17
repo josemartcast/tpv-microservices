@@ -555,7 +555,7 @@ public class SettingsController {
       return;
     }
     if (destination.isBlank()) {
-      UiDialogs.warn("Impresoras", "Debes seleccionar un destino (BAR/COCINA/POSTRES/ALL).");
+      UiDialogs.warn("Impresoras", "Debes seleccionar un destino (BAR/COCINA/POSTRES/GENERAL/ALL).");
       return;
     }
     if (systemPrinter.isBlank()) {
@@ -704,7 +704,7 @@ public class SettingsController {
     }
 
     printerDestinationCombo.setItems(FXCollections.observableArrayList(PrinterSettingsStore.supportedDestinations()));
-    printerDestinationCombo.setValue("ALL");
+    printerDestinationCombo.setValue("GENERAL");
     if (printerEnabledCheck != null) {
       printerEnabledCheck.setSelected(true);
     }
@@ -772,7 +772,7 @@ public class SettingsController {
       printerLogicalNameField.clear();
     }
     if (printerDestinationCombo != null) {
-      printerDestinationCombo.setValue("ALL");
+      printerDestinationCombo.setValue("GENERAL");
     }
     if (printerEnabledCheck != null) {
       printerEnabledCheck.setSelected(true);

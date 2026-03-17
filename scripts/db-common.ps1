@@ -157,33 +157,44 @@ function Invoke-DatabaseQuery {
                 "--password=$Password",
                 "--default-character-set=utf8mb4"
             )
-            if ($TabSeparated) {
-                $args += "-Nse"
-                $args += $Sql
-            } else {
-                if (-not [string]::IsNullOrWhiteSpace($Database)) {
-                    $args += $Database
-                }
-                $args += "-e"
-                $args += $Sql
+            if (-not [string]::IsNullOrWhiteSpace($Database)) {
+                $args += $Database
             }
-            Invoke-CheckedProcess -FilePath $mysqlExe -ArgumentList $args -StdOutPath $tmpOut -StdErrPath $tmpErr
+            if ($TabSeparated) {
+                $args += "--batch"
+                $args += "--skip-column-names"
+            } else {
+            }
+            $args += "--execute=$Sql"
+
+            $previous = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = "Continue"
+                $output = & $mysqlExe @args 2> $tmpErr
+                $exitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previous
+            }
+            if ($exitCode -ne 0) {
+                $err = if (Test-Path $tmpErr) { Get-Content -Path $tmpErr -Raw } else { "" }
+                throw "$mysqlExe $($args -join ' ') failed (exit $exitCode): $err"
+            }
+            (@($output) -join [Environment]::NewLine) | Out-File -FilePath $tmpOut -Encoding utf8
         } else {
             $dockerArgs = @(
                 "exec", $Connection.Container, "mysql",
                 "--user=root", "--password=$Password",
                 "--default-character-set=utf8mb4"
             )
-            if ($TabSeparated) {
-                $dockerArgs += "-Nse"
-                $dockerArgs += $Sql
-            } else {
-                if (-not [string]::IsNullOrWhiteSpace($Database)) {
-                    $dockerArgs += $Database
-                }
-                $dockerArgs += "-e"
-                $dockerArgs += $Sql
+            if (-not [string]::IsNullOrWhiteSpace($Database)) {
+                $dockerArgs += $Database
             }
+            if ($TabSeparated) {
+                $dockerArgs += "--batch"
+                $dockerArgs += "--skip-column-names"
+            } else {
+            }
+            $dockerArgs += "--execute=$Sql"
             Invoke-DockerCapture -ArgumentList $dockerArgs -StdOutPath $tmpOut -StdErrPath $tmpErr
         }
         return (Get-Content -Path $tmpOut -Raw)

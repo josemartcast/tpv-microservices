@@ -59,7 +59,8 @@ public class SalonAreaService {
             throw new IllegalArgumentException("tableCount is required");
         }
         String name = normalizeName(request.name());
-        if (salonAreaRepo.existsByNameIgnoreCaseAndActiveTrue(name)) {
+        SalonArea existingByName = salonAreaRepo.findByNameIgnoreCase(name).orElse(null);
+        if (existingByName != null && existingByName.isActive()) {
             throw new ConflictException("Salon name already exists: " + name);
         }
 
@@ -75,6 +76,11 @@ public class SalonAreaService {
             throw new ConflictException("Table range overlaps with another salon");
         }
 
+        if (existingByName != null) {
+            existingByName.reactivate(name, firstTable, tableCount);
+            return toResponse(salonAreaRepo.save(existingByName));
+        }
+
         SalonArea created = salonAreaRepo.save(new SalonArea(name, firstTable, tableCount));
         return toResponse(created);
     }
@@ -85,9 +91,11 @@ public class SalonAreaService {
         SalonArea salon = salonAreaRepo.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new NotFoundException("Salon not found: " + id));
 
-        if (!salon.getName().equalsIgnoreCase(name)
-                && salonAreaRepo.existsByNameIgnoreCaseAndActiveTrue(name)) {
-            throw new ConflictException("Salon name already exists: " + name);
+        if (!salon.getName().equalsIgnoreCase(name)) {
+            SalonArea existingByName = salonAreaRepo.findByNameIgnoreCase(name).orElse(null);
+            if (existingByName != null && !existingByName.getId().equals(id)) {
+                throw new ConflictException("Salon name already exists: " + name);
+            }
         }
 
         salon.rename(name);
