@@ -179,13 +179,17 @@ public class FooterBarController {
                     showError("Selecciona IVA (4, 10 o 21).");
                     return;
                 }
-                AppContext.get().catalogService().createProduct(category.id(), name, priceCents, vat);
-                categories.setAll(AppContext.get().catalogService().categories());
-                filterCategoryBox.setItems(categories);
-                editCategoryBox.setItems(categories);
-                filterCategoryBox.setValue(category);
-                clearProductForm.run();
-                refresh.run();
+                try {
+                    AppContext.get().catalogService().createProduct(category.id(), name, priceCents, vat);
+                    categories.setAll(AppContext.get().catalogService().categories());
+                    filterCategoryBox.setItems(categories);
+                    editCategoryBox.setItems(categories);
+                    filterCategoryBox.setValue(category);
+                    clearProductForm.run();
+                    refresh.run();
+                } catch (Exception e) {
+                    showError(renderCatalogError(e, "crear producto"));
+                }
             });
 
             updateProductBtn.setOnAction(evt -> {
@@ -216,13 +220,17 @@ public class FooterBarController {
                     showError("Selecciona IVA (4, 10 o 21).");
                     return;
                 }
-                AppContext.get().catalogService().updateProduct(selected.id(), category.id(), name, priceCents, vat);
-                categories.setAll(AppContext.get().catalogService().categories());
-                filterCategoryBox.setItems(categories);
-                editCategoryBox.setItems(categories);
-                filterCategoryBox.setValue(category);
-                clearProductForm.run();
-                refresh.run();
+                try {
+                    AppContext.get().catalogService().updateProduct(selected.id(), category.id(), name, priceCents, vat);
+                    categories.setAll(AppContext.get().catalogService().categories());
+                    filterCategoryBox.setItems(categories);
+                    editCategoryBox.setItems(categories);
+                    filterCategoryBox.setValue(category);
+                    clearProductForm.run();
+                    refresh.run();
+                } catch (Exception e) {
+                    showError(renderCatalogError(e, "actualizar producto"));
+                }
             });
 
             deleteProductBtn.setOnAction(evt -> {
@@ -234,9 +242,13 @@ public class FooterBarController {
                 if (!showConfirm("Eliminar producto", "Se eliminara el producto '" + selected.name() + "'. Continuar?")) {
                     return;
                 }
-                AppContext.get().catalogService().deleteProduct(selected.id());
-                clearProductForm.run();
-                refresh.run();
+                try {
+                    AppContext.get().catalogService().deleteProduct(selected.id());
+                    clearProductForm.run();
+                    refresh.run();
+                } catch (Exception e) {
+                    showError(renderCatalogError(e, "eliminar producto"));
+                }
             });
 
             newProductBtn.setOnAction(evt -> clearProductForm.run());
@@ -974,6 +986,20 @@ public class FooterBarController {
 
     private boolean showConfirm(String title, String message) {
         return UiDialogs.confirm(title, message);
+    }
+
+    private static String renderCatalogError(Exception e, String action) {
+        String raw = e == null ? "" : e.getMessage();
+        if (raw == null) {
+            raw = "";
+        }
+        if (raw.contains("Product name already exists")) {
+            return "No se pudo " + action + ": ya existe un producto con ese nombre.";
+        }
+        if (raw.contains("Category not found/active")) {
+            return "No se pudo " + action + ": la categoria ya no esta activa.";
+        }
+        return "No se pudo " + action + ": " + raw;
     }
 
     private static String textOrBlank(TextField field) {

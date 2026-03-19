@@ -1,5 +1,7 @@
 package com.tpv.desktop.tpv.ui.controllers;
 
+import com.tpv.desktop.api.pos.TicketHistoryApi;
+import com.tpv.desktop.api.pos.TicketSummaryResponse;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.app.Navigator;
@@ -40,9 +42,17 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class OrderController {
+    private static final int RECEIPT_LINE_WIDTH = 34;
+    private static final int RECEIPT_QTY_COL_WIDTH = 4;
+    private static final int RECEIPT_DESC_COL_WIDTH = 13;
+    private static final int RECEIPT_UNIT_COL_WIDTH = 6;
+    private static final int RECEIPT_TOTAL_COL_WIDTH = 8;
+
     @FXML private TopBarController topBarController;
     @FXML private ListView<OrderLine> ticketList;
     @FXML private Label subtotalLabel;
@@ -207,7 +217,7 @@ public class OrderController {
             stage.showAndWait();
         } catch (IOException e) {
             String msg = "No se pudo abrir modal de envio: " + e.getMessage();
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showErrorDialog("Enviar comanda", msg);
         }
     }
@@ -222,7 +232,7 @@ public class OrderController {
             int pending = vm.pendingPaymentCents();
             if (pending <= 0) {
                 String msg = "No hay importe pendiente.";
-                feedbackLabel.setText(msg);
+                setFeedback(msg);
                 showInfoDialog("Cobrar", msg);
                 return;
             }
@@ -271,7 +281,7 @@ public class OrderController {
             }
         } catch (Exception e) {
             String msg = "No se pudo cobrar: " + e.getMessage();
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showErrorDialog("Cobrar", msg);
         }
     }
@@ -281,7 +291,7 @@ public class OrderController {
             int pending = vm.pendingPaymentCents();
             if (pending <= 0) {
                 String msg = "No hay importe pendiente para dividir.";
-                feedbackLabel.setText(msg);
+                setFeedback(msg);
                 showInfoDialog("Dividir", msg);
                 return;
             }
@@ -308,10 +318,10 @@ public class OrderController {
                 return;
             }
 
-            feedbackLabel.setText("Parte dividida cobrada (" + money(amountCents) + ").");
+            setFeedback("Parte dividida cobrada (" + money(amountCents) + ").");
         } catch (Exception e) {
             String msg = "No se pudo dividir/cobrar: " + e.getMessage();
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showErrorDialog("Dividir", msg);
         }
     }
@@ -320,7 +330,7 @@ public class OrderController {
     public void onPrebill() {
         if (vm.lines().isEmpty()) {
             String msg = "No hay lineas en ticket para pre-cuenta.";
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showInfoDialog("Precuenta", msg);
             return;
         }
@@ -331,7 +341,7 @@ public class OrderController {
         preview.setWrapText(false);
         preview.setPrefColumnCount(44);
         preview.setPrefRowCount(22);
-        preview.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 12px;");
+        preview.setStyle("-fx-font-family: 'Monospaced'; -fx-font-size: 12px; -fx-font-weight: bold;");
 
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Precuenta");
@@ -347,19 +357,19 @@ public class OrderController {
             ClipboardContent content = new ClipboardContent();
             content.putString(text);
             Clipboard.getSystemClipboard().setContent(content);
-            feedbackLabel.setText("Pre-cuenta copiada al portapapeles.");
+            setFeedback("Pre-cuenta copiada al portapapeles.");
             showInfoDialog("Precuenta", "Pre-cuenta copiada al portapapeles.");
             return;
         }
         if (action == printButton) {
             String target = printDocumentToGeneral(text);
-            feedbackLabel.setText("Pre-cuenta enviada a " + target + ".");
+            setFeedback("Pre-cuenta enviada a " + target + ".");
             showInfoDialog("Precuenta", "Pre-cuenta enviada a " + target + ".");
             return;
         }
         if (action == printPdfButton) {
-            PrintUtil.printTextToPdf(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
-            feedbackLabel.setText("Enviado a Print to PDF.");
+            PrintUtil.printTextToPdfWithBottomMargin(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
+            setFeedback("Enviado a Print to PDF.");
             showInfoDialog("Precuenta", "Enviado a Print to PDF.");
         }
     }
@@ -376,11 +386,11 @@ public class OrderController {
                 refreshOrderHeader();
             } catch (NumberFormatException e) {
                 String msg = "Mesa destino invalida.";
-                feedbackLabel.setText(msg);
+                setFeedback(msg);
                 showInfoDialog("Mover mesa", msg);
             } catch (Exception e) {
                 String msg = "No se pudo mover mesa: " + e.getMessage();
-                feedbackLabel.setText(msg);
+                setFeedback(msg);
                 showErrorDialog("Mover mesa", msg);
             }
         });
@@ -425,7 +435,7 @@ public class OrderController {
             vm.applyDiscountAmount(amountCents);
         } catch (Exception e) {
             String msg = "No se pudo aplicar descuento: " + e.getMessage();
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showErrorDialog("Descuento", msg);
         }
     }
@@ -436,17 +446,17 @@ public class OrderController {
             String printerName = resolveDrawerPrinter();
             if (printerName == null || printerName.isBlank()) {
                 String msg = "No hay impresora configurada para abrir cajon. Configura una impresora en Settings.";
-                feedbackLabel.setText(msg);
+                setFeedback(msg);
                 showInfoDialog("Abrir cajon", msg);
                 return;
             }
             PrintUtil.openCashDrawer(printerName);
             String msg = "Senal de apertura enviada a: " + printerName;
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showInfoDialog("Abrir cajon", msg);
         } catch (Exception e) {
             String msg = "No se pudo abrir cajon: " + e.getMessage();
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showErrorDialog("Abrir cajon", msg);
         }
     }
@@ -463,7 +473,7 @@ public class OrderController {
         OrderLine selected = ticketList.getSelectionModel().getSelectedItem();
         if (selected == null) {
             String msg = "Selecciona una linea para borrar.";
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showInfoDialog("Borrar linea", msg);
             return;
         }
@@ -471,7 +481,7 @@ public class OrderController {
             vm.removeLine(selected.getId());
         } catch (Exception e) {
             String msg = "No se pudo borrar linea: " + e.getMessage();
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showErrorDialog("Borrar linea", msg);
         }
     }
@@ -525,7 +535,7 @@ public class OrderController {
             }
         } catch (Exception e) {
             String msg = "No se pudo editar linea: " + e.getMessage();
-            feedbackLabel.setText(msg);
+            setFeedback(msg);
             showErrorDialog("Editar linea", msg);
         }
     }
@@ -651,7 +661,7 @@ public class OrderController {
     }
     private int promptPartialByLines(int pendingCents, String title, String header) {
         if (vm.lines().isEmpty()) {
-            feedbackLabel.setText("No hay lineas para cobro parcial.");
+            setFeedback("No hay lineas para cobro parcial.");
             return 0;
         }
 
@@ -784,10 +794,8 @@ public class OrderController {
         return null;
     }
 
-    private String buildPrebillText() {
-        StringBuilder out = new StringBuilder();
+    private void appendBusinessHeader(StringBuilder out, String documentTitle) {
         String restaurantName = AppContext.get().appState().restaurantNameProperty().get();
-        String legalName = SettingsStore.getFiscalLegalName();
         String taxId = SettingsStore.getFiscalTaxId();
         String fiscalAddress = SettingsStore.getFiscalAddress();
         String fiscalPostalCode = SettingsStore.getFiscalPostalCode();
@@ -798,9 +806,6 @@ public class OrderController {
         String fiscalEmail = SettingsStore.getFiscalEmail();
 
         String headerName = (restaurantName == null || restaurantName.isBlank() ? "RESTAURANTE" : restaurantName);
-        if (legalName != null && !legalName.isBlank()) {
-            headerName = legalName;
-        }
 
         out.append(headerName.toUpperCase(Locale.ROOT)).append('\n');
         if (taxId != null && !taxId.isBlank()) {
@@ -832,59 +837,117 @@ public class OrderController {
         if (fiscalEmail != null && !fiscalEmail.isBlank()) {
             out.append(clip(fiscalEmail, 42)).append('\n');
         }
-        out.append("PRECUENTA").append('\n');
-        out.append("Mesa ").append(vm.tableIdProperty().get())
-                .append("  Ticket ").append(vm.orderIdProperty().get()).append('\n');
-        out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
-        out.append("--------------------------------------------").append('\n');
+        out.append(documentTitle).append('\n');
+    }
+
+    private String buildPrebillText() {
+        StringBuilder out = new StringBuilder();
+        appendBusinessHeader(out, "PRECUENTA");
+        appendWrappedLine(out, "Mesa " + vm.tableIdProperty().get() + " Ticket " + vm.orderIdProperty().get());
+        appendWrappedLine(out, "Fecha " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        out.append(receiptSeparator()).append('\n');
+        appendReceiptItemsHeader(out);
+        out.append(receiptSeparator()).append('\n');
         for (OrderLine line : vm.lines()) {
+            int unitPrice = line.getUnitPriceCents();
             int lineTotal = line.getQty() * line.getUnitPriceCents();
-            out.append(String.format(Locale.US, "%2dx %-24s %8.2f", line.getQty(), clip(line.getProductName(), 24), lineTotal / 100.0))
-                    .append('\n');
+            appendReceiptLineWithAmounts(out, line.getQty(), line.getProductName(), unitPrice, lineTotal);
             if (line.getNote() != null && !line.getNote().isBlank()) {
                 out.append("   - ").append(line.getNote()).append('\n');
             }
         }
-        out.append("--------------------------------------------").append('\n');
-        out.append(String.format(Locale.US, "TOTAL:%33.2f", vm.lines().stream()
+        out.append(receiptSeparator()).append('\n');
+        appendReceiptAmountLine(out, "TOTAL", vm.lines().stream()
                 .mapToInt(l -> l.getQty() * l.getUnitPriceCents())
-                .sum() / 100.0)).append('\n');
-        out.append(String.format(Locale.US, "PENDIENTE:%29.2f", vm.pendingPaymentCents() / 100.0)).append('\n');
-        out.append("--------------------------------------------").append('\n');
+                .sum());
+        appendReceiptAmountLine(out, "PENDIENTE", vm.pendingPaymentCents());
+        out.append(receiptSeparator()).append('\n');
         out.append("Gracias. Esta pre-cuenta no es factura.").append('\n');
+        appendBottomMargin(out);
         return out.toString();
     }
 
     private String buildPaidTicketText(String method, int paidAmountCents) {
         StringBuilder out = new StringBuilder();
-        String restaurantName = AppContext.get().appState().restaurantNameProperty().get();
-        String legalName = SettingsStore.getFiscalLegalName();
-        String headerName = (restaurantName == null || restaurantName.isBlank() ? "RESTAURANTE" : restaurantName);
-        if (legalName != null && !legalName.isBlank()) {
-            headerName = legalName;
-        }
-
-        out.append(headerName.toUpperCase(Locale.ROOT)).append('\n');
-        out.append("TICKET CLIENTE").append('\n');
-        out.append(tableLabelForTicket()).append("  Ticket ").append(vm.orderIdProperty().get()).append('\n');
-        out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
-        out.append("--------------------------------------------").append('\n');
+        appendBusinessHeader(out, "TICKET CLIENTE");
+        appendWrappedLine(out, tableLabelForTicket() + " Ticket " + vm.orderIdProperty().get());
+        appendWrappedLine(out, "Fecha " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        out.append(receiptSeparator()).append('\n');
+        appendReceiptItemsHeader(out);
+        out.append(receiptSeparator()).append('\n');
         for (OrderLine line : vm.lines()) {
+            int unitPrice = line.getUnitPriceCents();
             int lineTotal = line.getQty() * line.getUnitPriceCents();
-            out.append(String.format(Locale.US, "%2dx %-24s %8.2f", line.getQty(), clip(line.getProductName(), 24), lineTotal / 100.0))
-                    .append('\n');
+            appendReceiptLineWithAmounts(out, line.getQty(), line.getProductName(), unitPrice, lineTotal);
             if (line.getNote() != null && !line.getNote().isBlank()) {
                 out.append("   - ").append(line.getNote()).append('\n');
             }
         }
-        int totalCents = vm.lines().stream().mapToInt(l -> l.getQty() * l.getUnitPriceCents()).sum();
-        out.append("--------------------------------------------").append('\n');
-        out.append(String.format(Locale.US, "TOTAL:%33.2f", totalCents / 100.0)).append('\n');
-        out.append(String.format(Locale.US, "PAGADO:%32.2f", paidAmountCents / 100.0)).append('\n');
-        out.append(String.format(Locale.US, "METODO:%31s", method == null ? "-" : method.toUpperCase(Locale.ROOT))).append('\n');
-        out.append("--------------------------------------------").append('\n');
+
+        PaidTicketSummary summary = resolvePaidTicketSummary(method, paidAmountCents);
+        out.append(receiptSeparator()).append('\n');
+        appendReceiptAmountLine(out, "TOTAL", summary.totalCents());
+        out.append("IVA INCLUIDO").append('\n');
+        appendReceiptAmountLine(out, "PAGADO", summary.paidCents());
+        if (summary.paymentBreakdown().isEmpty()) {
+            appendReceiptFieldLine(out, "METODO", normalizePaymentMethod(method));
+        } else {
+            for (Map.Entry<String, Integer> entry : summary.paymentBreakdown().entrySet()) {
+                appendReceiptAmountLine(out, entry.getKey(), entry.getValue());
+            }
+        }
+        out.append(receiptSeparator()).append('\n');
         out.append("Gracias por su visita.").append('\n');
+        appendBottomMargin(out);
         return out.toString();
+    }
+
+    private PaidTicketSummary resolvePaidTicketSummary(String fallbackMethod, int fallbackPaidAmountCents) {
+        int fallbackTotal = vm.lines().stream().mapToInt(l -> l.getQty() * l.getUnitPriceCents()).sum();
+        LinkedHashMap<String, Integer> fallbackBreakdown = new LinkedHashMap<>();
+        if (fallbackPaidAmountCents > 0) {
+            fallbackBreakdown.put(normalizePaymentMethod(fallbackMethod), fallbackPaidAmountCents);
+        }
+
+        try {
+            long ticketId = vm.orderIdProperty().get();
+            TicketSummaryResponse summary = TicketHistoryApi.summary(ticketId);
+            if (summary == null) {
+                return new PaidTicketSummary(fallbackTotal, fallbackPaidAmountCents, fallbackBreakdown);
+            }
+
+            int totalCents = summary.totalCents() > 0 ? summary.totalCents() : fallbackTotal;
+            LinkedHashMap<String, Integer> breakdown = new LinkedHashMap<>();
+            if (summary.payments() != null) {
+                for (TicketSummaryResponse.PaymentSummary payment : summary.payments()) {
+                    if (payment == null || payment.amountCents() <= 0) {
+                        continue;
+                    }
+                    String paymentMethod = normalizePaymentMethod(payment.method());
+                    breakdown.merge(paymentMethod, payment.amountCents(), Integer::sum);
+                }
+            }
+
+            int paidFromBreakdown = breakdown.values().stream().mapToInt(Integer::intValue).sum();
+            int paidCents = summary.paidCents() > 0 ? summary.paidCents() : paidFromBreakdown;
+            if (paidCents <= 0) {
+                paidCents = fallbackPaidAmountCents;
+            }
+            if (breakdown.isEmpty() && fallbackPaidAmountCents > 0) {
+                breakdown.put(normalizePaymentMethod(fallbackMethod), fallbackPaidAmountCents);
+            }
+
+            return new PaidTicketSummary(totalCents, paidCents, breakdown);
+        } catch (Exception ignored) {
+            return new PaidTicketSummary(fallbackTotal, fallbackPaidAmountCents, fallbackBreakdown);
+        }
+    }
+
+    private static String normalizePaymentMethod(String method) {
+        if (method == null || method.isBlank()) {
+            return "OTRO";
+        }
+        return method.trim().toUpperCase(Locale.ROOT);
     }
 
     private static String clip(String value, int max) {
@@ -892,6 +955,133 @@ public class OrderController {
             return "";
         }
         return value.length() <= max ? value : value.substring(0, max - 1) + ".";
+    }
+
+    private static void appendReceiptItemsHeader(StringBuilder out) {
+        out.append(formatReceiptColumns("CANT", "DESCRIPCION", "PRECIO", "IMPORTE")).append('\n');
+    }
+
+    private static void appendReceiptLineWithAmounts(StringBuilder out, int qty, String productName, int unitPriceCents, int lineTotalCents) {
+        String qtyText = Math.max(1, qty) + "x";
+        String unitText = String.format(Locale.US, "%.2f", unitPriceCents / 100.0);
+        String totalText = String.format(Locale.US, "%.2f", lineTotalCents / 100.0);
+        String safeName = productName == null || productName.isBlank() ? "-" : productName.trim();
+
+        java.util.List<String> wrapped = wrapByWords(safeName, RECEIPT_DESC_COL_WIDTH);
+        String firstName = wrapped.isEmpty() ? "-" : wrapped.getFirst();
+
+        out.append(formatReceiptColumns(qtyText, firstName, unitText, totalText)).append('\n');
+
+        if (wrapped.size() <= 1) {
+            return;
+        }
+
+        for (int i = 1; i < wrapped.size(); i++) {
+            out.append(formatReceiptColumns("", wrapped.get(i), "", "")).append('\n');
+        }
+    }
+
+    private static String formatReceiptColumns(String qty, String description, String unitPrice, String amount) {
+        return padRight(trimToWidth(qty, RECEIPT_QTY_COL_WIDTH), RECEIPT_QTY_COL_WIDTH)
+                + ' '
+                + padRight(trimToWidth(description, RECEIPT_DESC_COL_WIDTH), RECEIPT_DESC_COL_WIDTH)
+                + ' '
+                + padLeft(trimToWidth(unitPrice, RECEIPT_UNIT_COL_WIDTH), RECEIPT_UNIT_COL_WIDTH)
+                + ' '
+                + padLeft(trimToWidth(amount, RECEIPT_TOTAL_COL_WIDTH), RECEIPT_TOTAL_COL_WIDTH);
+    }
+
+    private static void appendReceiptAmountLine(StringBuilder out, String label, int amountCents) {
+        appendReceiptFieldLine(out, label, String.format(Locale.US, "%.2f", amountCents / 100.0));
+    }
+
+    private static void appendReceiptFieldLine(StringBuilder out, String label, String value) {
+        String safeLabel = (label == null ? "" : label.trim()) + ":";
+        String safeValue = value == null || value.isBlank() ? "-" : value.trim();
+        int maxLeft = Math.max(4, RECEIPT_LINE_WIDTH - safeValue.length() - 1);
+        String left = safeLabel.length() <= maxLeft ? safeLabel : safeLabel.substring(0, maxLeft);
+        int gap = Math.max(1, RECEIPT_LINE_WIDTH - left.length() - safeValue.length());
+        out.append(left).append(" ".repeat(gap)).append(safeValue).append('\n');
+    }
+
+    private static void appendWrappedLine(StringBuilder out, String text) {
+        for (String part : wrapByWords(text, RECEIPT_LINE_WIDTH)) {
+            out.append(part).append('\n');
+        }
+    }
+
+    private static String receiptSeparator() {
+        return "-".repeat(RECEIPT_LINE_WIDTH);
+    }
+
+    private static void appendBottomMargin(StringBuilder out) {
+        out.append('\n').append('\n').append('\n').append('\n').append('\n');
+    }
+
+    private static java.util.List<String> wrapByWords(String text, int maxWidth) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        if (text == null || text.isBlank()) {
+            return lines;
+        }
+
+        String[] words = text.trim().split("\\s+");
+        StringBuilder current = new StringBuilder();
+        for (String word : words) {
+            if (word.length() > maxWidth) {
+                if (!current.isEmpty()) {
+                    lines.add(current.toString());
+                    current.setLength(0);
+                }
+                int index = 0;
+                while (index < word.length()) {
+                    int end = Math.min(index + maxWidth, word.length());
+                    lines.add(word.substring(index, end));
+                    index = end;
+                }
+                continue;
+            }
+
+            if (current.isEmpty()) {
+                current.append(word);
+                continue;
+            }
+
+            if (current.length() + 1 + word.length() <= maxWidth) {
+                current.append(' ').append(word);
+            } else {
+                lines.add(current.toString());
+                current.setLength(0);
+                current.append(word);
+            }
+        }
+        if (!current.isEmpty()) {
+            lines.add(current.toString());
+        }
+        return lines;
+    }
+
+    private static String trimToWidth(String value, int width) {
+        String safe = value == null ? "" : value.trim();
+        if (safe.length() <= width) {
+            return safe;
+        }
+        return safe.substring(0, width);
+    }
+
+    private static String padRight(String value, int width) {
+        String safe = value == null ? "" : value;
+        if (safe.length() >= width) {
+            return safe;
+        }
+        return safe + " ".repeat(width - safe.length());
+    }
+
+    private static String padLeft(String value, int width) {
+        String safe = value == null ? "" : value;
+        if (safe.length() >= width) {
+            return safe;
+        }
+        return " ".repeat(width - safe.length()) + safe;
     }
 
     private void refreshOrderHeader() {
@@ -915,36 +1105,51 @@ public class OrderController {
     private void printPaidTicketSafe(String method, int paidAmountCents) {
         try {
             String target = printDocumentToGeneral(buildPaidTicketText(method, paidAmountCents));
-            feedbackLabel.setText("Cobro registrado. Ticket enviado a " + target + ".");
+            setFeedback("Cobro registrado. Ticket enviado a " + target + ".");
         } catch (Exception e) {
             UiDialogs.warn("Ticket cliente", "Cobro registrado, pero no se pudo imprimir ticket:\n" + e.getMessage());
         }
     }
 
     private String printDocumentToGeneral(String text) {
-        String preferred = firstConfiguredPrinter(PrinterSettingsStore.resolveSystemPrintersForDestination("GENERAL"));
-        if (preferred != null) {
+        java.util.List<String> candidates = new java.util.ArrayList<>();
+        addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("GENERAL"));
+        addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("ALL"));
+        addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("BAR"));
+        addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("COCINA"));
+        addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("POSTRES"));
+
+        javafx.stage.Window owner = feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null;
+        for (String printer : candidates) {
             try {
-                PrintUtil.printTextToPrinter(preferred, text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
-                return preferred;
+                PrintUtil.printTextToPrinterWithBottomMargin(printer, text, owner);
+                return printer;
             } catch (Exception ignored) {
-                // Fallback controlado abajo.
+                // Probamos siguiente impresora configurada.
             }
         }
-        PrintUtil.printTextToPdf(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
+
+        PrintUtil.printTextToPdfWithBottomMargin(text, owner);
         return "Print to PDF";
     }
 
-    private static String firstConfiguredPrinter(java.util.List<String> printers) {
-        if (printers == null) {
-            return null;
+    private static void addPrinters(java.util.List<String> target, java.util.List<String> source) {
+        if (source == null || source.isEmpty()) {
+            return;
         }
-        for (String printer : printers) {
-            if (printer != null && !printer.isBlank()) {
-                return printer.trim();
+        for (String printer : source) {
+            if (printer == null || printer.isBlank()) {
+                continue;
+            }
+            String normalized = printer.trim();
+            if (!target.contains(normalized)) {
+                target.add(normalized);
             }
         }
-        return null;
+    }
+
+    private void setFeedback(String message) {
+        vm.feedbackProperty().set(message == null ? "" : message);
     }
 
     private void showInfoDialog(String title, String message) {
@@ -962,7 +1167,10 @@ public class OrderController {
             return include.isSelected() ? qtyValue * line.getUnitPriceCents() : 0;
         }
     }
+
+    private record PaidTicketSummary(int totalCents, int paidCents, Map<String, Integer> paymentBreakdown) {}
 }
+
 
 
 

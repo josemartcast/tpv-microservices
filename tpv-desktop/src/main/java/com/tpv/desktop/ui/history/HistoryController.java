@@ -46,8 +46,11 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 
 public class HistoryController {
@@ -90,6 +93,11 @@ public class HistoryController {
 
     private static final DateTimeFormatter DT =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault());
+    private static final int INVOICE_LINE_WIDTH = 34;
+    private static final int INVOICE_QTY_COL_WIDTH = 4;
+    private static final int INVOICE_DESC_COL_WIDTH = 13;
+    private static final int INVOICE_UNIT_COL_WIDTH = 6;
+    private static final int INVOICE_TOTAL_COL_WIDTH = 8;
 
     private boolean canReopenPaid() {
         return AuthStore.hasRole("ADMIN") || AuthStore.hasRole("ENCARGADO");
@@ -282,6 +290,9 @@ public class HistoryController {
 
         while (true) {
             ButtonType action = dialog.showAndWait().orElse(ButtonType.CLOSE);
+            if (action == null || action == ButtonType.CLOSE || action.getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE) {
+                break;
+            }
             if (action == refreshBtn) {
                 load.run();
                 continue;
@@ -304,6 +315,7 @@ public class HistoryController {
                     }
                     invoiceErrorLabel.setStyle("-fx-text-fill: #1e7e34;");
                     invoiceErrorLabel.setText("Factura " + invoice.invoiceNumber() + " enviada a " + target + ".");
+                    break;
                 } catch (Exception e) {
                     invoiceErrorLabel.setStyle("-fx-text-fill: #b00020;");
                     invoiceErrorLabel.setText("No se pudo reimprimir factura: " + e.getMessage());
@@ -466,10 +478,10 @@ public class HistoryController {
             return null;
         }
         if ("Print to PDF".equals(selected)) {
-            PrintUtil.printTextToPdf(text, owner);
+            PrintUtil.printTextToPdfWithBottomMargin(text, owner);
             return "Print to PDF";
         }
-        PrintUtil.printTextToPrinter(selected, text, owner);
+        PrintUtil.printTextToPrinterWithBottomMargin(selected, text, owner);
         return selected;
     }
 
@@ -623,10 +635,10 @@ public class HistoryController {
 
         String invoiceNumber = "F-" + summary.id() + "-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
 
-        out.append(clip(businessName.toUpperCase(Locale.ROOT), 46)).append('\n');
+        out.append(clip(businessName.toUpperCase(Locale.ROOT), INVOICE_LINE_WIDTH)).append('\n');
         out.append("NIF/CIF ").append(taxId).append('\n');
         if (!blankTo(address, "").isBlank()) {
-            out.append(clip(address, 46)).append('\n');
+            appendWrappedInvoiceText(out, address);
         }
         String cityLine = String.format(
                 Locale.ROOT,
@@ -636,26 +648,26 @@ public class HistoryController {
                 blankTo(province, "")
         ).trim();
         if (!cityLine.isBlank()) {
-            out.append(clip(cityLine, 46)).append('\n');
+            appendWrappedInvoiceText(out, cityLine);
         }
         if (!blankTo(country, "").isBlank()) {
-            out.append(clip(country.toUpperCase(Locale.ROOT), 46)).append('\n');
+            appendWrappedInvoiceText(out, country.toUpperCase(Locale.ROOT));
         }
 
-        out.append("----------------------------------------------").append('\n');
+        out.append(invoiceSeparator()).append('\n');
         out.append("FACTURA ").append(invoiceNumber).append('\n');
         out.append("Ticket ").append(summary.id()).append("  Mesa ")
                 .append(selectedTicket == null || selectedTicket.tableNumber() == null ? "-" : selectedTicket.tableNumber())
                 .append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
-        out.append("----------------------------------------------").append('\n');
+        out.append(invoiceSeparator()).append('\n');
         out.append("CLIENTE").append('\n');
-        out.append(clip(blankTo(customer == null ? "" : customer.legalName(), customer == null ? "" : customer.displayName()), 46)).append('\n');
+        out.append(clip(blankTo(customer == null ? "" : customer.legalName(), customer == null ? "" : customer.displayName()), INVOICE_LINE_WIDTH)).append('\n');
         if (customer != null && !blankTo(customer.taxId(), "").isBlank()) {
             out.append("NIF/CIF ").append(customer.taxId()).append('\n');
         }
         if (customer != null && !blankTo(customer.fiscalAddress(), "").isBlank()) {
-            out.append(clip(customer.fiscalAddress(), 46)).append('\n');
+            appendWrappedInvoiceText(out, customer.fiscalAddress());
         }
         if (customer != null) {
             String customerCity = String.format(
@@ -666,51 +678,60 @@ public class HistoryController {
                     blankTo(customer.province(), "")
             ).trim();
             if (!customerCity.isBlank()) {
-                out.append(clip(customerCity, 46)).append('\n');
+                appendWrappedInvoiceText(out, customerCity);
             }
             if (!blankTo(customer.country(), "").isBlank()) {
-                out.append(clip(customer.country().toUpperCase(Locale.ROOT), 46)).append('\n');
+                appendWrappedInvoiceText(out, customer.country().toUpperCase(Locale.ROOT));
             }
         }
 
-        out.append("----------------------------------------------").append('\n');
+        out.append(invoiceSeparator()).append('\n');
+        appendInvoiceItemsHeader(out);
+        out.append(invoiceSeparator()).append('\n');
+        Map<Long, Integer> vatByProductId = loadVatByProductId();
+        Map<Integer, VatTotals> vatBreakdown = new TreeMap<>();
+        int totalBaseCents = 0;
         if (summary.lines() != null) {
             for (TicketSummaryResponse.TicketLineSummary line : summary.lines()) {
-                out.append(String.format(
-                        Locale.US,
-                        "%2dx %-24s %10.2f",
-                        line.qty(),
-                        clip(line.productName(), 24),
-                        line.lineTotalCents() / 100.0
-                )).append('\n');
+                int vatRateBps = vatByProductId.getOrDefault(line.productId(), 1000);
+                int unitBaseCents = netFromGrossCents(line.unitPriceCents(), vatRateBps);
+                int baseCents = netFromGrossCents(line.lineTotalCents(), vatRateBps);
+                int vatCents = Math.max(0, line.lineTotalCents() - baseCents);
+                totalBaseCents += baseCents;
+                vatBreakdown.computeIfAbsent(vatRateBps, ignored -> new VatTotals()).add(baseCents, vatCents);
+                appendInvoiceLineWithAmounts(out, line.qty(), line.productName(), unitBaseCents, baseCents);
             }
         }
-        out.append("----------------------------------------------").append('\n');
-        out.append(String.format(Locale.US, "TOTAL:%36.2f", summary.totalCents() / 100.0)).append('\n');
-        out.append(String.format(Locale.US, "PAGADO:%35.2f", summary.paidCents() / 100.0)).append('\n');
-        out.append(String.format(Locale.US, "PENDIENTE:%32.2f", summary.remainingCents() / 100.0)).append('\n');
-        out.append("----------------------------------------------").append('\n');
+        out.append(invoiceSeparator()).append('\n');
+        appendInvoiceAmountLine(out, "BASE IMPONIBLE", totalBaseCents);
+        for (Map.Entry<Integer, VatTotals> entry : vatBreakdown.entrySet()) {
+            appendInvoiceAmountLine(out, "IVA (" + vatRateLabel(entry.getKey()) + ")", entry.getValue().vatCents);
+        }
+        appendInvoiceAmountLine(out, "TOTAL", summary.totalCents());
+        appendInvoiceAmountLine(out, "PAGADO", summary.paidCents());
+        out.append(invoiceSeparator()).append('\n');
         if (summary.payments() != null && !summary.payments().isEmpty()) {
             out.append("Pagos registrados").append('\n');
             for (TicketSummaryResponse.PaymentSummary payment : summary.payments()) {
                 out.append(String.format(
                         Locale.US,
-                        "%-10s %10.2f %s",
+                        "%-8s %8.2f %s",
                         payment.method(),
                         payment.amountCents() / 100.0,
                         payment.createdAt() == null ? "" : DT.format(payment.createdAt())
                 )).append('\n');
             }
         }
+        appendBottomMargin(out);
         return out.toString();
     }
 
     private String buildInvoiceText(InvoiceResponse invoice) {
         StringBuilder out = new StringBuilder();
-        out.append(clip(blankTo(invoice.businessLegalName(), invoice.businessName()).toUpperCase(Locale.ROOT), 46)).append('\n');
+        out.append(clip(blankTo(invoice.businessLegalName(), invoice.businessName()).toUpperCase(Locale.ROOT), INVOICE_LINE_WIDTH)).append('\n');
         out.append("NIF/CIF ").append(blankTo(invoice.businessTaxId(), "-")).append('\n');
         if (!blankTo(invoice.businessAddress(), "").isBlank()) {
-            out.append(clip(invoice.businessAddress(), 46)).append('\n');
+            appendWrappedInvoiceText(out, invoice.businessAddress());
         }
         String businessCity = String.format(
                 Locale.ROOT,
@@ -720,25 +741,25 @@ public class HistoryController {
                 blankTo(invoice.businessProvince(), "")
         ).trim();
         if (!businessCity.isBlank()) {
-            out.append(clip(businessCity, 46)).append('\n');
+            appendWrappedInvoiceText(out, businessCity);
         }
         if (!blankTo(invoice.businessCountry(), "").isBlank()) {
-            out.append(clip(invoice.businessCountry().toUpperCase(Locale.ROOT), 46)).append('\n');
+            appendWrappedInvoiceText(out, invoice.businessCountry().toUpperCase(Locale.ROOT));
         }
-        out.append("----------------------------------------------").append('\n');
+        out.append(invoiceSeparator()).append('\n');
         out.append("FACTURA ").append(invoice.invoiceNumber()).append('\n');
         out.append("Ticket ").append(invoice.ticketId()).append("  Mesa ")
                 .append(invoice.tableNumber() == null ? "-" : invoice.tableNumber()).append('\n');
         out.append("Fecha ").append(invoice.issuedAt() == null ? "-" : DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
                 .withZone(ZoneId.systemDefault()).format(invoice.issuedAt())).append('\n');
-        out.append("----------------------------------------------").append('\n');
+        out.append(invoiceSeparator()).append('\n');
         out.append("CLIENTE").append('\n');
-        out.append(clip(blankTo(invoice.customerLegalName(), invoice.customerDisplayName()), 46)).append('\n');
+        out.append(clip(blankTo(invoice.customerLegalName(), invoice.customerDisplayName()), INVOICE_LINE_WIDTH)).append('\n');
         if (!blankTo(invoice.customerTaxId(), "").isBlank()) {
             out.append("NIF/CIF ").append(invoice.customerTaxId()).append('\n');
         }
         if (!blankTo(invoice.customerAddress(), "").isBlank()) {
-            out.append(clip(invoice.customerAddress(), 46)).append('\n');
+            appendWrappedInvoiceText(out, invoice.customerAddress());
         }
         String customerCity = String.format(
                 Locale.ROOT,
@@ -748,28 +769,199 @@ public class HistoryController {
                 blankTo(invoice.customerProvince(), "")
         ).trim();
         if (!customerCity.isBlank()) {
-            out.append(clip(customerCity, 46)).append('\n');
+            appendWrappedInvoiceText(out, customerCity);
         }
         if (!blankTo(invoice.customerCountry(), "").isBlank()) {
-            out.append(clip(invoice.customerCountry().toUpperCase(Locale.ROOT), 46)).append('\n');
+            appendWrappedInvoiceText(out, invoice.customerCountry().toUpperCase(Locale.ROOT));
         }
-        out.append("----------------------------------------------").append('\n');
+        out.append(invoiceSeparator()).append('\n');
+        appendInvoiceItemsHeader(out);
+        out.append(invoiceSeparator()).append('\n');
+        Map<Integer, VatTotals> vatBreakdown = new TreeMap<>();
         if (invoice.lines() != null) {
             for (var line : invoice.lines()) {
-                out.append(String.format(
-                        Locale.US,
-                        "%2dx %-24s %10.2f",
-                        line.qty(),
-                        clip(line.productName(), 24),
-                        line.lineGrossCents() / 100.0
-                )).append('\n');
+                int unitNetCents = netFromGrossCents(line.unitGrossCents(), line.vatRateBps());
+                appendInvoiceLineWithAmounts(out, line.qty(), line.productName(), unitNetCents, line.lineNetCents());
+                vatBreakdown.computeIfAbsent(line.vatRateBps(), ignored -> new VatTotals())
+                        .add(line.lineNetCents(), line.lineVatCents());
             }
         }
-        out.append("----------------------------------------------").append('\n');
-        out.append(String.format(Locale.US, "TOTAL:%36.2f", invoice.totalGrossCents() / 100.0)).append('\n');
-        out.append(String.format(Locale.US, "BASE:%37.2f", invoice.totalNetCents() / 100.0)).append('\n');
-        out.append(String.format(Locale.US, "IVA:%38.2f", invoice.totalVatCents() / 100.0)).append('\n');
+        out.append(invoiceSeparator()).append('\n');
+        appendInvoiceAmountLine(out, "BASE IMPONIBLE", invoice.totalNetCents());
+        for (Map.Entry<Integer, VatTotals> entry : vatBreakdown.entrySet()) {
+            appendInvoiceAmountLine(out, "IVA (" + vatRateLabel(entry.getKey()) + ")", entry.getValue().vatCents);
+        }
+        appendInvoiceAmountLine(out, "TOTAL", invoice.totalGrossCents());
+        appendBottomMargin(out);
         return out.toString();
+    }
+
+    private static String invoiceSeparator() {
+        return "-".repeat(INVOICE_LINE_WIDTH);
+    }
+
+    private static void appendWrappedInvoiceText(StringBuilder out, String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        for (String part : wrapByWords(text, INVOICE_LINE_WIDTH)) {
+            out.append(part).append('\n');
+        }
+    }
+
+    private static void appendBottomMargin(StringBuilder out) {
+        out.append('\n').append('\n').append('\n').append('\n').append('\n');
+    }
+
+    private static void appendInvoiceAmountLine(StringBuilder out, String label, int amountCents) {
+        String safeLabel = (label == null ? "" : label.trim()) + ":";
+        String amount = String.format(Locale.US, "%.2f", amountCents / 100.0);
+        int maxLeft = Math.max(4, INVOICE_LINE_WIDTH - amount.length() - 1);
+        String left = safeLabel.length() <= maxLeft ? safeLabel : safeLabel.substring(0, maxLeft);
+        int gap = Math.max(1, INVOICE_LINE_WIDTH - left.length() - amount.length());
+        out.append(left).append(" ".repeat(gap)).append(amount).append('\n');
+    }
+
+    private static void appendInvoiceItemsHeader(StringBuilder out) {
+        out.append(formatInvoiceColumns("CANT", "DESCRIPCION", "PRECIO", "IMPORTE")).append('\n');
+    }
+
+    private static void appendInvoiceLineWithAmounts(
+            StringBuilder out,
+            int qty,
+            String productName,
+            int unitAmountCents,
+            int lineAmountCents
+    ) {
+        String qtyText = Math.max(1, qty) + "x";
+        String unitText = String.format(Locale.US, "%.2f", unitAmountCents / 100.0);
+        String amount = String.format(Locale.US, "%.2f", lineAmountCents / 100.0);
+        String safeName = productName == null || productName.isBlank() ? "-" : productName.trim();
+
+        List<String> wrapped = wrapByWords(safeName, INVOICE_DESC_COL_WIDTH);
+        String firstName = wrapped.isEmpty() ? "-" : wrapped.getFirst();
+        out.append(formatInvoiceColumns(qtyText, firstName, unitText, amount)).append('\n');
+
+        if (wrapped.size() <= 1) {
+            return;
+        }
+        for (int i = 1; i < wrapped.size(); i++) {
+            out.append(formatInvoiceColumns("", wrapped.get(i), "", "")).append('\n');
+        }
+    }
+
+    private static String formatInvoiceColumns(String qty, String description, String unitPrice, String amount) {
+        return padRight(trimToWidth(qty, INVOICE_QTY_COL_WIDTH), INVOICE_QTY_COL_WIDTH)
+                + ' '
+                + padRight(trimToWidth(description, INVOICE_DESC_COL_WIDTH), INVOICE_DESC_COL_WIDTH)
+                + ' '
+                + padLeft(trimToWidth(unitPrice, INVOICE_UNIT_COL_WIDTH), INVOICE_UNIT_COL_WIDTH)
+                + ' '
+                + padLeft(trimToWidth(amount, INVOICE_TOTAL_COL_WIDTH), INVOICE_TOTAL_COL_WIDTH);
+    }
+
+    private static List<String> wrapByWords(String text, int maxWidth) {
+        List<String> lines = new ArrayList<>();
+        if (text == null || text.isBlank()) {
+            return lines;
+        }
+        String[] words = text.trim().split("\\s+");
+        StringBuilder current = new StringBuilder();
+        for (String word : words) {
+            if (word.length() > maxWidth) {
+                if (!current.isEmpty()) {
+                    lines.add(current.toString());
+                    current.setLength(0);
+                }
+                int index = 0;
+                while (index < word.length()) {
+                    int end = Math.min(index + maxWidth, word.length());
+                    lines.add(word.substring(index, end));
+                    index = end;
+                }
+                continue;
+            }
+            if (current.isEmpty()) {
+                current.append(word);
+                continue;
+            }
+            if (current.length() + 1 + word.length() <= maxWidth) {
+                current.append(' ').append(word);
+            } else {
+                lines.add(current.toString());
+                current.setLength(0);
+                current.append(word);
+            }
+        }
+        if (!current.isEmpty()) {
+            lines.add(current.toString());
+        }
+        return lines;
+    }
+
+    private static String trimToWidth(String value, int width) {
+        String safe = value == null ? "" : value.trim();
+        if (safe.length() <= width) {
+            return safe;
+        }
+        return safe.substring(0, width);
+    }
+
+    private static String padRight(String value, int width) {
+        String safe = value == null ? "" : value;
+        if (safe.length() >= width) {
+            return safe;
+        }
+        return safe + " ".repeat(width - safe.length());
+    }
+
+    private static String padLeft(String value, int width) {
+        String safe = value == null ? "" : value;
+        if (safe.length() >= width) {
+            return safe;
+        }
+        return " ".repeat(width - safe.length()) + safe;
+    }
+
+    private static int netFromGrossCents(int grossCents, int vatRateBps) {
+        if (vatRateBps <= 0) {
+            return grossCents;
+        }
+        double net = grossCents * 10000.0 / (10000.0 + vatRateBps);
+        return (int) Math.round(net);
+    }
+
+    private static String vatRateLabel(int vatRateBps) {
+        return String.format(Locale.US, "%.2f%%", vatRateBps / 100.0);
+    }
+
+    private Map<Long, Integer> loadVatByProductId() {
+        Map<Long, Integer> vatByProduct = new LinkedHashMap<>();
+        try {
+            var products = com.tpv.desktop.api.pos.CatalogApi.products(null);
+            if (products == null) {
+                return vatByProduct;
+            }
+            for (var product : products) {
+                if (product == null) {
+                    continue;
+                }
+                vatByProduct.put(product.id(), product.vatRateBps());
+            }
+        } catch (Exception ignored) {
+            // Si no se puede cargar catalogo, se usa fallback 10% en el preview.
+        }
+        return vatByProduct;
+    }
+
+    private static final class VatTotals {
+        int netCents;
+        int vatCents;
+
+        void add(int net, int vat) {
+            this.netCents += net;
+            this.vatCents += vat;
+        }
     }
 
     private static String blankTo(String value, String fallback) {

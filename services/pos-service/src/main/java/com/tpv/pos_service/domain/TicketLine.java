@@ -180,7 +180,7 @@ public class TicketLine {
 
     private void recalc() {
         int grossLine = this.unitPriceCentsSnapshot * this.qty;
-        int netLine = this.netUnitPriceCentsSnapshot * this.qty;
+        int netLine = PriceCalc.netFromGross(grossLine, this.vatRateBpsSnapshot);
 
         this.lineTotalCents = grossLine;
         this.netLineTotalCents = netLine;

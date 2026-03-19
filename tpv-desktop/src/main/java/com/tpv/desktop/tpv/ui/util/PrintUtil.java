@@ -20,12 +20,15 @@ import javafx.print.Printer;
 import javafx.print.PrinterJob;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Window;
 
 public final class PrintUtil {
     private static final double MM_PER_POINT = 25.4 / 72.0;
     private static final double THERMAL_TARGET_MM = 80.0;
+    private static final double DEFAULT_FONT_SIZE = 10.0;
+    private static final double MIN_FONT_SIZE = 7.0;
 
     private PrintUtil() {
     }
@@ -35,7 +38,15 @@ public final class PrintUtil {
         if (printer == null) {
             throw new RuntimeException("No se encontro impresora PDF (Microsoft Print to PDF).");
         }
-        printText(text, printer, owner, false);
+        printText(text, printer, owner, false, false);
+    }
+
+    public static void printTextToPdfWithBottomMargin(String text, Window owner) {
+        Printer printer = findPdfPrinter();
+        if (printer == null) {
+            throw new RuntimeException("No se encontro impresora PDF (Microsoft Print to PDF).");
+        }
+        printText(text, printer, owner, false, true);
     }
 
     public static void printTextToPrinter(String printerName, String text, Window owner) {
@@ -43,7 +54,15 @@ public final class PrintUtil {
         if (printer == null) {
             throw new RuntimeException("No se encontro la impresora: " + printerName);
         }
-        printText(text, printer, owner, false);
+        printText(text, printer, owner, false, false);
+    }
+
+    public static void printTextToPrinterWithBottomMargin(String printerName, String text, Window owner) {
+        Printer printer = findPrinterByName(printerName);
+        if (printer == null) {
+            throw new RuntimeException("No se encontro la impresora: " + printerName);
+        }
+        printText(text, printer, owner, false, true);
     }
 
     public static void openCashDrawer(String printerName) {
@@ -80,16 +99,15 @@ public final class PrintUtil {
         return out;
     }
 
-    private static void printText(String text, Printer printer, Window owner, boolean showDialog) {
+    private static void printText(String text, Printer printer, Window owner, boolean showDialog, boolean addBottomMargin) {
         PrinterJob job = PrinterJob.createPrinterJob(printer);
         if (job == null) {
             throw new RuntimeException("No se pudo crear trabajo de impresion.");
         }
 
         Text printableText = new Text(text == null ? "" : text);
-        printableText.setFont(Font.font("Consolas", 11));
         VBox printableRoot = new VBox(printableText);
-        printableRoot.setPadding(new Insets(4));
+        printableRoot.setPadding(new Insets(2, 0, 2, 0));
 
         PageLayout pageLayout = printer.createPageLayout(
                 selectBestPaper(printer),
@@ -97,6 +115,8 @@ public final class PrintUtil {
                 Printer.MarginType.HARDWARE_MINIMUM
         );
         double printableWidth = pageLayout.getPrintableWidth();
+        double fontSize = resolveFontSizeForWidth(text, printableWidth > 0 ? printableWidth : 280);
+        printableText.setFont(Font.font("Monospaced", FontWeight.BOLD, fontSize));
         printableText.wrappingWidthProperty().set(printableWidth > 0 ? printableWidth : 280);
         job.getJobSettings().setPageLayout(pageLayout);
 
@@ -197,4 +217,38 @@ public final class PrintUtil {
         }
         return null;
     }
+
+    private static double resolveFontSizeForWidth(String text, double printableWidth) {
+        int longestLine = longestLineLength(text);
+        if (longestLine <= 0 || printableWidth <= 0) {
+            return DEFAULT_FONT_SIZE;
+        }
+
+        double candidate = DEFAULT_FONT_SIZE;
+        while (candidate >= MIN_FONT_SIZE) {
+            Text probe = new Text("X".repeat(longestLine));
+            probe.setFont(Font.font("Monospaced", FontWeight.BOLD, candidate));
+            double probeWidth = probe.getLayoutBounds().getWidth();
+            if (probeWidth <= printableWidth - 2) {
+                return candidate;
+            }
+            candidate -= 0.5;
+        }
+        return MIN_FONT_SIZE;
+    }
+
+    private static int longestLineLength(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        int max = 0;
+        String[] lines = text.replace("\r\n", "\n").split("\n", -1);
+        for (String line : lines) {
+            if (line.length() > max) {
+                max = line.length();
+            }
+        }
+        return max;
+    }
+
 }

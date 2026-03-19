@@ -48,13 +48,23 @@ public class ProductService {
     public ProductResponse create(CreateProductRequest req) {
         String name = normalize(req.name());
         int vat = req.vatRateBps();
-
-        if (productRepo.existsByNameIgnoreCase(name)) {
-            throw new ConflictException("Product name already exists: " + name);
-        }
+        Product existingByName = productRepo.findByNameIgnoreCase(name).orElse(null);
 
         Category category = categoryRepo.findByIdAndActiveTrue(req.categoryId())
                 .orElseThrow(() -> new NotFoundException("Category not found/active: " + req.categoryId()));
+
+        if (existingByName != null) {
+            if (existingByName.isActive()) {
+                throw new ConflictException("Product name already exists: " + name);
+            }
+            existingByName.rename(name);
+            existingByName.changePrice(req.priceCents());
+            existingByName.changeCategory(category);
+            existingByName.changeVatRateBps(vat);
+            existingByName.activate();
+            Product reactivated = productRepo.save(existingByName);
+            return toResponse(reactivated);
+        }
 
         Product p = new Product(name, req.priceCents(), category, vat);
         p = productRepo.save(p);
