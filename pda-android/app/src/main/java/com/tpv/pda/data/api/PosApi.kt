@@ -71,6 +71,9 @@ interface PosApi {
     @POST("/api/v1/pos/tickets/{id}/send")
     suspend fun sendComanda(@Path("id") id: Long, @Body request: SendComandaRequest): SendComandaResponse
 
+    @POST("/api/v1/pos/tickets/{id}/bill-requested")
+    suspend fun setBillRequested(@Path("id") id: Long, @Body request: SetBillRequestedRequest): TicketResponse
+
     @GET("/api/v1/pos/tickets/{id}/payment-summary")
     suspend fun paymentSummary(@Path("id") id: Long): PaymentSummaryResponse
 

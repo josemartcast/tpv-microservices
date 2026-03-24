@@ -103,6 +103,7 @@
     payFullBtn: byId("payFullBtn"),
     payPartialBtn: byId("payPartialBtn"),
     payLinesBtn: byId("payLinesBtn"),
+    prebillBtn: byId("prebillBtn"),
     methodDialog: byId("methodDialog"),
     methodChoiceButtons: Array.from(document.querySelectorAll(".method-choice")),
     payLinesDialog: byId("payLinesDialog"),
@@ -201,6 +202,7 @@
     els.payFullBtn.addEventListener("click", onPayFull);
     els.payPartialBtn.addEventListener("click", onPayPartial);
     els.payLinesBtn.addEventListener("click", onPayByLines);
+    els.prebillBtn.addEventListener("click", onRequestPrebill);
     els.editLineBtn.addEventListener("click", onEditSelectedLine);
     els.deleteLineBtn.addEventListener("click", onDeleteSelectedLine);
     els.qtyPadButtons.forEach(function (btn) {
@@ -1285,6 +1287,38 @@
     await addPayment(method, amount, "lineas");
   }
 
+  async function onRequestPrebill() {
+    if (!state.currentTicket) {
+      toast("No hay ticket activo");
+      return;
+    }
+    if (!canRunCriticalAction()) {
+      toast("Sin lock valido. Reabre mesa para continuar.");
+      return;
+    }
+    try {
+      state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/bill-requested", {
+        method: "POST",
+        body: JSON.stringify({ requested: true })
+      });
+      cacheTicket(state.currentTicket);
+      renderTicket();
+      toast("Pre-cuenta solicitada. Se imprimira en el TPV.");
+    } catch (err) {
+      if (shouldQueueAction(err)) {
+        enqueueAction({
+          type: "PREBILL_REQUEST",
+          tableNumber: state.currentTableNumber,
+          ticketId: state.currentTicket.id
+        });
+        toast("Sin conexion: solicitud de pre-cuenta en cola");
+        return;
+      }
+      pushError(err);
+      toast("No se pudo solicitar pre-cuenta: " + err.message);
+    }
+  }
+
   function choosePaymentMethod() {
     return new Promise(function (resolve) {
       state.methodChoice = null;
@@ -1631,6 +1665,13 @@
         method: "POST",
         headers: { "Idempotency-Key": action.idempotencyKey || buildIdempotencyKey("pda-pay") },
         body: JSON.stringify({ method: action.method, amountCents: action.amountCents })
+      });
+      return;
+    }
+    if (action.type === "PREBILL_REQUEST") {
+      await apiJson("/api/v1/pos/tickets/" + action.ticketId + "/bill-requested", {
+        method: "POST",
+        body: JSON.stringify({ requested: true })
       });
     }
   }

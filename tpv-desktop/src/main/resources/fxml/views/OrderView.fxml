@@ -35,12 +35,14 @@
           <Label text="Subtotal:" styleClass="ticket-subtotal-label"/>
           <Label fx:id="subtotalLabel" text="0.00 EUR" styleClass="ticket-subtotal-value"/>
         </HBox>
-        <HBox spacing="8">
-          <Button fx:id="editBtn" text="Editar" onAction="#onEditLine" styleClass="small-dark-btn"/>
-          <Button fx:id="noteBtn" text="Nota" onAction="#onNote" styleClass="small-dark-btn"/>
-          <Button fx:id="deleteBtn" text="Borrar" onAction="#onDeleteLine" styleClass="small-dark-btn"/>
-          <Button text="Anular" onAction="#onCancelOrder" styleClass="small-dark-btn"/>
-        </HBox>
+        <VBox spacing="6">
+          <HBox spacing="8">
+            <Button fx:id="editBtn" text="Editar" onAction="#onEditLine" styleClass="small-dark-btn" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+            <Button fx:id="noteBtn" text="Nota" onAction="#onNote" styleClass="small-dark-btn" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+            <Button fx:id="deleteBtn" text="Anular" onAction="#onDeleteLine" styleClass="small-dark-btn" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+          </HBox>
+          <Button text="Eliminar cuenta" onAction="#onCancelOrder" styleClass="small-dark-btn" maxWidth="Infinity"/>
+        </VBox>
       </VBox>
 
       <VBox HBox.hgrow="ALWAYS" spacing="10" styleClass="catalog-panel">
@@ -57,8 +59,7 @@
         <VBox spacing="8">
           <HBox spacing="10" alignment="CENTER_LEFT">
             <Label text="Cantidad" styleClass="home-filter-label"/>
-            <TextField fx:id="qtyField" prefWidth="80"/>
-            <Region HBox.hgrow="ALWAYS"/>
+            <TextField fx:id="qtyField" prefWidth="180" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
           </HBox>
           <fx:include source="../components/NumericPad.fxml" fx:id="orderPad"/>
         </VBox>

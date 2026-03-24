@@ -87,4 +87,14 @@ public class NumericPadController {
         }
         target.clear();
     }
+
+    @FXML
+    private void onOk() {
+        if (target == null) {
+            return;
+        }
+        target.requestFocus();
+        String text = target.getText();
+        target.positionCaret(text == null ? 0 : text.length());
+    }
 }

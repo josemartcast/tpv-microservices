@@ -11,6 +11,7 @@ import com.tpv.desktop.tpv.services.LockService;
 import com.tpv.desktop.tpv.services.OrderService;
 import com.tpv.desktop.tpv.services.PrintQueueService;
 import com.tpv.desktop.tpv.services.TableService;
+import com.tpv.desktop.tpv.services.local.DesktopComandaAutoPrintService;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -160,6 +161,7 @@ public class OrderViewModel {
         PrintBatch batch = snapshotLastSend(selected, separateByDestination);
         orderService.send(orderId.get(), selected, true);
         enqueuePrintJobs(batch.printJobsByDestination());
+        DesktopComandaAutoPrintService.markLocalSend(orderId.get());
         refreshOrder();
         feedback.set("Comanda enviada.");
         return true;
@@ -173,6 +175,7 @@ public class OrderViewModel {
         PrintBatch batch = snapshotLastSend(destinations, separateByDestination);
         orderService.send(orderId.get(), destinations, true);
         enqueuePrintJobs(batch.printJobsByDestination());
+        DesktopComandaAutoPrintService.markLocalSend(orderId.get());
         refreshOrder();
         feedback.set("Comanda enviada a " + destinations);
         return true;

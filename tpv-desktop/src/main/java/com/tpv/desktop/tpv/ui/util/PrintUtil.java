@@ -159,9 +159,14 @@ public final class PrintUtil {
         int linesPerPage = resolveLinesPerPage(font, pageLayout.getPrintableHeight());
         List<String> pages = splitIntoPages(printableContent, linesPerPage);
         boolean pdfLikePrinter = isPdfLikePrinter(printer.getName());
-        if (!pdfLikePrinter && pages.size() > 1) {
-            printAsSingleTextJob(printer.getName(), printableContent);
-            return;
+        if (!pdfLikePrinter) {
+            try {
+                // Mantener el mismo formato para tickets cortos y largos en impresora termica.
+                printAsSingleTextJob(printer.getName(), printableContent);
+                return;
+            } catch (RuntimeException ex) {
+                // Fallback: si la impresora no soporta ESC/POS/autosense, usamos pipeline JavaFX.
+            }
         }
         for (String pageText : pages) {
             Text printableText = new Text(pageText);
@@ -236,11 +241,7 @@ public final class PrintUtil {
             String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
             out.write(normalized.getBytes(StandardCharsets.ISO_8859_1));
 
-            // Margen inferior + corte final (una sola vez).
-            out.write('\n');
-            out.write('\n');
-            out.write('\n');
-            out.write('\n');
+            // Salto final y corte.
             out.write('\n');
             out.write(new byte[] {GS, 'V', 0x42, 0x00}); // Partial cut
             return out.toByteArray();

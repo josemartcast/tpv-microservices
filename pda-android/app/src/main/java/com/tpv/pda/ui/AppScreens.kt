@@ -111,6 +111,7 @@ fun PdaApp(viewModel: MainViewModel) {
                 onUpdatePrice = viewModel::updateSelectedLinePrice,
                 onDeleteLine = viewModel::deleteSelectedLine,
                 onSendComanda = viewModel::sendComanda,
+                onRequestPrebill = viewModel::requestPrebill,
                 onPay = viewModel::payTicket,
                 onMoveTable = viewModel::moveCurrentTicket
             )
@@ -298,6 +299,7 @@ private fun OrderScreen(
     onUpdatePrice: (Int) -> Unit,
     onDeleteLine: () -> Unit,
     onSendComanda: (String) -> Unit,
+    onRequestPrebill: () -> Unit,
     onPay: (String, Int?) -> Unit,
     onMoveTable: (Int) -> Unit
 ) {
@@ -421,6 +423,11 @@ private fun OrderScreen(
                         ) { Text("COCINA") }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = onRequestPrebill,
+                            enabled = ticket != null && !state.loading,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        ) { Text("Precuenta") }
                         Button(
                             onClick = { showPayDialog = true },
                             enabled = state.pendingPaymentCents > 0 && !state.loading,

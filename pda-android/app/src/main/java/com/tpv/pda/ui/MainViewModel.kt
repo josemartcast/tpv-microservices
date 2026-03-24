@@ -11,6 +11,7 @@ import com.tpv.pda.data.api.CategoryResponse
 import com.tpv.pda.data.api.LoginRequest
 import com.tpv.pda.data.api.ProductResponse
 import com.tpv.pda.data.api.SalonTableResponse
+import com.tpv.pda.data.api.SetBillRequestedRequest
 import com.tpv.pda.data.api.TableLockRequest
 import com.tpv.pda.data.api.TicketResponse
 import com.tpv.pda.data.api.UpdateLinePriceRequest
@@ -391,6 +392,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun requestPrebill() {
+        val ticketId = _ui.value.currentTicket?.id ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(loading = true, error = null) }
+            try {
+                val updated = posApi().setBillRequested(ticketId, SetBillRequestedRequest(requested = true))
+                applyUpdatedTicket(updated, "Precuenta solicitada. Se imprimira en TPV.")
+            } catch (e: Exception) {
+                _ui.update { it.copy(loading = false, error = errorText("No se pudo solicitar precuenta", e)) }
+            }
+        }
+    }
+
     fun payTicket(method: String, amountCents: Int?) {
         val ticketId = _ui.value.currentTicket?.id ?: return
         val pending = _ui.value.pendingPaymentCents
@@ -400,7 +414,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 posApi().addPayment(ticketId, com.tpv.pda.data.api.CreatePaymentRequest(method = method, amountCents = amount))
                 val refreshed = posApi().getTicket(ticketId)
-                applyUpdatedTicket(refreshed, "Pago registrado: $method ${toEur(amount)}")
+                val paymentMessage = "Pago registrado: $method ${toEur(amount)}"
+                if (refreshed.status.equals("PAID", ignoreCase = true)) {
+                    val tableToUnlock = lockedTableNumber ?: _ui.value.currentTable?.tableNumber
+                    releaseLock(tableToUnlock, reportErrors = false)
+                    lockHeartbeatJob?.cancel()
+                    lockHeartbeatJob = null
+                    lockedTableNumber = null
+                    _ui.update {
+                        it.copy(
+                            loading = false,
+                            screen = ScreenMode.TABLES,
+                            currentTable = null,
+                            currentTicket = null,
+                            selectedLineId = null,
+                            qtyInput = "1",
+                            pendingSendLines = 0,
+                            pendingPaymentCents = 0,
+                            message = "$paymentMessage. Cuenta cerrada y mesa liberada."
+                        )
+                    }
+                    refreshTablesSilent()
+                } else {
+                    applyUpdatedTicket(refreshed, paymentMessage)
+                }
             } catch (e: Exception) {
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo registrar pago", e)) }
             }

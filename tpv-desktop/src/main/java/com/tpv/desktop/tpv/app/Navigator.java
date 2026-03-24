@@ -46,8 +46,26 @@ public class Navigator {
             controller.bind(orderId, tableId, tableLabel);
             setRoot(root, Math.max(stage.getWidth(), 1366), Math.max(stage.getHeight(), 768));
         } catch (IOException e) {
-            throw new RuntimeException("No se pudo abrir comanda", e);
+            String detail = rootMessage(e);
+            throw new RuntimeException("No se pudo abrir comanda: " + detail, e);
         }
+    }
+
+    private static String rootMessage(Throwable ex) {
+        if (ex == null) {
+            return "error desconocido";
+        }
+        Throwable current = ex;
+        Throwable next = current.getCause();
+        while (next != null && next != current) {
+            current = next;
+            next = current.getCause();
+        }
+        String msg = current.getMessage();
+        if (msg == null || msg.isBlank()) {
+            msg = ex.getMessage();
+        }
+        return (msg == null || msg.isBlank()) ? current.getClass().getSimpleName() : msg;
     }
 
     public void openStubModal(String title, String message) {

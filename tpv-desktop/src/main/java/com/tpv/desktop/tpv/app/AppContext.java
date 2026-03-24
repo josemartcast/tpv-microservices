@@ -8,6 +8,7 @@ import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.domain.model.User;
 import com.tpv.desktop.tpv.services.*;
 import com.tpv.desktop.tpv.services.fake.*;
+import com.tpv.desktop.tpv.services.local.DesktopComandaAutoPrintService;
 import com.tpv.desktop.tpv.services.local.LocalPrintQueueService;
 import com.tpv.desktop.tpv.services.real.RealApiClient;
 import com.tpv.desktop.tpv.services.real.RealCatalogService;
@@ -33,6 +34,7 @@ public class AppContext {
     private final TableService tableService;
     private final BackendStatusService backendStatusService;
     private final PrintQueueService printQueueService;
+    private final DesktopComandaAutoPrintService comandaAutoPrintService;
     private final boolean autoLoginEnabled;
     private final boolean kioskMode;
 
@@ -61,6 +63,7 @@ public class AppContext {
                 this.tableService = new RealTableService();
                 this.backendStatusService = new FakeBackendStatusService(apiClient);
                 this.printQueueService = new LocalPrintQueueService();
+                this.comandaAutoPrintService = new DesktopComandaAutoPrintService(this.printQueueService);
                 syncBusinessProfileFromBackend();
                 return;
             }
@@ -75,6 +78,7 @@ public class AppContext {
         this.tableService = new FakeTableService(store, lockService, appState);
         this.backendStatusService = new FakeBackendStatusService(apiClient);
         this.printQueueService = new LocalPrintQueueService();
+        this.comandaAutoPrintService = null;
     }
 
     public AppState appState() { return appState; }

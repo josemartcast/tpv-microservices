@@ -9,6 +9,7 @@ import com.tpv.desktop.tpv.domain.model.Category;
 import com.tpv.desktop.tpv.domain.model.OrderLine;
 import com.tpv.desktop.tpv.domain.model.Product;
 import com.tpv.desktop.tpv.services.LockException;
+import com.tpv.desktop.tpv.services.local.DesktopComandaAutoPrintService;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.core.PrinterSettingsStore;
 import com.tpv.desktop.core.SettingsStore;
@@ -224,6 +225,7 @@ public class OrderController {
     }
     @FXML
     public void onPay() {
+        DesktopComandaAutoPrintService.markLocalPrebillRequest(vm.orderIdProperty().get());
         vm.requestBill();
         String method = promptPaymentMethod("Cobrar", "Selecciona metodo de pago");
         if (method == null) {
@@ -276,6 +278,7 @@ public class OrderController {
             }
 
             if (paid) {
+                DesktopComandaAutoPrintService.markLocalPayment(vm.orderIdProperty().get());
                 printPaidTicketSafe(method, paidAmountCents);
                 stopHeartbeat();
                 Navigator.get().goHome();
@@ -313,6 +316,7 @@ public class OrderController {
 
             boolean paid = vm.payPartial(method, amountCents);
             if (paid) {
+                DesktopComandaAutoPrintService.markLocalPayment(vm.orderIdProperty().get());
                 printPaidTicketSafe(method, amountCents);
                 stopHeartbeat();
                 Navigator.get().goHome();
@@ -473,17 +477,17 @@ public class OrderController {
     public void onDeleteLine() {
         OrderLine selected = ticketList.getSelectionModel().getSelectedItem();
         if (selected == null) {
-            String msg = "Selecciona una linea para borrar.";
+            String msg = "Selecciona una linea para anular.";
             setFeedback(msg);
-            showInfoDialog("Borrar linea", msg);
+            showInfoDialog("Anular linea", msg);
             return;
         }
         try {
             vm.removeLine(selected.getId());
         } catch (Exception e) {
-            String msg = "No se pudo borrar linea: " + e.getMessage();
+            String msg = "No se pudo anular linea: " + e.getMessage();
             setFeedback(msg);
-            showErrorDialog("Borrar linea", msg);
+            showErrorDialog("Anular linea", msg);
         }
     }
 
@@ -869,7 +873,6 @@ public class OrderController {
         appendReceiptAmountLine(out, "PENDIENTE", vm.pendingPaymentCents());
         out.append(receiptSeparator()).append('\n');
         out.append("Gracias. Esta pre-cuenta no es factura.").append('\n');
-        appendBottomMargin(out);
         return out.toString();
     }
 
@@ -904,7 +907,6 @@ public class OrderController {
         }
         out.append(receiptSeparator()).append('\n');
         out.append("Gracias por su visita.").append('\n');
-        appendBottomMargin(out);
         return out.toString();
     }
 
@@ -1024,10 +1026,6 @@ public class OrderController {
 
     private static String receiptSeparator() {
         return "-".repeat(RECEIPT_LINE_WIDTH);
-    }
-
-    private static void appendBottomMargin(StringBuilder out) {
-        out.append('\n').append('\n').append('\n').append('\n').append('\n');
     }
 
     private static java.util.List<String> wrapByWords(String text, int maxWidth) {

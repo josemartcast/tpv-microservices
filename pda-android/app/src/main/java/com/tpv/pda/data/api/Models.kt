@@ -98,6 +98,10 @@ data class SendComandaRequest(
     val destination: String
 )
 
+data class SetBillRequestedRequest(
+    val requested: Boolean
+)
+
 data class SendComandaResponse(
     val ticketId: Long,
     val destination: String,

@@ -722,7 +722,6 @@ public class HistoryController {
                 )).append('\n');
             }
         }
-        appendBottomMargin(out);
         return out.toString();
     }
 
@@ -792,7 +791,6 @@ public class HistoryController {
             appendInvoiceAmountLine(out, "IVA (" + vatRateLabel(entry.getKey()) + ")", entry.getValue().vatCents);
         }
         appendInvoiceAmountLine(out, "TOTAL", invoice.totalGrossCents());
-        appendBottomMargin(out);
         return out.toString();
     }
 
@@ -807,10 +805,6 @@ public class HistoryController {
         for (String part : wrapByWords(text, INVOICE_LINE_WIDTH)) {
             out.append(part).append('\n');
         }
-    }
-
-    private static void appendBottomMargin(StringBuilder out) {
-        out.append('\n').append('\n').append('\n').append('\n').append('\n');
     }
 
     private static void appendInvoiceAmountLine(StringBuilder out, String label, int amountCents) {
