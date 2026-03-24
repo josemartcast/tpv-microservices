@@ -653,19 +653,19 @@ private fun PayDialog(
                 )
                 val parsedPartial = partialText.text.replace(',', '.').toDoubleOrNull()?.let { (it * 100.0).toInt() }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onPay("CASH", null) }) { Text("Total CASH") }
-                    Button(onClick = { onPay("CARD", null) }) { Text("Total CARD") }
+                    Button(onClick = { onPay("CASH", null) }) { Text("Total EFECTIVO") }
+                    Button(onClick = { onPay("CARD", null) }) { Text("Total TARJETA") }
                     Button(onClick = { onPay("BIZUM", null) }) { Text("Total BIZUM") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { onPay("CASH", parsedPartial) },
                         enabled = parsedPartial != null && parsedPartial > 0
-                    ) { Text("Parcial CASH") }
+                    ) { Text("Parcial EFECTIVO") }
                     Button(
                         onClick = { onPay("CARD", parsedPartial) },
                         enabled = parsedPartial != null && parsedPartial > 0
-                    ) { Text("Parcial CARD") }
+                    ) { Text("Parcial TARJETA") }
                     Button(
                         onClick = { onPay("BIZUM", parsedPartial) },
                         enabled = parsedPartial != null && parsedPartial > 0

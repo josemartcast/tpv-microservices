@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -28,8 +29,10 @@ import java.util.Map;
 import java.util.Set;
 
 public class OrderViewModel {
-    private static final int THERMAL_WIDTH = 42;
-    private static final String THERMAL_SEPARATOR = "-".repeat(THERMAL_WIDTH);
+    private static final int COMANDA_LINE_WIDTH = 42;
+    private static final int COMANDA_QTY_COL_WIDTH = 4;
+    private static final int COMANDA_DESC_COL_WIDTH = 37;
+    private static final String COMANDA_SEPARATOR = "-".repeat(COMANDA_LINE_WIDTH);
 
     private final CatalogService catalogService;
     private final OrderService orderService;
@@ -208,10 +211,11 @@ public class OrderViewModel {
         orderService.addPayment(orderId.get(), method, amountCents);
         if (amountCents >= pending) {
             String unlockWarning = unlockWithPolicy();
+            String methodLabel = paymentMethodLabel(method);
             if (unlockWarning == null) {
-                feedback.set("Cobro registrado (" + method + ").");
+                feedback.set("Cobro registrado (" + methodLabel + ").");
             } else {
-                feedback.set("Cobro registrado (" + method + "). " + unlockWarning);
+                feedback.set("Cobro registrado (" + methodLabel + "). " + unlockWarning);
             }
             return true;
         }
@@ -340,13 +344,12 @@ public class OrderViewModel {
 
         StringBuilder out = new StringBuilder();
         out.append(restaurantName).append('\n');
-        out.append("ULTIMA COMANDA ENVIADA").append('\n');
         out.append(tableLabelForPrint()).append("  Ticket ").append(orderId.get()).append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
-        out.append(THERMAL_SEPARATOR).append('\n');
+        out.append(COMANDA_SEPARATOR).append('\n');
         if (pendingLines.isEmpty()) {
             out.append("Sin lineas pendientes para enviar").append('\n');
-            out.append(THERMAL_SEPARATOR).append('\n');
+            out.append(COMANDA_SEPARATOR).append('\n');
             appState.lastComandaPrintTextProperty().set(out.toString());
             return new PrintBatch(out.toString(), printJobsByDestination);
         }
@@ -360,16 +363,19 @@ public class OrderViewModel {
             collectDestinationPrintJob(printJobsByDestination, Destination.POSTRES, pendingLines);
         } else {
             int totalQty = pendingLines.stream().mapToInt(PendingPrintLine::qty).sum();
-            out.append("COMANDA UNIFICADA  ").append(totalQty).append(" productos").append('\n');
-            out.append(THERMAL_SEPARATOR).append('\n');
+            out.append("COMANDA UNIFICADA").append('\n');
+            out.append("PRODUCTOS ").append(totalQty).append('\n');
+            out.append(COMANDA_SEPARATOR).append('\n');
+            appendComandaItemsHeader(out);
+            out.append(COMANDA_SEPARATOR).append('\n');
             for (PendingPrintLine line : pendingLines) {
-                appendLineWithWrap(out, line.qty(), line.productName());
-                appendNoteWithWrap(out, line.note());
+                appendComandaLine(out, line.qty(), line.productName());
+                appendComandaNote(out, line.note());
             }
+            out.append(COMANDA_SEPARATOR).append('\n');
             printJobsByDestination.put("ALL", buildUnifiedPrintText(pendingLines, totalQty));
         }
 
-        out.append(THERMAL_SEPARATOR).append('\n');
         appState.lastComandaPrintTextProperty().set(out.toString());
         return new PrintBatch(out.toString(), printJobsByDestination);
     }
@@ -394,12 +400,16 @@ public class OrderViewModel {
             return;
         }
         int qty = linesByDest.stream().mapToInt(PendingPrintLine::qty).sum();
-        out.append(destination.name()).append("  ").append(qty).append(" productos").append('\n');
-        out.append(THERMAL_SEPARATOR).append('\n');
+        out.append("DESTINO ").append(destination.name()).append('\n');
+        out.append("PRODUCTOS ").append(qty).append('\n');
+        out.append(COMANDA_SEPARATOR).append('\n');
+        appendComandaItemsHeader(out);
+        out.append(COMANDA_SEPARATOR).append('\n');
         for (PendingPrintLine line : linesByDest) {
-            appendLineWithWrap(out, line.qty(), line.productName());
-            appendNoteWithWrap(out, line.note());
+            appendComandaLine(out, line.qty(), line.productName());
+            appendComandaNote(out, line.note());
         }
+        out.append(COMANDA_SEPARATOR).append('\n');
         out.append('\n');
     }
 
@@ -415,26 +425,32 @@ public class OrderViewModel {
     private String buildUnifiedPrintText(List<PendingPrintLine> pendingLines, int totalQty) {
         StringBuilder out = new StringBuilder();
         appendPrintHeader(out);
-        out.append("COMANDA UNIFICADA  ").append(totalQty).append(" productos").append('\n');
-        out.append(THERMAL_SEPARATOR).append('\n');
+        out.append("COMANDA UNIFICADA").append('\n');
+        out.append("PRODUCTOS ").append(totalQty).append('\n');
+        out.append(COMANDA_SEPARATOR).append('\n');
+        appendComandaItemsHeader(out);
+        out.append(COMANDA_SEPARATOR).append('\n');
         for (PendingPrintLine line : pendingLines) {
-            appendLineWithWrap(out, line.qty(), line.productName());
-            appendNoteWithWrap(out, line.note());
+            appendComandaLine(out, line.qty(), line.productName());
+            appendComandaNote(out, line.note());
         }
-        out.append(THERMAL_SEPARATOR).append('\n');
+        out.append(COMANDA_SEPARATOR).append('\n');
         return out.toString();
     }
 
     private String buildDestinationPrintText(Destination destination, List<PendingPrintLine> linesByDest, int qty) {
         StringBuilder out = new StringBuilder();
         appendPrintHeader(out);
-        out.append(destination.name()).append("  ").append(qty).append(" productos").append('\n');
-        out.append(THERMAL_SEPARATOR).append('\n');
+        out.append("DESTINO ").append(destination.name()).append('\n');
+        out.append("PRODUCTOS ").append(qty).append('\n');
+        out.append(COMANDA_SEPARATOR).append('\n');
+        appendComandaItemsHeader(out);
+        out.append(COMANDA_SEPARATOR).append('\n');
         for (PendingPrintLine line : linesByDest) {
-            appendLineWithWrap(out, line.qty(), line.productName());
-            appendNoteWithWrap(out, line.note());
+            appendComandaLine(out, line.qty(), line.productName());
+            appendComandaNote(out, line.note());
         }
-        out.append(THERMAL_SEPARATOR).append('\n');
+        out.append(COMANDA_SEPARATOR).append('\n');
         return out.toString();
     }
 
@@ -442,8 +458,18 @@ public class OrderViewModel {
         try {
             var preview = ComandaApi.preview(orderId.get());
             if (preview != null && preview.pendingLines() != null) {
+                Map<Long, String> notesByLineId = new HashMap<>();
+                for (OrderLine localLine : lines) {
+                    if (localLine == null) {
+                        continue;
+                    }
+                    String note = localLine.getNote();
+                    if (note != null && !note.isBlank()) {
+                        notesByLineId.put(localLine.getId(), note.trim());
+                    }
+                }
                 return preview.pendingLines().stream()
-                        .map(this::toPendingPrintLine)
+                        .map(line -> toPendingPrintLine(line, notesByLineId.get(line.id())))
                         .filter(line -> line.qty() > 0)
                         .filter(line -> isDestinationIncluded(line.destination(), destinations))
                         .toList();
@@ -464,10 +490,10 @@ public class OrderViewModel {
                 .toList();
     }
 
-    private PendingPrintLine toPendingPrintLine(TicketLineResponse line) {
+    private PendingPrintLine toPendingPrintLine(TicketLineResponse line, String note) {
         Destination destination = destinationFrom(line.destination());
         int qty = Math.max(1, line.qty());
-        return new PendingPrintLine(destination, qty, line.productName(), null);
+        return new PendingPrintLine(destination, qty, line.productName(), note);
     }
 
     private static Destination destinationFrom(String raw) {
@@ -483,7 +509,6 @@ public class OrderViewModel {
 
     private void appendPrintHeader(StringBuilder out) {
         out.append(restaurantNameForPrint()).append('\n');
-        out.append("ULTIMA COMANDA ENVIADA").append('\n');
         out.append(tableLabelForPrint()).append("  Ticket ").append(orderId.get()).append('\n');
         out.append("Fecha ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append('\n');
     }
@@ -494,37 +519,37 @@ public class OrderViewModel {
         }
     }
 
-    private static void appendLineWithWrap(StringBuilder out, int qty, String productName) {
-        String name = productName == null ? "-" : productName.trim();
-        String prefix = qty + "x ";
-        int firstLineWidth = Math.max(8, THERMAL_WIDTH - prefix.length());
-        List<String> wrapped = wrapByWords(name, firstLineWidth);
+    private static void appendComandaItemsHeader(StringBuilder out) {
+        out.append(formatComandaColumns("CANT", "DESCRIPCION")).append('\n');
+    }
+
+    private static void appendComandaLine(StringBuilder out, int qty, String productName) {
+        String qtyText = Math.max(1, qty) + "x";
+        String safeName = productName == null || productName.isBlank() ? "-" : productName.trim();
+        List<String> wrapped = wrapByWords(safeName, COMANDA_DESC_COL_WIDTH);
         if (wrapped.isEmpty()) {
-            out.append(prefix).append('-').append('\n');
+            out.append(formatComandaColumns(qtyText, "-")).append('\n');
             return;
         }
-        out.append(prefix).append(wrapped.getFirst()).append('\n');
-
-        String indent = " ".repeat(prefix.length());
-        int nextWidth = Math.max(8, THERMAL_WIDTH - indent.length());
+        out.append(formatComandaColumns(qtyText, wrapped.getFirst())).append('\n');
         for (int i = 1; i < wrapped.size(); i++) {
-            List<String> extraWrapped = wrapByWords(wrapped.get(i), nextWidth);
-            if (extraWrapped.isEmpty()) {
-                continue;
-            }
-            for (String piece : extraWrapped) {
-                out.append(indent).append(piece).append('\n');
-            }
+            out.append(formatComandaColumns("", wrapped.get(i))).append('\n');
         }
     }
 
-    private static void appendNoteWithWrap(StringBuilder out, String note) {
+    private static String formatComandaColumns(String qty, String description) {
+        return padRight(trimToWidth(qty, COMANDA_QTY_COL_WIDTH), COMANDA_QTY_COL_WIDTH)
+                + ' '
+                + padRight(trimToWidth(description, COMANDA_DESC_COL_WIDTH), COMANDA_DESC_COL_WIDTH);
+    }
+
+    private static void appendComandaNote(StringBuilder out, String note) {
         if (note == null || note.isBlank()) {
             return;
         }
         String normalized = note.trim();
-        String prefix = "   - ";
-        int width = Math.max(8, THERMAL_WIDTH - prefix.length());
+        String prefix = "* ";
+        int width = Math.max(8, COMANDA_LINE_WIDTH - prefix.length());
         List<String> wrapped = wrapByWords(normalized, width);
         if (wrapped.isEmpty()) {
             return;
@@ -577,8 +602,37 @@ public class OrderViewModel {
         return lines;
     }
 
+    private static String trimToWidth(String value, int width) {
+        String safe = value == null ? "" : value.trim();
+        if (safe.length() <= width) {
+            return safe;
+        }
+        return safe.substring(0, width);
+    }
+
+    private static String padRight(String value, int width) {
+        String safe = value == null ? "" : value;
+        if (safe.length() >= width) {
+            return safe;
+        }
+        return safe + " ".repeat(width - safe.length());
+    }
+
     private static String money(int cents) {
         return String.format(Locale.US, "%.2f EUR", cents / 100.0);
+    }
+
+    private static String paymentMethodLabel(String method) {
+        if (method == null || method.isBlank()) {
+            return "OTRO";
+        }
+        String m = method.trim().toUpperCase(Locale.ROOT);
+        return switch (m) {
+            case "CASH", "EFECTIVO" -> "EFECTIVO";
+            case "CARD", "TARJETA" -> "TARJETA";
+            case "BIZUM" -> "BIZUM";
+            default -> m;
+        };
     }
 
     private String unlockWithPolicy() {

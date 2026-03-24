@@ -1415,7 +1415,7 @@
         await leaveTableAndBack();
         return;
       }
-      toast("Cobro " + mode + " registrado (" + method + "): " + centsToEur(amountCents));
+      toast("Cobro " + mode + " registrado (" + paymentMethodLabel(method) + "): " + centsToEur(amountCents));
     } catch (err) {
       if (shouldQueueAction(err)) {
         enqueueAction({
@@ -2033,6 +2033,14 @@
   function isLockedByOther(table) { return table && table.lockedTerminalId && !isLockedByMe(table); }
   function elapsedText(minutes) { return (typeof minutes !== "number" || minutes < 1) ? "-" : minutes + " min"; }
   function centsToEur(cents) { return ((Number(cents) || 0) / 100).toFixed(2) + " EUR"; }
+
+  function paymentMethodLabel(method) {
+    const m = String(method || "").trim().toUpperCase();
+    if (m === "CASH" || m === "EFECTIVO") { return "EFECTIVO"; }
+    if (m === "CARD" || m === "TARJETA") { return "TARJETA"; }
+    if (m === "BIZUM") { return "BIZUM"; }
+    return m || "OTRO";
+  }
 
   function parseAmountToCents(rawAmount) {
     const normalized = String(rawAmount || "").trim().replace(",", ".");

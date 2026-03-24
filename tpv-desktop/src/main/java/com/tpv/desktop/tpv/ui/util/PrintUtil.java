@@ -1,10 +1,13 @@
 package com.tpv.desktop.tpv.ui.util;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
 import javax.print.Doc;
 import javax.print.DocFlavor;
 import javax.print.DocPrintJob;
@@ -29,6 +32,9 @@ public final class PrintUtil {
     private static final double THERMAL_TARGET_MM = 80.0;
     private static final double DEFAULT_FONT_SIZE = 10.0;
     private static final double MIN_FONT_SIZE = 7.0;
+    private static final int BOTTOM_MARGIN_LINES = 5;
+    private static final byte ESC = 0x1B;
+    private static final byte GS = 0x1D;
 
     private PrintUtil() {
     }
@@ -38,7 +44,7 @@ public final class PrintUtil {
         if (printer == null) {
             throw new RuntimeException("No se encontro impresora PDF (Microsoft Print to PDF).");
         }
-        printText(text, printer, owner, false, false);
+        printText(text, printer, owner, false, false, false);
     }
 
     public static void printTextToPdfWithBottomMargin(String text, Window owner) {
@@ -46,7 +52,15 @@ public final class PrintUtil {
         if (printer == null) {
             throw new RuntimeException("No se encontro impresora PDF (Microsoft Print to PDF).");
         }
-        printText(text, printer, owner, false, true);
+        printText(text, printer, owner, false, true, false);
+    }
+
+    public static void printTextToPdfEmphasized(String text, Window owner) {
+        Printer printer = findPdfPrinter();
+        if (printer == null) {
+            throw new RuntimeException("No se encontro impresora PDF (Microsoft Print to PDF).");
+        }
+        printText(text, printer, owner, false, false, true);
     }
 
     public static void printTextToPrinter(String printerName, String text, Window owner) {
@@ -54,7 +68,15 @@ public final class PrintUtil {
         if (printer == null) {
             throw new RuntimeException("No se encontro la impresora: " + printerName);
         }
-        printText(text, printer, owner, false, false);
+        printText(text, printer, owner, false, false, false);
+    }
+
+    public static void printTextToPrinterEmphasized(String printerName, String text, Window owner) {
+        Printer printer = findPrinterByName(printerName);
+        if (printer == null) {
+            throw new RuntimeException("No se encontro la impresora: " + printerName);
+        }
+        printText(text, printer, owner, false, false, true);
     }
 
     public static void printTextToPrinterWithBottomMargin(String printerName, String text, Window owner) {
@@ -62,7 +84,7 @@ public final class PrintUtil {
         if (printer == null) {
             throw new RuntimeException("No se encontro la impresora: " + printerName);
         }
-        printText(text, printer, owner, false, true);
+        printText(text, printer, owner, false, true, false);
     }
 
     public static void openCashDrawer(String printerName) {
@@ -99,15 +121,22 @@ public final class PrintUtil {
         return out;
     }
 
-    private static void printText(String text, Printer printer, Window owner, boolean showDialog, boolean addBottomMargin) {
+    private static void printText(
+            String text,
+            Printer printer,
+            Window owner,
+            boolean showDialog,
+            boolean addBottomMargin,
+            boolean emphasized
+    ) {
         PrinterJob job = PrinterJob.createPrinterJob(printer);
         if (job == null) {
             throw new RuntimeException("No se pudo crear trabajo de impresion.");
         }
-
-        Text printableText = new Text(text == null ? "" : text);
-        VBox printableRoot = new VBox(printableText);
-        printableRoot.setPadding(new Insets(2, 0, 2, 0));
+        String printableContent = text == null ? "" : text;
+        if (addBottomMargin) {
+            printableContent = appendBottomMargin(printableContent, BOTTOM_MARGIN_LINES);
+        }
 
         PageLayout pageLayout = printer.createPageLayout(
                 selectBestPaper(printer),
@@ -116,8 +145,10 @@ public final class PrintUtil {
         );
         double printableWidth = pageLayout.getPrintableWidth();
         double fontSize = resolveFontSizeForWidth(text, printableWidth > 0 ? printableWidth : 280);
-        printableText.setFont(Font.font("Monospaced", FontWeight.BOLD, fontSize));
-        printableText.wrappingWidthProperty().set(printableWidth > 0 ? printableWidth : 280);
+        if (emphasized) {
+            fontSize = Math.min(fontSize + 1.5, DEFAULT_FONT_SIZE + 3.0);
+        }
+        Font font = Font.font("Monospaced", FontWeight.BOLD, fontSize);
         job.getJobSettings().setPageLayout(pageLayout);
 
         boolean accepted = !showDialog || owner == null || job.showPrintDialog(owner);
@@ -125,12 +156,109 @@ public final class PrintUtil {
             return;
         }
 
-        boolean printed = job.printPage(pageLayout, printableRoot);
-        if (!printed) {
-            job.cancelJob();
-            throw new RuntimeException("Fallo al imprimir en PDF.");
+        int linesPerPage = resolveLinesPerPage(font, pageLayout.getPrintableHeight());
+        List<String> pages = splitIntoPages(printableContent, linesPerPage);
+        boolean pdfLikePrinter = isPdfLikePrinter(printer.getName());
+        if (!pdfLikePrinter && pages.size() > 1) {
+            printAsSingleTextJob(printer.getName(), printableContent);
+            return;
+        }
+        for (String pageText : pages) {
+            Text printableText = new Text(pageText);
+            printableText.setFont(font);
+            printableText.setWrappingWidth(0); // El contenido ya viene envuelto/formateado por columnas.
+            VBox printableRoot = new VBox(printableText);
+            printableRoot.setPadding(new Insets(2, 0, 2, 0));
+            boolean printed = job.printPage(pageLayout, printableRoot);
+            if (!printed) {
+                job.cancelJob();
+                throw new RuntimeException("Fallo al imprimir ticket completo.");
+            }
         }
         job.endJob();
+    }
+
+    private static int resolveLinesPerPage(Font font, double printableHeight) {
+        if (printableHeight <= 0) {
+            return 48;
+        }
+        Text probe = new Text("Ag");
+        probe.setFont(font);
+        double lineHeight = Math.max(1.0, probe.getLayoutBounds().getHeight() + 1.0);
+        int lines = (int) Math.floor((printableHeight - 2.0) / lineHeight);
+        return Math.max(1, lines);
+    }
+
+    private static List<String> splitIntoPages(String text, int linesPerPage) {
+        String normalized = (text == null ? "" : text).replace("\r\n", "\n").replace('\r', '\n');
+        String[] lines = normalized.split("\n", -1);
+        if (linesPerPage <= 0 || lines.length <= linesPerPage) {
+            return List.of(normalized);
+        }
+
+        List<String> pages = new ArrayList<>();
+        for (int start = 0; start < lines.length; start += linesPerPage) {
+            int end = Math.min(start + linesPerPage, lines.length);
+            pages.add(String.join("\n", Arrays.copyOfRange(lines, start, end)));
+        }
+        return pages;
+    }
+
+    private static void printAsSingleTextJob(String printerName, String text) {
+        PrintService service = findPrintServiceByName(printerName);
+        if (service == null) {
+            throw new RuntimeException("No se encontro la impresora: " + printerName);
+        }
+        DocFlavor flavor = DocFlavor.BYTE_ARRAY.AUTOSENSE;
+        byte[] payload = buildEscPosPayload(text == null ? "" : text);
+        Doc doc = new SimpleDoc(payload, flavor, null);
+        DocPrintJob job = service.createPrintJob();
+        try {
+            job.print(doc, null);
+        } catch (PrintException e) {
+            throw new RuntimeException("Error imprimiendo ticket largo en modo continuo: " + e.getMessage(), e);
+        }
+    }
+
+    private static byte[] buildEscPosPayload(String text) {
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+            // ESC/POS init + estilo base para evitar que quede una fuente "estrecha" persistente.
+            out.write(new byte[] {ESC, '@'});            // Initialize printer
+            out.write(new byte[] {ESC, 'a', 0x00});      // Align left
+            out.write(new byte[] {ESC, 'M', 0x00});      // Font A (normal)
+            out.write(new byte[] {ESC, '!', 0x00});      // Text mode normal
+            out.write(new byte[] {GS, '!', 0x00});       // Character size normal
+            out.write(0x12);                              // DC2 -> cancela modo condensado
+            out.write(new byte[] {ESC, 't', 0x10});      // Code page CP1252 (usual en ES)
+
+            String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+            out.write(normalized.getBytes(StandardCharsets.ISO_8859_1));
+
+            // Margen inferior + corte final (una sola vez).
+            out.write('\n');
+            out.write('\n');
+            out.write('\n');
+            out.write('\n');
+            out.write('\n');
+            out.write(new byte[] {GS, 'V', 0x42, 0x00}); // Partial cut
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo construir payload ESC/POS: " + e.getMessage(), e);
+        }
+    }
+
+    private static String appendBottomMargin(String text, int blankLines) {
+        if (blankLines <= 0) {
+            return text == null ? "" : text;
+        }
+        String base = text == null ? "" : text;
+        StringBuilder out = new StringBuilder(base);
+        for (int i = 0; i < blankLines; i++) {
+            out.append('\n');
+        }
+        return out.toString();
     }
 
     private static Printer findPrinterByName(String printerName) {
@@ -196,12 +324,19 @@ public final class PrintUtil {
         for (Printer printer : Printer.getAllPrinters()) {
             String name = printer.getName();
             if (name == null) continue;
-            String n = name.toLowerCase(Locale.ROOT);
-            if (n.contains("microsoft print to pdf") || n.contains("print to pdf")) {
+            if (isPdfLikePrinter(name)) {
                 return printer;
             }
         }
         return null;
+    }
+
+    private static boolean isPdfLikePrinter(String printerName) {
+        if (printerName == null || printerName.isBlank()) {
+            return false;
+        }
+        String n = printerName.toLowerCase(Locale.ROOT);
+        return n.contains("microsoft print to pdf") || n.contains("print to pdf");
     }
 
     private static PrintService findPrintServiceByName(String printerName) {

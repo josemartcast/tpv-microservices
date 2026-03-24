@@ -23,7 +23,7 @@
         <Label text="Products" styleClass="sales-section-title"/>
         <TextField fx:id="productSearchField" promptText="Search product..." prefWidth="260"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Label text="F2 New | F9 Send | F10 Cash | F11 Card | F12 Bizum | F6 Custom" styleClass="sales-hotkeys-hint"/>
+        <Label text="F2 New | F9 Send | F10 Efectivo | F11 Tarjeta | F12 Bizum | F6 Custom" styleClass="sales-hotkeys-hint"/>
         <Button fx:id="newTicketBtn" text="New ticket" onAction="#onNewTicket" styleClass="touch-btn"/>
       </HBox>
 
@@ -61,10 +61,10 @@
 
       <HBox spacing="10">
         <Button fx:id="sendBtn" text="Send (F9)" onAction="#onSend" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-primary"/>
-        <Button fx:id="payCashBtn" text="Cash (F10)" onAction="#onPayCash" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-success"/>
+        <Button fx:id="payCashBtn" text="Efectivo (F10)" onAction="#onPayCash" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-success"/>
       </HBox>
       <HBox spacing="10">
-        <Button fx:id="payCardBtn" text="Card (F11)" onAction="#onPayCard" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-success"/>
+        <Button fx:id="payCardBtn" text="Tarjeta (F11)" onAction="#onPayCard" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-success"/>
         <Button fx:id="payBizumBtn" text="Bizum (F12)" onAction="#onPayBizum" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="touch-btn touch-btn-success"/>
       </HBox>
       <HBox spacing="10">

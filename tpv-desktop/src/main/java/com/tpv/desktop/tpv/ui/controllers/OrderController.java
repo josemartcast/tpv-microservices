@@ -43,15 +43,16 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public class OrderController {
-    private static final int RECEIPT_LINE_WIDTH = 34;
+    private static final int RECEIPT_LINE_WIDTH = 42;
     private static final int RECEIPT_QTY_COL_WIDTH = 4;
-    private static final int RECEIPT_DESC_COL_WIDTH = 13;
-    private static final int RECEIPT_UNIT_COL_WIDTH = 6;
-    private static final int RECEIPT_TOTAL_COL_WIDTH = 8;
+    private static final int RECEIPT_DESC_COL_WIDTH = 21;
+    private static final int RECEIPT_UNIT_COL_WIDTH = 7;
+    private static final int RECEIPT_TOTAL_COL_WIDTH = 7;
 
     @FXML private TopBarController topBarController;
     @FXML private ListView<OrderLine> ticketList;
@@ -653,11 +654,16 @@ public class OrderController {
     }
 
     private String promptPaymentMethod(String title, String header) {
-        ChoiceDialog<String> methodDialog = new ChoiceDialog<>("CARD", "CASH", "CARD", "BIZUM");
+        List<PaymentChoice> choices = List.of(
+                new PaymentChoice("EFECTIVO", "CASH"),
+                new PaymentChoice("TARJETA", "CARD"),
+                new PaymentChoice("BIZUM", "BIZUM")
+        );
+        ChoiceDialog<PaymentChoice> methodDialog = new ChoiceDialog<>(choices.get(1), choices);
         methodDialog.setTitle(title);
         methodDialog.setHeaderText(header);
         methodDialog.setContentText("Metodo:");
-        return methodDialog.showAndWait().orElse(null);
+        return methodDialog.showAndWait().map(PaymentChoice::apiCode).orElse(null);
     }
     private int promptPartialByLines(int pendingCents, String title, String header) {
         if (vm.lines().isEmpty()) {
@@ -947,7 +953,13 @@ public class OrderController {
         if (method == null || method.isBlank()) {
             return "OTRO";
         }
-        return method.trim().toUpperCase(Locale.ROOT);
+        String m = method.trim().toUpperCase(Locale.ROOT);
+        return switch (m) {
+            case "CASH", "EFECTIVO" -> "EFECTIVO";
+            case "CARD", "TARJETA" -> "TARJETA";
+            case "BIZUM" -> "BIZUM";
+            default -> m;
+        };
     }
 
     private static String clip(String value, int max) {
@@ -1169,6 +1181,13 @@ public class OrderController {
     }
 
     private record PaidTicketSummary(int totalCents, int paidCents, Map<String, Integer> paymentBreakdown) {}
+
+    private record PaymentChoice(String label, String apiCode) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
 }
 
 

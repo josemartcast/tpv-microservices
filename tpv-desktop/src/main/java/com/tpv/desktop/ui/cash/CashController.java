@@ -9,12 +9,22 @@ import com.tpv.desktop.api.pos.CashSessionResponse;
 import com.tpv.desktop.api.pos.CashIncidentResponse;
 import com.tpv.desktop.api.pos.FiscalExerciseResponse;
 import com.tpv.desktop.api.pos.ResolveOpenTicketsResponse;
+import com.tpv.desktop.api.pos.TicketHistoryApi;
+import com.tpv.desktop.api.pos.TicketResponse;
+import com.tpv.desktop.api.pos.TicketSummaryResponse;
+import com.tpv.desktop.core.PrinterSettingsStore;
+import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.core.MoneyUtil;
+import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import java.time.Year;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.FXML;
@@ -33,6 +43,7 @@ import javafx.stage.WindowEvent;
 import com.tpv.desktop.ui.components.NumericPadController;
 
 public class CashController {
+  private static final int REPORT_LINE_WIDTH = 42;
 
   @FXML private Label statusLabel;
   @FXML private Label detailsLabel;
@@ -288,11 +299,36 @@ public class CashController {
         }
       }
 
+      CashSessionCloseSummaryResponse closeSummary = null;
+      try {
+        closeSummary = CashApi.closeSummary(current.id());
+      } catch (Exception ignored) {
+        // Si no se puede precargar resumen, cerramos igual con confirmacion basica.
+      }
+
+      if (!confirmClose(closingCents, closeSummary)) {
+        String cancelled = "Cierre de caja cancelado.";
+        errorLabel.setText(cancelled);
+        showInfoDialog("Cerrar caja", cancelled);
+        return;
+      }
+
+      CashCloseReport report = buildCashCloseReportSnapshot(current.id(), closeSummary);
       current = CashApi.close(current.id(), closingCents, note);
       renderCurrent(current);
-      String success = resolveMessage + "Caja cerrada correctamente.";
-      errorLabel.setText(success);
-      showInfoDialog("Cerrar caja", success);
+      StringBuilder success = new StringBuilder(resolveMessage).append("Caja cerrada correctamente.");
+
+      try {
+        String target = printCloseReport(report);
+        success.append(" Resumen enviado a ").append(target).append(".");
+      } catch (Exception printErr) {
+        success.append(" Cierre realizado, pero no se pudo imprimir resumen: ")
+            .append(printErr.getMessage());
+      }
+
+      String successMsg = success.toString();
+      errorLabel.setText(successMsg);
+      showInfoDialog("Cerrar caja", successMsg);
     } catch (ApiException e) {
       if (e.getStatus() == 409 && e.getMessage() != null && e.getMessage().contains("OPEN tickets")) {
         try {
@@ -544,4 +580,194 @@ public class CashController {
   private void showInfoDialog(String title, String message) {
     UiDialogs.info(title, message);
   }
+
+  private boolean confirmClose(int closingCents, CashSessionCloseSummaryResponse summary) {
+    String counted = MoneyUtil.centsToEuros(closingCents) + " EUR";
+    String expected = summary == null
+        ? (current == null ? "-" : MoneyUtil.centsToEuros(current.expectedCashCents()) + " EUR")
+        : MoneyUtil.centsToEuros(summary.expectedCashCents()) + " EUR";
+    String diff = summary == null
+        ? "-"
+        : MoneyUtil.centsToEuros(closingCents - summary.expectedCashCents()) + " EUR";
+
+    String message = "Estas seguro de cerrar caja?\n\n"
+        + "Efectivo contado: " + counted + "\n"
+        + "Efectivo esperado: " + expected + "\n"
+        + "Diferencia: " + diff + "\n\n"
+        + "Si confirmas, se cerrara la caja e imprimira resumen de ventas.";
+    return UiDialogs.confirm("Cerrar caja", message);
+  }
+
+  private CashCloseReport buildCashCloseReportSnapshot(long cashSessionId, CashSessionCloseSummaryResponse closeSummary) {
+    List<CashCloseTicketRow> rows = new ArrayList<>();
+    Map<String, Integer> totalsByMethod = new LinkedHashMap<>();
+    totalsByMethod.put("EFECTIVO", 0);
+    totalsByMethod.put("TARJETA", 0);
+    totalsByMethod.put("BIZUM", 0);
+
+    try {
+      TicketResponse[] all = TicketHistoryApi.listCurrentCashHistory();
+      if (all != null) {
+        for (TicketResponse ticket : all) {
+          if (ticket == null || ticket.status() == null || !"PAID".equalsIgnoreCase(ticket.status())) {
+            continue;
+          }
+          TicketSummaryResponse summary = TicketHistoryApi.summary(ticket.id());
+          int ticketTotal = summary != null && summary.totalCents() > 0 ? summary.totalCents() : ticket.totalCents();
+
+          Map<String, Integer> perTicket = new LinkedHashMap<>();
+          if (summary != null && summary.payments() != null) {
+            for (TicketSummaryResponse.PaymentSummary p : summary.payments()) {
+              if (p == null || p.amountCents() <= 0) {
+                continue;
+              }
+              String method = normalizePaymentMethod(p.method());
+              perTicket.merge(method, p.amountCents(), Integer::sum);
+              totalsByMethod.merge(method, p.amountCents(), Integer::sum);
+            }
+          }
+
+          String methodLabel;
+          if (perTicket.isEmpty()) {
+            methodLabel = "SIN PAGO";
+          } else if (perTicket.size() == 1) {
+            methodLabel = perTicket.keySet().iterator().next();
+          } else {
+            methodLabel = "MIXTO";
+          }
+
+          rows.add(new CashCloseTicketRow(
+              ticket.id(),
+              ticket.tableNumber(),
+              ticketTotal,
+              methodLabel
+          ));
+        }
+      }
+    } catch (Exception ignored) {
+      // Si falla el snapshot, imprimimos igualmente cabecera y totales conocidos.
+    }
+
+    rows.sort(Comparator.comparingLong(CashCloseTicketRow::ticketId));
+    int cash = totalsByMethod.getOrDefault("EFECTIVO", 0);
+    int card = totalsByMethod.getOrDefault("TARJETA", 0);
+    int bizum = totalsByMethod.getOrDefault("BIZUM", 0);
+    int methodsTotal = totalsByMethod.values().stream().mapToInt(Integer::intValue).sum();
+
+    return new CashCloseReport(
+        cashSessionId,
+        closeSummary == null ? null : closeSummary.closedAt(),
+        rows,
+        cash,
+        card,
+        bizum,
+        methodsTotal
+    );
+  }
+
+  private String printCloseReport(CashCloseReport report) {
+    String text = buildCloseReportText(report);
+    List<String> candidates = new ArrayList<>();
+    addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("GENERAL"));
+    addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("ALL"));
+    addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("BAR"));
+    addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("COCINA"));
+    addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("POSTRES"));
+
+    Window owner = errorLabel != null && errorLabel.getScene() != null ? errorLabel.getScene().getWindow() : null;
+    for (String printer : candidates) {
+      try {
+        PrintUtil.printTextToPrinterWithBottomMargin(printer, text, owner);
+        return printer;
+      } catch (Exception ignored) {
+        // seguimos probando siguiente impresora
+      }
+    }
+
+    PrintUtil.printTextToPdfWithBottomMargin(text, owner);
+    return "Print to PDF";
+  }
+
+  private String buildCloseReportText(CashCloseReport report) {
+    StringBuilder out = new StringBuilder();
+    String businessName = SettingsStore.getRestaurantName();
+    out.append((businessName == null || businessName.isBlank() ? "RESTAURANTE" : businessName).toUpperCase(Locale.ROOT)).append('\n');
+    out.append("CIERRE DE CAJA").append('\n');
+    out.append("Sesion ").append(report.cashSessionId()).append('\n');
+    if (report.closedAt() != null) {
+      out.append("Fecha ").append(DT.format(report.closedAt())).append('\n');
+    }
+    out.append("-".repeat(REPORT_LINE_WIDTH)).append('\n');
+    out.append(String.format(Locale.US, "%-8s %-6s %9s %-15s", "TICKET", "MESA", "IMPORTE", "METODO")).append('\n');
+    out.append("-".repeat(REPORT_LINE_WIDTH)).append('\n');
+
+    for (CashCloseTicketRow row : report.rows()) {
+      String ticketId = String.valueOf(row.ticketId());
+      String table = row.tableNumber() == null ? "-" : String.valueOf(row.tableNumber());
+      String amount = String.format(Locale.US, "%.2f", row.totalCents() / 100.0);
+      String method = clip(row.methodLabel(), 15);
+      out.append(String.format(Locale.US, "%-8s %-6s %9s %-15s", ticketId, table, amount, method)).append('\n');
+    }
+
+    out.append("-".repeat(REPORT_LINE_WIDTH)).append('\n');
+    out.append(amountLine("EFECTIVO", report.cashTotalCents()));
+    out.append(amountLine("TARJETA", report.cardTotalCents()));
+    out.append(amountLine("BIZUM", report.bizumTotalCents()));
+    out.append(amountLine("TOTAL", report.methodsTotalCents()));
+    out.append("-".repeat(REPORT_LINE_WIDTH)).append('\n');
+    out.append('\n').append('\n').append('\n').append('\n').append('\n');
+    return out.toString();
+  }
+
+  private static String amountLine(String label, int cents) {
+    String amount = String.format(Locale.US, "%.2f", cents / 100.0);
+    return String.format(Locale.US, "%-28s %12s%n", label + ":", amount);
+  }
+
+  private static String normalizePaymentMethod(String method) {
+    if (method == null || method.isBlank()) {
+      return "OTRO";
+    }
+    String m = method.trim().toUpperCase(Locale.ROOT);
+    return switch (m) {
+      case "CASH", "EFECTIVO" -> "EFECTIVO";
+      case "CARD", "TARJETA" -> "TARJETA";
+      case "BIZUM" -> "BIZUM";
+      default -> m;
+    };
+  }
+
+  private static String clip(String value, int max) {
+    if (value == null) {
+      return "";
+    }
+    return value.length() <= max ? value : value.substring(0, Math.max(0, max - 1)) + ".";
+  }
+
+  private static void addPrinters(List<String> target, List<String> source) {
+    if (source == null || source.isEmpty()) {
+      return;
+    }
+    for (String printer : source) {
+      if (printer == null || printer.isBlank()) {
+        continue;
+      }
+      String normalized = printer.trim();
+      if (!target.contains(normalized)) {
+        target.add(normalized);
+      }
+    }
+  }
+
+  private record CashCloseTicketRow(long ticketId, Integer tableNumber, int totalCents, String methodLabel) {}
+
+  private record CashCloseReport(
+      long cashSessionId,
+      java.time.Instant closedAt,
+      List<CashCloseTicketRow> rows,
+      int cashTotalCents,
+      int cardTotalCents,
+      int bizumTotalCents,
+      int methodsTotalCents
+  ) {}
 }

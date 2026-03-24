@@ -93,11 +93,11 @@ public class HistoryController {
 
     private static final DateTimeFormatter DT =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault());
-    private static final int INVOICE_LINE_WIDTH = 34;
+    private static final int INVOICE_LINE_WIDTH = 42;
     private static final int INVOICE_QTY_COL_WIDTH = 4;
-    private static final int INVOICE_DESC_COL_WIDTH = 13;
-    private static final int INVOICE_UNIT_COL_WIDTH = 6;
-    private static final int INVOICE_TOTAL_COL_WIDTH = 8;
+    private static final int INVOICE_DESC_COL_WIDTH = 21;
+    private static final int INVOICE_UNIT_COL_WIDTH = 7;
+    private static final int INVOICE_TOTAL_COL_WIDTH = 7;
 
     private boolean canReopenPaid() {
         return AuthStore.hasRole("ADMIN") || AuthStore.hasRole("ENCARGADO");
@@ -154,7 +154,7 @@ public class HistoryController {
         colLineUnit.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(MoneyUtil.centsToEuros(c.getValue().unitPriceCents())));
         colLineTotal.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(MoneyUtil.centsToEuros(c.getValue().lineTotalCents())));
 
-        colPayMethod.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().method()));
+        colPayMethod.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(paymentMethodLabel(c.getValue().method())));
         colPayAmount.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(MoneyUtil.centsToEuros(c.getValue().amountCents()) + " EUR"));
         colPayDate.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().createdAt() == null ? "-" : DT.format(c.getValue().createdAt())
@@ -589,7 +589,7 @@ public class HistoryController {
 
         TextInputDialog amountDialog = new TextInputDialog(MoneyUtil.centsToEuros(selectedPayment.amountCents()));
         amountDialog.setTitle("Registrar devolucion");
-        amountDialog.setHeaderText("Pago: " + selectedPayment.method() + " - " + MoneyUtil.centsToEuros(selectedPayment.amountCents()) + " EUR");
+        amountDialog.setHeaderText("Pago: " + paymentMethodLabel(selectedPayment.method()) + " - " + MoneyUtil.centsToEuros(selectedPayment.amountCents()) + " EUR");
         amountDialog.setContentText("Importe devolucion (EUR):");
         String amountText = amountDialog.showAndWait().orElse("");
         if (amountText == null || amountText.isBlank()) {
@@ -698,7 +698,7 @@ public class HistoryController {
                 int baseCents = netFromGrossCents(line.lineTotalCents(), vatRateBps);
                 int vatCents = Math.max(0, line.lineTotalCents() - baseCents);
                 totalBaseCents += baseCents;
-                vatBreakdown.computeIfAbsent(vatRateBps, ignored -> new VatTotals()).add(baseCents, vatCents);
+                vatBreakdown.computeIfAbsent(vatRateBps, ignored -> new VatTotals()).add(vatCents);
                 appendInvoiceLineWithAmounts(out, line.qty(), line.productName(), unitBaseCents, baseCents);
             }
         }
@@ -716,7 +716,7 @@ public class HistoryController {
                 out.append(String.format(
                         Locale.US,
                         "%-8s %8.2f %s",
-                        payment.method(),
+                        paymentMethodLabel(payment.method()),
                         payment.amountCents() / 100.0,
                         payment.createdAt() == null ? "" : DT.format(payment.createdAt())
                 )).append('\n');
@@ -783,7 +783,7 @@ public class HistoryController {
                 int unitNetCents = netFromGrossCents(line.unitGrossCents(), line.vatRateBps());
                 appendInvoiceLineWithAmounts(out, line.qty(), line.productName(), unitNetCents, line.lineNetCents());
                 vatBreakdown.computeIfAbsent(line.vatRateBps(), ignored -> new VatTotals())
-                        .add(line.lineNetCents(), line.lineVatCents());
+                        .add(line.lineVatCents());
             }
         }
         out.append(invoiceSeparator()).append('\n');
@@ -955,11 +955,9 @@ public class HistoryController {
     }
 
     private static final class VatTotals {
-        int netCents;
         int vatCents;
 
-        void add(int net, int vat) {
-            this.netCents += net;
+        void add(int vat) {
             this.vatCents += vat;
         }
     }
@@ -969,6 +967,19 @@ public class HistoryController {
             return fallback;
         }
         return value.trim();
+    }
+
+    private static String paymentMethodLabel(String method) {
+        if (method == null || method.isBlank()) {
+            return "OTRO";
+        }
+        String m = method.trim().toUpperCase(Locale.ROOT);
+        return switch (m) {
+            case "CASH", "EFECTIVO" -> "EFECTIVO";
+            case "CARD", "TARJETA" -> "TARJETA";
+            case "BIZUM" -> "BIZUM";
+            default -> m;
+        };
     }
 
     private static String clip(String value, int max) {

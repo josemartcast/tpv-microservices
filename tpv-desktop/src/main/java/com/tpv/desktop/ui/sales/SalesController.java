@@ -406,11 +406,16 @@ public class SalesController {
             return;
         }
 
-        ChoiceDialog<String> methodDialog = new ChoiceDialog<>("CARD", List.of("CASH", "CARD", "BIZUM"));
+        List<PaymentChoice> choices = List.of(
+                new PaymentChoice("EFECTIVO", "CASH"),
+                new PaymentChoice("TARJETA", "CARD"),
+                new PaymentChoice("BIZUM", "BIZUM")
+        );
+        ChoiceDialog<PaymentChoice> methodDialog = new ChoiceDialog<>(choices.get(1), choices);
         methodDialog.setTitle("Custom payment");
         methodDialog.setHeaderText("Select payment method");
         methodDialog.setContentText("Method:");
-        var methodOpt = methodDialog.showAndWait();
+        var methodOpt = methodDialog.showAndWait().map(PaymentChoice::apiCode);
         if (methodOpt.isEmpty()) {
             return;
         }
@@ -736,5 +741,12 @@ public class SalesController {
             errorLabel.getStyleClass().add(FEEDBACK_BASE);
         }
         errorLabel.getStyleClass().add(toneClass);
+    }
+
+    private record PaymentChoice(String label, String apiCode) {
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 }
