@@ -11,6 +11,7 @@ import com.tpv.pda.data.api.CategoryResponse
 import com.tpv.pda.data.api.LoginRequest
 import com.tpv.pda.data.api.ProductResponse
 import com.tpv.pda.data.api.SalonTableResponse
+import com.tpv.pda.data.api.SendComandaRequest
 import com.tpv.pda.data.api.SetBillRequestedRequest
 import com.tpv.pda.data.api.TableLockRequest
 import com.tpv.pda.data.api.TicketResponse
@@ -25,6 +26,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import javax.net.ssl.SSLException
 
 enum class ScreenMode {
     LOGIN, TABLES, ORDER
@@ -101,7 +107,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val baseUrl = apiFactory.normalizeBaseUrl(state.baseUrl)
 
         if (username.isBlank() || password.isBlank() || terminalId.isBlank() || baseUrl.isBlank()) {
-            _ui.update { it.copy(error = "Completa servidor, usuario, password y terminal.") }
+            _ui.update { it.copy(error = "Completa servidor, usuario, contraseña y terminal.") }
             return
         }
 
@@ -112,7 +118,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val response = auth.login(LoginRequest(username = username, password = password))
                 val token = response.accessToken
                 if (token.isBlank()) {
-                    throw IllegalStateException("Login sin accessToken")
+                    throw IllegalStateException("Inicio de sesión incompleto")
                 }
 
                 val session = SessionData(
@@ -133,12 +139,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         token = token,
                         loggedIn = true,
                         screen = ScreenMode.TABLES,
-                        message = "Login OK"
+                        message = "Sesión iniciada"
                     )
                 }
                 refreshTables()
             } catch (e: Exception) {
-                _ui.update { it.copy(loading = false, error = errorText("No se pudo iniciar sesion", e)) }
+                _ui.update { it.copy(loading = false, error = errorText("No se pudo iniciar sesión", e)) }
             }
         }
     }
@@ -170,7 +176,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     selectedLineId = null,
                     password = "",
                     screen = ScreenMode.LOGIN,
-                    message = "Sesion cerrada"
+                    message = "Sesión cerrada"
                 )
             }
         }
@@ -179,7 +185,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshTables() {
         val state = _ui.value
         if (state.token.isBlank() || state.terminalId.isBlank()) {
-            _ui.update { it.copy(error = "No hay sesion activa.") }
+            _ui.update { it.copy(error = "No hay una sesión activa.") }
             return
         }
         viewModelScope.launch {
@@ -208,7 +214,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun openTable(table: SalonTableResponse) {
         val state = _ui.value
         if (!state.loggedIn) {
-            _ui.update { it.copy(error = "Inicia sesion para continuar.") }
+            _ui.update { it.copy(error = "Inicia sesión para continuar.") }
             return
         }
         viewModelScope.launch {
@@ -265,25 +271,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun backToTables() {
+    fun backToTables(sendPendingComanda: Boolean = false) {
         val exitPlan = TableExitPolicy.buildPlan(
             currentTable = _ui.value.currentTable,
             currentTicket = _ui.value.currentTicket,
             lockedTableNumber = lockedTableNumber
         )
-        lockHeartbeatJob?.cancel()
-        lockHeartbeatJob = null
-        lockedTableNumber = null
-        _ui.update {
-            it.copy(
-                screen = ScreenMode.TABLES,
-                currentTable = null,
-                currentTicket = null,
-                selectedLineId = null,
-                qtyInput = "1"
-            )
-        }
         viewModelScope.launch {
+            var exitMessage: String? = null
+            var exitError: String? = null
+            if (sendPendingComanda) {
+                val ticketId = _ui.value.currentTicket?.id
+                val pendingLines = _ui.value.pendingSendLines
+                if (ticketId != null && pendingLines > 0) {
+                    try {
+                        val response = posApi().sendComanda(ticketId, SendComandaRequest("ALL"))
+                        exitMessage = "Comanda enviada (${response.sentCount} líneas)."
+                    } catch (e: Exception) {
+                        exitError = errorText("No se pudo enviar comanda al salir", e)
+                    }
+                }
+            }
+            lockHeartbeatJob?.cancel()
+            lockHeartbeatJob = null
+            lockedTableNumber = null
+            _ui.update {
+                it.copy(
+                    screen = ScreenMode.TABLES,
+                    currentTable = null,
+                    currentTicket = null,
+                    selectedLineId = null,
+                    qtyInput = "1",
+                    pendingSendLines = 0,
+                    pendingPaymentCents = 0,
+                    message = exitMessage,
+                    error = exitError
+                )
+            }
             cancelEmptyTicket(exitPlan.emptyTicketToCancel, reportErrors = true)
             releaseLock(exitPlan.tableToUnlock, reportErrors = true)
             refreshTablesSilent()
@@ -311,9 +335,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _ui.update { it.copy(loading = true, error = null) }
             try {
                 val updated = posApi().addLine(ticketId, AddTicketLineRequest(productId = productId, qty = qty))
-                applyUpdatedTicket(updated, "Linea anadida")
+                applyUpdatedTicket(updated, "Línea añadida")
             } catch (e: Exception) {
-                _ui.update { it.copy(loading = false, error = errorText("No se pudo anadir linea", e)) }
+                _ui.update { it.copy(loading = false, error = errorText("No se pudo añadir la línea", e)) }
             }
         }
     }
@@ -336,7 +360,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val updated = posApi().updateLineQty(ticketId, lineId, UpdateLineQtyRequest(qty))
                 applyUpdatedTicket(updated, "Cantidad actualizada")
             } catch (e: Exception) {
-                _ui.update { it.copy(loading = false, error = errorText("No se pudo actualizar cantidad", e)) }
+                _ui.update { it.copy(loading = false, error = errorText("No se pudo actualizar la cantidad", e)) }
             }
         }
     }
@@ -370,7 +394,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val updated = posApi().deleteLine(ticketId, lineId)
                 applyUpdatedTicket(updated, "Linea eliminada")
             } catch (e: Exception) {
-                _ui.update { it.copy(loading = false, error = errorText("No se pudo eliminar linea", e)) }
+                _ui.update { it.copy(loading = false, error = errorText("No se pudo eliminar la línea", e)) }
             }
         }
     }
@@ -384,7 +408,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val refreshed = posApi().getTicket(ticketId)
                 applyUpdatedTicket(
                     refreshed,
-                    "Comanda enviada ${response.destination}: ${response.sentCount} lineas"
+                    "Comanda enviada ${response.destination}: ${response.sentCount} líneas"
                 )
             } catch (e: Exception) {
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo enviar comanda", e)) }
@@ -398,7 +422,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _ui.update { it.copy(loading = true, error = null) }
             try {
                 val updated = posApi().setBillRequested(ticketId, SetBillRequestedRequest(requested = true))
-                applyUpdatedTicket(updated, "Precuenta solicitada. Se imprimira en TPV.")
+                applyUpdatedTicket(updated, "Precuenta solicitada. Se imprimirá en TPV.")
             } catch (e: Exception) {
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo solicitar precuenta", e)) }
             }
@@ -447,7 +471,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun moveCurrentTicket(targetTableNumber: Int) {
         val ticketId = _ui.value.currentTicket?.id ?: return
         if (targetTableNumber <= 0) {
-            _ui.update { it.copy(error = "Mesa destino invalida.") }
+            _ui.update { it.copy(error = "Mesa de destino inválida.") }
             return
         }
         viewModelScope.launch {
@@ -520,7 +544,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         if (terminalId.isNotBlank()) {
                             posApi().lockTable(tableNumber, TableLockRequest(terminalId))
                             _ui.update {
-                                it.copy(message = "Lock recuperado en mesa $tableNumber")
+                                it.copy(message = "Bloqueo recuperado en mesa $tableNumber")
                             }
                             continue
                         }
@@ -535,7 +559,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             currentTicket = null,
                             selectedLineId = null,
                             qtyInput = "1",
-                            error = "Se perdio el lock de mesa $tableNumber. Vuelve a abrir la mesa."
+                            error = "Se perdió el bloqueo de la mesa $tableNumber. Vuelve a abrirla."
                         )
                     }
                     refreshTablesSilent()
@@ -553,7 +577,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             posApi().unlockTable(tableNumber, TableLockRequest(terminalId))
         } catch (e: Exception) {
             if (reportErrors) {
-                _ui.update { it.copy(error = errorText("No se pudo liberar lock mesa $tableNumber", e)) }
+                _ui.update { it.copy(error = errorText("No se pudo liberar el bloqueo de la mesa $tableNumber", e)) }
             }
         }
     }
@@ -567,7 +591,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
             if (reportErrors) {
-                _ui.update { it.copy(error = errorText("No se pudo cerrar ticket vacio $ticketId", e)) }
+                _ui.update { it.copy(error = errorText("No se pudo cerrar el ticket vacío $ticketId", e)) }
             }
         }
     }
@@ -602,18 +626,53 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun errorText(prefix: String, error: Exception): String {
-        val detail = when (error) {
-            is HttpException -> {
-                val body = try {
-                    error.response()?.errorBody()?.string()?.take(220).orEmpty()
-                } catch (_: Exception) {
-                    ""
-                }
-                if (body.isBlank()) "HTTP ${error.code()}" else "HTTP ${error.code()} -> $body"
-            }
-            else -> error.message ?: error.javaClass.simpleName
+        return "$prefix. ${friendlyErrorDetail(error)}"
+    }
+
+    private fun friendlyErrorDetail(error: Exception): String = when (error) {
+        is HttpException -> friendlyHttpError(error)
+        is UnknownHostException -> "No se encontró el servidor. Revisa la dirección."
+        is ConnectException -> "No se pudo conectar con el servidor. Comprueba que el TPV esté encendido."
+        is SocketTimeoutException -> "El servidor tardó demasiado en responder. Inténtalo de nuevo."
+        is SSLException -> "No se pudo establecer una conexión segura con el servidor."
+        is IOException -> "Problema de red. Revisa la conexión y vuelve a intentarlo."
+        else -> {
+            val msg = error.message?.trim().orEmpty()
+            if (msg.isBlank()) "Error inesperado. Inténtalo de nuevo."
+            else msg.take(180)
         }
-        return "$prefix: $detail"
+    }
+
+    private fun friendlyHttpError(error: HttpException): String {
+        val code = error.code()
+        val body = readHttpErrorBody(error).lowercase()
+        return when (code) {
+            400 -> "Los datos no son válidos. Revisa la información e inténtalo de nuevo."
+            401 -> "Sesión caducada o credenciales incorrectas. Inicia sesión de nuevo."
+            403 -> "No tienes permisos para realizar esta acción."
+            404 -> "No se encontró la información solicitada. Actualiza y vuelve a intentarlo."
+            409 -> when {
+                body.contains("lock") || body.contains("locked") ->
+                    "La mesa está siendo usada en otro terminal."
+                body.contains("ticket") && body.contains("open") ->
+                    "No se puede completar la operación porque el ticket sigue abierto."
+                body.contains("already") && body.contains("exist") ->
+                    "Ese dato ya existe."
+                else ->
+                    "La operación entra en conflicto con el estado actual. Refresca y vuelve a intentarlo."
+            }
+            422 -> "Los datos enviados no son válidos para esta operación."
+            in 500..599 -> "El servidor tuvo un problema temporal. Inténtalo en unos segundos."
+            else -> "No se pudo completar la operación (HTTP $code)."
+        }
+    }
+
+    private fun readHttpErrorBody(error: HttpException): String {
+        return try {
+            error.response()?.errorBody()?.string()?.trim().orEmpty().take(300)
+        } catch (_: Exception) {
+            ""
+        }
     }
 
     private fun toEur(cents: Int): String = String.format("%.2f EUR", cents / 100.0)

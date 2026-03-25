@@ -197,9 +197,37 @@ public class OrderController {
 
     @FXML
     public void onBack() {
+        if (hasPendingSendLines()) {
+            boolean sendNow = UiDialogs.confirm(
+                    "Enviar comanda",
+                    "Hay lineas pendientes de enviar.\n\nQuieres enviarlas ahora (BAR + COCINA + POSTRES) antes de salir?"
+            );
+            if (sendNow) {
+                try {
+                    boolean sent = vm.sendAll(true);
+                    if (!sent) {
+                        setFeedback("No se pudo enviar comanda pendiente.");
+                        return;
+                    }
+                } catch (Exception ex) {
+                    String msg = "No se pudo enviar comanda pendiente: " + ex.getMessage();
+                    setFeedback(msg);
+                    showErrorDialog("Enviar comanda", msg);
+                    return;
+                }
+            }
+        }
         stopHeartbeat();
         vm.closeOrReleaseOnBack();
         Navigator.get().goHome();
+    }
+
+    private boolean hasPendingSendLines() {
+        try {
+            return vm.pendingByDestination().values().stream().mapToInt(Integer::intValue).sum() > 0;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     @FXML

@@ -1,6 +1,7 @@
 package com.tpv.pda.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -59,6 +62,59 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tpv.pda.data.api.ProductResponse
 import com.tpv.pda.data.api.SalonTableResponse
 import com.tpv.pda.data.api.TicketLineResponse
+
+private object PdaPalette {
+    val pageTop = Color(0xFFEFF3FB)
+    val pageBottom = Color(0xFFE2E8F4)
+    val panel = Color(0xFFF7F9FF)
+    val panelBorder = Color(0xFFCBD7EE)
+    val ink = Color(0xFF1D2740)
+    val mutedInk = Color(0xFF4D5D7D)
+    val primary = Color(0xFF2E69BE)
+    val primaryDark = Color(0xFF24539A)
+    val success = Color(0xFF4F7E3D)
+    val warning = Color(0xFFB9831D)
+    val danger = Color(0xFFB23D3F)
+    val darkButton = Color(0xFF303A55)
+    val tableFree = Color(0xFFF2FBF4)
+    val tableBusy = Color(0xFFF4F7FF)
+    val tablePending = Color(0xFFFFF6E5)
+    val tableLocked = Color(0xFFFFEEE8)
+    val selected = Color(0xFFDCE8FF)
+}
+
+private fun Modifier.pdaBackground(): Modifier = background(
+    Brush.verticalGradient(
+        colors = listOf(PdaPalette.pageTop, PdaPalette.pageBottom)
+    )
+)
+
+@Composable
+private fun panelCardColors() = CardDefaults.cardColors(containerColor = PdaPalette.panel)
+
+@Composable
+private fun primaryButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = PdaPalette.primary,
+    contentColor = Color.White,
+    disabledContainerColor = PdaPalette.primary.copy(alpha = 0.35f),
+    disabledContentColor = Color.White.copy(alpha = 0.7f)
+)
+
+@Composable
+private fun darkButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = PdaPalette.darkButton,
+    contentColor = Color.White,
+    disabledContainerColor = PdaPalette.darkButton.copy(alpha = 0.35f),
+    disabledContentColor = Color.White.copy(alpha = 0.7f)
+)
+
+@Composable
+private fun successButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = PdaPalette.success,
+    contentColor = Color.White,
+    disabledContainerColor = PdaPalette.success.copy(alpha = 0.35f),
+    disabledContentColor = Color.White.copy(alpha = 0.7f)
+)
 
 @Composable
 fun PdaApp(viewModel: MainViewModel) {
@@ -77,44 +133,47 @@ fun PdaApp(viewModel: MainViewModel) {
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(hostState = snackbar) }
     ) { padding ->
-        when (state.screen) {
-            ScreenMode.LOGIN -> LoginScreen(
-                state = state,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                onBaseUrlChange = viewModel::onBaseUrlChange,
-                onUsernameChange = viewModel::onUsernameChange,
-                onPasswordChange = viewModel::onPasswordChange,
-                onTerminalChange = viewModel::onTerminalChange,
-                onLogin = viewModel::login
-            )
+        Column(modifier = Modifier.fillMaxSize().pdaBackground().padding(padding)) {
+            when (state.screen) {
+                ScreenMode.LOGIN -> LoginScreen(
+                    state = state,
+                    modifier = Modifier.fillMaxSize(),
+                    onBaseUrlChange = viewModel::onBaseUrlChange,
+                    onUsernameChange = viewModel::onUsernameChange,
+                    onPasswordChange = viewModel::onPasswordChange,
+                    onTerminalChange = viewModel::onTerminalChange,
+                    onLogin = viewModel::login
+                )
 
-            ScreenMode.TABLES -> TablesScreen(
-                state = state,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                onRefresh = viewModel::refreshTables,
-                onOpenTable = viewModel::openTable,
-                onSalonFilterChange = viewModel::onSalonFilterChange,
-                onLogout = viewModel::logout
-            )
+                ScreenMode.TABLES -> TablesScreen(
+                    state = state,
+                    modifier = Modifier.fillMaxSize(),
+                    onRefresh = viewModel::refreshTables,
+                    onOpenTable = viewModel::openTable,
+                    onSalonFilterChange = viewModel::onSalonFilterChange,
+                    onLogout = viewModel::logout
+                )
 
-            ScreenMode.ORDER -> OrderScreen(
-                state = state,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                onBack = viewModel::backToTables,
-                onQtyChange = viewModel::onQtyInputChange,
-                onSelectCategory = viewModel::selectCategory,
-                onAddProduct = viewModel::addProduct,
-                onSelectLine = viewModel::selectLine,
-                onUpdateQty = viewModel::updateSelectedLineQty,
-                onUpdatePrice = viewModel::updateSelectedLinePrice,
-                onDeleteLine = viewModel::deleteSelectedLine,
-                onSendComanda = viewModel::sendComanda,
-                onRequestPrebill = viewModel::requestPrebill,
-                onPay = viewModel::payTicket,
-                onMoveTable = viewModel::moveCurrentTicket
-            )
+                ScreenMode.ORDER -> OrderScreen(
+                    state = state,
+                    modifier = Modifier.fillMaxSize(),
+                    onBack = { sendPending -> viewModel.backToTables(sendPending) },
+                    onQtyChange = viewModel::onQtyInputChange,
+                    onSelectCategory = viewModel::selectCategory,
+                    onAddProduct = viewModel::addProduct,
+                    onSelectLine = viewModel::selectLine,
+                    onUpdateQty = viewModel::updateSelectedLineQty,
+                    onUpdatePrice = viewModel::updateSelectedLinePrice,
+                    onDeleteLine = viewModel::deleteSelectedLine,
+                    onSendComanda = viewModel::sendComanda,
+                    onRequestPrebill = viewModel::requestPrebill,
+                    onPay = viewModel::payTicket,
+                    onMoveTable = viewModel::moveCurrentTicket
+                )
+            }
         }
     }
 }
@@ -129,55 +188,66 @@ private fun LoginScreen(
     onTerminalChange: (String) -> Unit,
     onLogin: () -> Unit
 ) {
-    Column(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(text = "TPV PDA Android", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            text = "Servidor configurable para Tailscale, local o cloud.",
-            style = MaterialTheme.typography.bodyMedium
-        )
-
-        OutlinedTextField(
-            value = state.baseUrl,
-            onValueChange = onBaseUrlChange,
-            label = { Text("Servidor (Gateway)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = state.terminalId,
-            onValueChange = onTerminalChange,
-            label = { Text("Terminal ID") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = state.username,
-            onValueChange = onUsernameChange,
-            label = { Text("Usuario") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = state.password,
-            onValueChange = onPasswordChange,
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Button(
-            onClick = onLogin,
-            enabled = !state.loading,
-            modifier = Modifier.fillMaxWidth()
+    Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = panelCardColors(),
+            border = BorderStroke(1.dp, PdaPalette.panelBorder)
         ) {
-            if (state.loading) {
-                CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.height(18.dp))
-            } else {
-                Text("Iniciar sesion")
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "TPV PDA",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = PdaPalette.ink
+                )
+                Text(
+                    text = "Conecta tu terminal al servidor del local.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = PdaPalette.mutedInk
+                )
+
+                OutlinedTextField(
+                    value = state.baseUrl,
+                    onValueChange = onBaseUrlChange,
+                    label = { Text("Servidor (Gateway)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = state.terminalId,
+                    onValueChange = onTerminalChange,
+                    label = { Text("Terminal ID") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = state.username,
+                    onValueChange = onUsernameChange,
+                    label = { Text("Usuario") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = state.password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Contraseña") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Button(
+                    onClick = onLogin,
+                    enabled = !state.loading,
+                    colors = primaryButtonColors(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                ) {
+                    if (state.loading) {
+                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.height(18.dp), color = Color.White)
+                    } else {
+                        Text("Iniciar sesión")
+                    }
+                }
             }
         }
     }
@@ -204,44 +274,73 @@ private fun TablesScreen(
         else state.tables.filter { (it.salonName ?: "").equals(state.salonFilter, ignoreCase = true) }
     }
 
-    Column(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(
+    Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            colors = panelCardColors(),
+            border = BorderStroke(1.dp, PdaPalette.panelBorder)
         ) {
-            Column {
-                Text("Mesas", style = MaterialTheme.typography.headlineSmall)
-                Text("${state.username} - ${state.terminalId}", style = MaterialTheme.typography.bodySmall)
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onRefresh, enabled = !state.loading) { Text("Refrescar") }
-                TextButton(onClick = onLogout) { Text("Salir") }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "Mapa de Mesas",
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = PdaPalette.ink
+                    )
+                    Text(
+                        "${state.username} | ${state.terminalId}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PdaPalette.mutedInk
+                    )
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onRefresh,
+                        enabled = !state.loading,
+                        colors = darkButtonColors(),
+                        modifier = Modifier.heightIn(min = 44.dp)
+                    ) { Text("Refrescar") }
+                    Button(
+                        onClick = onLogout,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PdaPalette.danger,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier.heightIn(min = 44.dp)
+                    ) { Text("Salir") }
+                }
             }
         }
 
         Text(
             text = "Servidor: ${state.baseUrl}",
             style = MaterialTheme.typography.bodySmall,
+            color = PdaPalette.mutedInk,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
             items(salonOptions, key = { it }) { option ->
                 val active = option == state.salonFilter
-                TextButton(
+                Button(
                     onClick = { onSalonFilterChange(option) },
-                    modifier = if (active) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
-                    else Modifier
+                    colors = if (active) primaryButtonColors() else ButtonDefaults.buttonColors(
+                        containerColor = PdaPalette.panel,
+                        contentColor = PdaPalette.ink
+                    ),
+                    border = BorderStroke(1.dp, if (active) PdaPalette.primaryDark else PdaPalette.panelBorder),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.heightIn(min = 42.dp)
                 ) {
                     Text(if (option == "ALL") "Todos" else option)
                 }
             }
         }
-        HorizontalDivider()
+        HorizontalDivider(color = PdaPalette.panelBorder)
 
         if (state.loading) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
@@ -266,20 +365,44 @@ private fun TablesScreen(
 
 @Composable
 private fun TableCard(table: SalonTableResponse, onOpen: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
+    val cardBg = when (table.status?.uppercase()) {
+        "FREE" -> PdaPalette.tableFree
+        "PENDING_SEND" -> PdaPalette.tablePending
+        else -> if (table.lockedTerminalId?.isNotBlank() == true) PdaPalette.tableLocked else PdaPalette.tableBusy
+    }
+    val borderColor = when (table.status?.uppercase()) {
+        "FREE" -> Color(0xFF7AB784)
+        "PENDING_SEND" -> PdaPalette.warning
+        else -> if (table.lockedTerminalId?.isNotBlank() == true) PdaPalette.danger else Color(0xFF8FA5D1)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, borderColor)
+    ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = "Mesa ${table.tableNumber}${aliasSuffix(table.tableAlias)}",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = PdaPalette.ink
             )
             Text(
                 text = "${table.salonName ?: "-"} | ${statusText(table.status)} | ${elapsed(table.elapsedMinutes)}",
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                color = PdaPalette.mutedInk
             )
-            Text(text = "Total: ${eur(table.totalCents)}", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "Total: ${eur(table.totalCents)}",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = PdaPalette.ink
+            )
             if (table.lockedTerminalId?.isNotBlank() == true) {
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(text = "Bloqueada por ${table.lockedTerminalId}", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = "Bloqueada por ${table.lockedTerminalId}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = PdaPalette.danger
+                )
             }
         }
     }
@@ -290,7 +413,7 @@ private fun TableCard(table: SalonTableResponse, onOpen: () -> Unit) {
 private fun OrderScreen(
     state: MainUiState,
     modifier: Modifier = Modifier,
-    onBack: () -> Unit,
+    onBack: (Boolean) -> Unit,
     onQtyChange: (String) -> Unit,
     onSelectCategory: (Long) -> Unit,
     onAddProduct: (Long) -> Unit,
@@ -310,11 +433,20 @@ private fun OrderScreen(
     var showPriceDialog by remember { mutableStateOf(false) }
     var showPayDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
+    var showExitConfirmDialog by remember { mutableStateOf(false) }
     val topScroll = rememberScrollState()
     val config = LocalConfiguration.current
     val isCompactMobile = config.screenWidthDp < 600
 
-    BackHandler(onBack = onBack)
+    val requestBack: () -> Unit = {
+        if (state.pendingSendLines > 0) {
+            showExitConfirmDialog = true
+        } else {
+            onBack(false)
+        }
+    }
+
+    BackHandler(onBack = requestBack)
 
     Column(
         modifier = modifier.padding(8.dp),
@@ -332,19 +464,28 @@ private fun OrderScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onBack) { Text("Volver") }
+                Button(
+                    onClick = requestBack,
+                    colors = darkButtonColors(),
+                    modifier = Modifier.heightIn(min = 42.dp)
+                ) { Text("Volver") }
                 Text(
                     text = if (table == null) "Mesa" else "Mesa ${table.tableNumber}${aliasSuffix(table.tableAlias)}",
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = PdaPalette.ink
                 )
-                Text(text = table?.salonName ?: "-", style = MaterialTheme.typography.bodySmall)
+                Text(text = table?.salonName ?: "-", style = MaterialTheme.typography.bodySmall, color = PdaPalette.mutedInk)
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = panelCardColors(),
+                border = BorderStroke(1.dp, PdaPalette.panelBorder)
+            ) {
                 Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Ticket", style = MaterialTheme.typography.titleMedium)
+                    Text("Ticket", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
                     if (ticket == null || ticket.lines.isEmpty()) {
-                        Text("Sin lineas")
+                        Text("Sin líneas", color = PdaPalette.mutedInk)
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp),
@@ -359,30 +500,40 @@ private fun OrderScreen(
                             }
                         }
                     }
-                    Text("Total: ${eur(ticket?.totalCents ?: 0)}")
+                    Text("Total: ${eur(ticket?.totalCents ?: 0)}", color = PdaPalette.ink, fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(
                             onClick = { showQtyDialog = true },
                             enabled = selectedLine != null,
+                            colors = darkButtonColors(),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("Editar qty") }
                         Button(
                             onClick = { showPriceDialog = true },
                             enabled = selectedLine != null,
+                            colors = darkButtonColors(),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("Editar precio") }
                         Button(
                             onClick = onDeleteLine,
                             enabled = selectedLine != null,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PdaPalette.danger,
+                                contentColor = Color.White
+                            ),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("Borrar") }
                     }
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = panelCardColors(),
+                border = BorderStroke(1.dp, PdaPalette.panelBorder)
+            ) {
                 Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Cantidad", style = MaterialTheme.typography.titleMedium)
+                    Text("Cantidad", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
                     OutlinedTextField(
                         value = state.qtyInput,
                         onValueChange = onQtyChange,
@@ -392,33 +543,45 @@ private fun OrderScreen(
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("1", "2", "3", "5", "10").forEach { qty ->
-                            TextButton(onClick = { onQtyChange(qty) }) { Text(qty) }
+                            Button(
+                                onClick = { onQtyChange(qty) },
+                                colors = darkButtonColors(),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.heightIn(min = 40.dp)
+                            ) { Text(qty) }
                         }
                     }
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = panelCardColors(),
+                border = BorderStroke(1.dp, PdaPalette.panelBorder)
+            ) {
                 Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Operaciones", style = MaterialTheme.typography.titleMedium)
+                    Text("Operaciones", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
                     Text(
-                        "Pendiente enviar: ${state.pendingSendLines} lineas | Pendiente cobro: ${eur(state.pendingPaymentCents)}",
+                        "Pendiente enviar: ${state.pendingSendLines} líneas | Pendiente cobro: ${eur(state.pendingPaymentCents)}",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(
                             onClick = { onSendComanda("ALL") },
                             enabled = state.pendingSendLines > 0 && !state.loading,
+                            colors = primaryButtonColors(),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("Enviar") }
                         Button(
                             onClick = { onSendComanda("BAR") },
                             enabled = state.pendingSendLines > 0 && !state.loading,
+                            colors = darkButtonColors(),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("BAR") }
                         Button(
                             onClick = { onSendComanda("COCINA") },
                             enabled = state.pendingSendLines > 0 && !state.loading,
+                            colors = darkButtonColors(),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("COCINA") }
                     }
@@ -426,16 +589,22 @@ private fun OrderScreen(
                         Button(
                             onClick = onRequestPrebill,
                             enabled = ticket != null && !state.loading,
+                            colors = darkButtonColors(),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("Precuenta") }
                         Button(
                             onClick = { showPayDialog = true },
                             enabled = state.pendingPaymentCents > 0 && !state.loading,
+                            colors = successButtonColors(),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("Cobrar") }
                         Button(
                             onClick = { showMoveDialog = true },
                             enabled = !state.loading,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PdaPalette.warning,
+                                contentColor = Color.White
+                            ),
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("Mover mesa") }
                     }
@@ -446,10 +615,15 @@ private fun OrderScreen(
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                     items(state.categories, key = { it.id }) { category ->
                         val active = category.id == state.activeCategoryId
-                        TextButton(
+                        Button(
                             onClick = { onSelectCategory(category.id) },
-                            modifier = if (active) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
-                            else Modifier
+                            colors = if (active) primaryButtonColors() else ButtonDefaults.buttonColors(
+                                containerColor = PdaPalette.panel,
+                                contentColor = PdaPalette.ink
+                            ),
+                            border = BorderStroke(1.dp, if (active) PdaPalette.primaryDark else PdaPalette.panelBorder),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.heightIn(min = 40.dp)
                         ) {
                             Text(category.name)
                         }
@@ -458,10 +632,14 @@ private fun OrderScreen(
             }
         }
 
-        Card(modifier = Modifier.fillMaxWidth().weight(1f)) {
+        Card(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            colors = panelCardColors(),
+            border = BorderStroke(1.dp, PdaPalette.panelBorder)
+        ) {
             if (state.products.isEmpty()) {
                 Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.Center) {
-                    Text("No hay productos en la categoria.")
+                    Text("No hay productos en la categoría.", color = PdaPalette.mutedInk)
                 }
             } else {
                 LazyVerticalGrid(
@@ -535,6 +713,26 @@ private fun OrderScreen(
             }
         )
     }
+
+    if (showExitConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirmDialog = false },
+            title = { Text("Enviar comanda") },
+            text = { Text("Hay ${state.pendingSendLines} lineas pendientes. Quieres enviarlas antes de salir de la mesa?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExitConfirmDialog = false
+                    onBack(true)
+                }) { Text("Si, enviar") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showExitConfirmDialog = false
+                    onBack(false)
+                }) { Text("No enviar") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -543,9 +741,9 @@ private fun ProductCard(product: ProductResponse, onAdd: () -> Unit) {
         onClick = onAdd,
         modifier = Modifier.fillMaxWidth().heightIn(min = 92.dp),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFF8AB4FF)),
+        border = BorderStroke(1.dp, Color(0xFF9FBAF0)),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF1F4E79),
+            containerColor = Color(0xFF2E4A78),
             contentColor = Color.White
         ),
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
@@ -567,7 +765,8 @@ private fun ProductCard(product: ProductResponse, onAdd: () -> Unit) {
             ) {
                 Text(
                     text = eur(product.priceCents),
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFFDCE9FF)
                 )
             }
         }
@@ -576,20 +775,39 @@ private fun ProductCard(product: ProductResponse, onAdd: () -> Unit) {
 
 @Composable
 private fun TicketLineRow(line: TicketLineResponse, selected: Boolean, onClick: () -> Unit) {
-    val bg = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent
+    val bg = if (selected) PdaPalette.selected else Color.Transparent
     Row(
-        modifier = Modifier.fillMaxWidth().background(bg).clickable(onClick = onClick).padding(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(bg, RoundedCornerShape(8.dp))
+            .border(
+                width = if (selected) 1.dp else 0.dp,
+                color = if (selected) PdaPalette.primaryDark else Color.Transparent,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text("${line.qty}x ${line.productName}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                "${line.qty}x ${line.productName}",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = PdaPalette.ink,
+                fontWeight = FontWeight.SemiBold
+            )
             val sentText = if (line.sent) "enviado" else "pendiente"
-            Text("${line.destination ?: "-"} | $sentText", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "${line.destination ?: "-"} | $sentText",
+                style = MaterialTheme.typography.bodySmall,
+                color = PdaPalette.mutedInk
+            )
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(eur(line.lineTotalCents))
-            Text("u: ${eur(line.unitPriceCents)}", style = MaterialTheme.typography.bodySmall)
+            Text(eur(line.lineTotalCents), color = PdaPalette.ink, fontWeight = FontWeight.Bold)
+            Text("u: ${eur(line.unitPriceCents)}", style = MaterialTheme.typography.bodySmall, color = PdaPalette.mutedInk)
         }
     }
 }

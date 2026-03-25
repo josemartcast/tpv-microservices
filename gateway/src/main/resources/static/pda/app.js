@@ -757,6 +757,13 @@
   async function leaveTableAndBack() {
     const tableNumber = state.currentTableNumber;
     const currentTicket = state.currentTicket;
+    if (hasPendingSendLines()) {
+      const sendNow = window.confirm("Hay lineas pendientes de enviar.\n\nQuieres enviar la comanda ahora antes de salir de la mesa?");
+      if (sendNow) {
+        await sendComanda("ALL");
+        await refreshSendPreview();
+      }
+    }
     stopHeartbeat();
     state.currentTableNumber = null;
     state.currentTicket = null;
@@ -785,6 +792,13 @@
       pushError(err);
       toast("No se pudo liberar lock: " + err.message);
     }
+  }
+
+  function hasPendingSendLines() {
+    const pending = state.sendPreview && Array.isArray(state.sendPreview.pendingLines)
+      ? state.sendPreview.pendingLines
+      : [];
+    return pending.length > 0;
   }
   async function ensureCatalogLoaded() {
     if (!state.categories.length) {
