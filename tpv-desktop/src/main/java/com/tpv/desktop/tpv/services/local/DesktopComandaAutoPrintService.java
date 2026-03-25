@@ -427,12 +427,13 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             return breakdown;
         }
         for (TicketSummaryResponse.PaymentSummary p : summary.payments()) {
-            if (p == null || p.amountCents() <= 0) {
+            if (p == null || p.amountCents() == 0) {
                 continue;
             }
             String method = normalizePaymentMethod(p.method());
             breakdown.merge(method, p.amountCents(), Integer::sum);
         }
+        breakdown.entrySet().removeIf(e -> e.getValue() == null || e.getValue() <= 0);
         return breakdown;
     }
 

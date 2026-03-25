@@ -928,13 +928,14 @@ public class OrderController {
             LinkedHashMap<String, Integer> breakdown = new LinkedHashMap<>();
             if (summary.payments() != null) {
                 for (TicketSummaryResponse.PaymentSummary payment : summary.payments()) {
-                    if (payment == null || payment.amountCents() <= 0) {
+                    if (payment == null || payment.amountCents() == 0) {
                         continue;
                     }
                     String paymentMethod = normalizePaymentMethod(payment.method());
                     breakdown.merge(paymentMethod, payment.amountCents(), Integer::sum);
                 }
             }
+            breakdown.entrySet().removeIf(e -> e.getValue() == null || e.getValue() <= 0);
 
             int paidFromBreakdown = breakdown.values().stream().mapToInt(Integer::intValue).sum();
             int paidCents = summary.paidCents() > 0 ? summary.paidCents() : paidFromBreakdown;

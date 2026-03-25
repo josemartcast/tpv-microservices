@@ -618,7 +618,7 @@ public class CashController {
           Map<String, Integer> perTicket = new LinkedHashMap<>();
           if (summary != null && summary.payments() != null) {
             for (TicketSummaryResponse.PaymentSummary p : summary.payments()) {
-              if (p == null || p.amountCents() <= 0) {
+              if (p == null || p.amountCents() == 0) {
                 continue;
               }
               String method = normalizePaymentMethod(p.method());
@@ -626,6 +626,7 @@ public class CashController {
               totalsByMethod.merge(method, p.amountCents(), Integer::sum);
             }
           }
+          perTicket.entrySet().removeIf(e -> e.getValue() == null || e.getValue() <= 0);
 
           String methodLabel;
           if (perTicket.isEmpty()) {
@@ -649,6 +650,7 @@ public class CashController {
     }
 
     rows.sort(Comparator.comparingLong(CashCloseTicketRow::ticketId));
+    totalsByMethod.entrySet().removeIf(e -> e.getValue() == null || e.getValue() <= 0);
     int cash = totalsByMethod.getOrDefault("EFECTIVO", 0);
     int card = totalsByMethod.getOrDefault("TARJETA", 0);
     int bizum = totalsByMethod.getOrDefault("BIZUM", 0);
