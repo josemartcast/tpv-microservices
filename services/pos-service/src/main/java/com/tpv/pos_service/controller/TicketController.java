@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import com.tpv.pos_service.dto.AddTicketLineRequest;
+import com.tpv.pos_service.dto.AddComboTicketLineRequest;
 import com.tpv.pos_service.dto.ApplyDiscountRequest;
 import com.tpv.pos_service.dto.CreateTicketRequest;
 import com.tpv.pos_service.dto.InvoiceResponse;
@@ -16,6 +17,7 @@ import com.tpv.pos_service.dto.ReopenPaidTicketRequest;
 import com.tpv.pos_service.dto.SetBillRequestedRequest;
 import com.tpv.pos_service.dto.TicketResponse;
 import com.tpv.pos_service.dto.UpdateLineQtyRequest;
+import com.tpv.pos_service.dto.UpdateLineNoteRequest;
 import com.tpv.pos_service.dto.UpdateLinePriceRequest;
 import com.tpv.pos_service.service.AuditService;
 import com.tpv.pos_service.service.InvoiceService;
@@ -104,6 +106,26 @@ public class TicketController {
         }
     }
 
+    @PostMapping("/{id}/lines/combo")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TicketResponse addComboLine(
+            @PathVariable Long id,
+            @Valid @RequestBody AddComboTicketLineRequest req,
+            Authentication auth,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            TicketResponse response = service.addCombinedLine(id, req.baseProductId(), req.mixerProductId(), req.qty());
+            auditService.recordSuccess("TICKET_ADD_COMBO_LINE", "TICKET", id, actor, term, req, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("TICKET_ADD_COMBO_LINE", "TICKET", id, actor, term, req, e);
+            throw e;
+        }
+    }
+
     @PatchMapping("/{id}/lines/{lineId}")
     public TicketResponse updateQty(
             @PathVariable Long id,
@@ -140,6 +162,26 @@ public class TicketController {
             return response;
         } catch (RuntimeException e) {
             auditService.recordFailure("TICKET_UPDATE_LINE_PRICE", "TICKET", id, actor, term, req, e);
+            throw e;
+        }
+    }
+
+    @PatchMapping("/{id}/lines/{lineId}/note")
+    public TicketResponse updateNote(
+            @PathVariable Long id,
+            @PathVariable Long lineId,
+            @Valid @RequestBody UpdateLineNoteRequest req,
+            Authentication auth,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            TicketResponse response = service.updateLineNote(id, lineId, req.note());
+            auditService.recordSuccess("TICKET_UPDATE_LINE_NOTE", "TICKET", id, actor, term, req, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("TICKET_UPDATE_LINE_NOTE", "TICKET", id, actor, term, req, e);
             throw e;
         }
     }

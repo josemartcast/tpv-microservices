@@ -6,6 +6,8 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.application.Platform;
+import javafx.stage.Screen;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -98,21 +100,42 @@ public class Navigator {
         } else {
             scene.getRoot().getStyleClass().remove("touch-mode");
         }
-        if (AppContext.get().appState().kioskModeProperty().get()) {
+        boolean kioskMode = AppContext.get().appState().kioskModeProperty().get();
+        if (kioskMode) {
             if (!scene.getRoot().getStyleClass().contains("kiosk-mode")) {
                 scene.getRoot().getStyleClass().add("kiosk-mode");
             }
             installKioskKeyFilter(scene);
             stage.setResizable(false);
-            stage.setMaximized(true);
             stage.setFullScreenExitHint("");
-            stage.setFullScreen(true);
         } else {
             stage.setResizable(true);
             stage.setFullScreen(false);
         }
         stage.setScene(scene);
+        stage.setIconified(false);
         stage.show();
+        stage.toFront();
+        if (kioskMode) {
+            stage.setMaximized(true);
+            stage.setFullScreen(true);
+        } else {
+            enforceFullscreenWindowBounds();
+            Platform.runLater(() -> {
+                stage.setIconified(false);
+                enforceFullscreenWindowBounds();
+                stage.toFront();
+            });
+        }
+    }
+
+    private void enforceFullscreenWindowBounds() {
+        var bounds = Screen.getPrimary().getVisualBounds();
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
+        stage.setMaximized(true);
     }
 
     private void installKioskKeyFilter(Scene scene) {

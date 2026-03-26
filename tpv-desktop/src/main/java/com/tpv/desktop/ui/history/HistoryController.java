@@ -693,6 +693,9 @@ public class HistoryController {
         int totalBaseCents = 0;
         if (summary.lines() != null) {
             for (TicketSummaryResponse.TicketLineSummary line : summary.lines()) {
+                if (isTapasOnlyLine(line.productName(), line.unitPriceCents(), line.lineTotalCents())) {
+                    continue;
+                }
                 int vatRateBps = vatByProductId.getOrDefault(line.productId(), 1000);
                 int unitBaseCents = netFromGrossCents(line.unitPriceCents(), vatRateBps);
                 int baseCents = netFromGrossCents(line.lineTotalCents(), vatRateBps);
@@ -779,6 +782,9 @@ public class HistoryController {
         Map<Integer, VatTotals> vatBreakdown = new TreeMap<>();
         if (invoice.lines() != null) {
             for (var line : invoice.lines()) {
+                if (isTapasOnlyLine(line.productName(), line.unitGrossCents(), line.lineGrossCents())) {
+                    continue;
+                }
                 int unitNetCents = netFromGrossCents(line.unitGrossCents(), line.vatRateBps());
                 appendInvoiceLineWithAmounts(out, line.qty(), line.productName(), unitNetCents, line.lineNetCents());
                 vatBreakdown.computeIfAbsent(line.vatRateBps(), ignored -> new VatTotals())
@@ -984,5 +990,15 @@ public class HistoryController {
             return value;
         }
         return value.substring(0, max - 1) + ".";
+    }
+
+    private static boolean isTapasOnlyLine(String productName, int unitPriceCents, int lineTotalCents) {
+        if (unitPriceCents != 0 || lineTotalCents != 0) {
+            return false;
+        }
+        if (productName == null) {
+            return false;
+        }
+        return productName.trim().toUpperCase(Locale.ROOT).matches("^TAPA\\s+\\d+$");
     }
 }

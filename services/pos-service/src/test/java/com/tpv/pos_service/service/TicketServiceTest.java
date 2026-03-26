@@ -1,9 +1,12 @@
 package com.tpv.pos_service.service;
 
 import com.tpv.pos_service.domain.CashSession;
+import com.tpv.pos_service.domain.Category;
 import com.tpv.pos_service.domain.Payment;
 import com.tpv.pos_service.domain.PaymentMethod;
+import com.tpv.pos_service.domain.Product;
 import com.tpv.pos_service.domain.Ticket;
+import com.tpv.pos_service.domain.TicketLine;
 import com.tpv.pos_service.domain.TicketStatus;
 import com.tpv.pos_service.exception.ConflictException;
 import com.tpv.pos_service.dto.TicketResponse;
@@ -184,5 +187,43 @@ class TicketServiceTest {
 
         assertThrows(ConflictException.class, () -> service.cancelIfEmpty(101L));
         verify(lineRepo, org.mockito.Mockito.never()).countByTicket_IdAndQtyGreaterThan(eq(101L), eq(0));
+    }
+
+    @Test
+    void addCombinedLine_createsSingleChargedLineUsingOnlyBasePrice() {
+        CashSession cashSession = new CashSession(0, "admin", null);
+        Ticket ticket = new Ticket(cashSession, 5);
+        ReflectionTestUtils.setField(ticket, "id", 200L);
+
+        Category copas = new Category("COPAS", Category.DEST_BAR);
+        ReflectionTestUtils.setField(copas, "id", 11L);
+        Product base = new Product("JB", 600, copas, 2100);
+        ReflectionTestUtils.setField(base, "id", 21L);
+
+        Category refrescos = new Category("REFRESCOS", Category.DEST_BAR);
+        ReflectionTestUtils.setField(refrescos, "id", 12L);
+        Product mixer = new Product("COCA COLA", 290, refrescos, 2100);
+        ReflectionTestUtils.setField(mixer, "id", 22L);
+
+        when(ticketRepo.findById(200L)).thenReturn(Optional.of(ticket));
+        when(productRepo.findById(21L)).thenReturn(Optional.of(base));
+        when(productRepo.findById(22L)).thenReturn(Optional.of(mixer));
+        when(lineRepo.findFirstByTicketIdAndProduct_IdAndProductNameSnapshotAndSentFalseOrderByIdAsc(
+                200L, 21L, "JB + COCA COLA")).thenReturn(Optional.empty());
+        when(lineRepo.save(any(TicketLine.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(lineRepo.sumGrossByTicketId(200L)).thenReturn(1200); // 2 x 6.00
+        when(lineRepo.sumNetByTicketId(200L)).thenReturn(991);
+        TicketLine snapshotLine = new TicketLine(ticket, base, 2);
+        ReflectionTestUtils.setField(snapshotLine, "id", 900L);
+        snapshotLine.changeProductNameSnapshot("JB + COCA COLA");
+        when(lineRepo.findAllByTicketIdOrderByIdAsc(200L)).thenReturn(List.of(snapshotLine));
+
+        TicketResponse response = service.addCombinedLine(200L, 21L, 22L, 2);
+
+        assertEquals(1, response.lines().size());
+        assertEquals("JB + COCA COLA", response.lines().get(0).productName());
+        assertEquals(2, response.lines().get(0).qty());
+        assertEquals(600, response.lines().get(0).unitPriceCents());
+        assertEquals(1200, response.totalCents());
     }
 }

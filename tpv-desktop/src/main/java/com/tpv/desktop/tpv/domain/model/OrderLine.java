@@ -42,6 +42,16 @@ public class OrderLine {
     public StringProperty noteProperty() { return note; }
     public Destination getDestination() { return destination; }
 
+    public void setProductName(String value) {
+        productName.set(value == null ? "" : value.trim());
+    }
+
+    public void setDestination(Destination value) {
+        if (value != null) {
+            destination = value;
+        }
+    }
+
     public void addQty(int delta) {
         qty.set(qty.get() + delta);
     }

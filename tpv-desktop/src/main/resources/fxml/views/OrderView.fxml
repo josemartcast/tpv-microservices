@@ -5,7 +5,7 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.tpv.desktop.tpv.ui.controllers.OrderController"
-            styleClass="app-root" prefWidth="1920" prefHeight="1080">
+            styleClass="app-root">
   <fx:define>
     <ToggleGroup fx:id="categoryTabs"/>
   </fx:define>
@@ -24,10 +24,15 @@
   </top>
 
   <center>
-    <HBox spacing="12" styleClass="order-body">
+    <GridPane hgap="12" vgap="0" styleClass="order-body">
       <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+      <columnConstraints>
+        <ColumnConstraints percentWidth="25" hgrow="ALWAYS"/>
+        <ColumnConstraints percentWidth="60" hgrow="ALWAYS"/>
+        <ColumnConstraints percentWidth="15" hgrow="ALWAYS"/>
+      </columnConstraints>
 
-      <VBox prefWidth="340" maxWidth="370" styleClass="ticket-panel" spacing="8">
+      <VBox GridPane.columnIndex="0" GridPane.hgrow="ALWAYS" GridPane.vgrow="ALWAYS" maxWidth="Infinity" styleClass="ticket-panel" spacing="8">
         <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
         <Label text="Pedido Actual" styleClass="ticket-title"/>
         <ListView fx:id="ticketList" VBox.vgrow="ALWAYS" styleClass="ticket-list"/>
@@ -45,40 +50,45 @@
         </VBox>
       </VBox>
 
-      <VBox HBox.hgrow="ALWAYS" spacing="10" styleClass="catalog-panel">
-        <HBox fx:id="categoryTabsBox" spacing="6"/>
+      <VBox GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" GridPane.vgrow="ALWAYS" maxWidth="Infinity" spacing="10" styleClass="catalog-panel">
+        <FlowPane fx:id="categoryTabsBox" hgap="6" vgap="6"/>
 
         <ScrollPane fitToWidth="true" styleClass="catalog-scroll" VBox.vgrow="ALWAYS">
           <content>
-            <FlowPane fx:id="productsPane" hgap="10" vgap="10" prefWrapLength="780"/>
+            <FlowPane fx:id="productsPane" hgap="10" vgap="10"/>
           </content>
         </ScrollPane>
       </VBox>
 
-      <VBox prefWidth="320" maxWidth="340" spacing="10" styleClass="actions-panel">
-        <VBox spacing="8">
-          <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="Cantidad" styleClass="home-filter-label"/>
-            <TextField fx:id="qtyField" prefWidth="180" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
-          </HBox>
-          <fx:include source="../components/NumericPad.fxml" fx:id="orderPad"/>
-        </VBox>
-        <Button fx:id="sendBtn" text="ENVIAR" onAction="#onSend" styleClass="action-btn-primary-major"/>
-        <Button fx:id="payBtn" text="COBRAR" onAction="#onPay" styleClass="action-btn-success-major"/>
-        <Button fx:id="splitBtn" text="DIVIDIR" onAction="#onSplit" styleClass="action-btn-teal"/>
-        <Button fx:id="prebillBtn" text="IMPRIMIR PRECUENTA" onAction="#onPrebill" styleClass="action-btn-green"/>
-        <Button fx:id="moveBtn" text="Mover Mesa" onAction="#onMoveTable" styleClass="action-btn-dark"/>
-        <Button fx:id="discountBtn" text="Descuento" onAction="#onDiscount" styleClass="action-btn-danger"/>
-        <Button fx:id="openDrawerBtn" text="Abrir Cajón" onAction="#onOpenDrawer" styleClass="action-btn-dark"/>
-        <Region VBox.vgrow="ALWAYS"/>
-        <Label fx:id="feedbackLabel" text="" styleClass="feedback-label" wrapText="true"/>
-      </VBox>
+      <ScrollPane GridPane.columnIndex="2" GridPane.hgrow="ALWAYS" GridPane.vgrow="ALWAYS"
+                  fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                  styleClass="actions-scroll">
+        <content>
+          <VBox maxWidth="Infinity" spacing="10" styleClass="actions-panel">
+            <VBox spacing="8">
+              <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Cantidad" styleClass="home-filter-label"/>
+                <TextField fx:id="qtyField" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+              </HBox>
+              <fx:include source="../components/NumericPad.fxml" fx:id="orderPad"/>
+            </VBox>
+            <Button fx:id="sendBtn" text="ENVIAR" onAction="#onSend" styleClass="action-btn-primary-major"/>
+            <Button fx:id="payBtn" text="COBRAR" onAction="#onPay" styleClass="action-btn-success-major"/>
+            <Button fx:id="splitBtn" text="DIVIDIR" onAction="#onSplit" styleClass="action-btn-teal"/>
+            <Button fx:id="prebillBtn" text="IMPRIMIR PRECUENTA" onAction="#onPrebill" styleClass="action-btn-green"/>
+            <Button fx:id="moveBtn" text="Mover Mesa" onAction="#onMoveTable" styleClass="action-btn-dark"/>
+            <Button fx:id="discountBtn" text="Descuento" onAction="#onDiscount" styleClass="action-btn-danger"/>
+            <Button fx:id="openDrawerBtn" text="Abrir Cajon" onAction="#onOpenDrawer" styleClass="action-btn-dark"/>
+            <Region VBox.vgrow="ALWAYS"/>
+            <Label fx:id="feedbackLabel" text="" styleClass="feedback-label" wrapText="true"/>
+          </VBox>
+        </content>
+      </ScrollPane>
 
-    </HBox>
+    </GridPane>
   </center>
 
   <bottom>
     <fx:include source="../components/FooterBar.fxml" fx:id="footerBar"/>
   </bottom>
 </BorderPane>
-

@@ -71,6 +71,16 @@ public class RealOrderService implements OrderService {
     }
 
     @Override
+    public Order addCombinedProduct(long orderId, long baseProductId, long mixerProductId, int qty) {
+        int safeQty = qty <= 0 ? 1 : qty;
+        try {
+            return toDomain(TicketApi.addComboLine(orderId, baseProductId, mixerProductId, safeQty));
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo anadir combinado: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public Order updateLineQty(long orderId, long lineId, int qty) {
         int safeQty = qty <= 0 ? 1 : qty;
         try {
@@ -109,6 +119,7 @@ public class RealOrderService implements OrderService {
                         line.getId(),
                         line.getProductId(),
                         line.getProductName(),
+                        null,
                         line.getDestination().name(),
                         line.getPendingQty() == 0,
                         line.getUnitPriceCents(),
@@ -251,10 +262,18 @@ public class RealOrderService implements OrderService {
             for (TicketLineResponse line : t.lines()) {
                 Product p = catalogService.productById(line.productId());
                 OrderLine ol = new OrderLine(line.id(), p, line.qty());
+                if (line.productName() != null && !line.productName().isBlank()) {
+                    ol.setProductName(line.productName());
+                }
+                ol.setUnitPriceCents(line.unitPriceCents());
+                ol.setDestination(destinationFromString(line.destination()));
                 if (line.sent()) {
                     ol.markSentAll();
                 }
-                String note = localNotes.get(line.id());
+                String note = line.note();
+                if (note == null || note.isBlank()) {
+                    note = localNotes.get(line.id());
+                }
                 if (note != null && !note.isBlank()) {
                     ol.setNote(note);
                 }

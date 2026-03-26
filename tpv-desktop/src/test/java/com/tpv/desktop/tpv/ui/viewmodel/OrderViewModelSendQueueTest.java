@@ -330,6 +330,11 @@ class OrderViewModelSendQueueTest {
         }
 
         @Override
+        public Order addCombinedProduct(long orderId, long baseProductId, long mixerProductId, int qty) {
+            return order;
+        }
+
+        @Override
         public Order updateLineQty(long orderId, long lineId, int qty) {
             return order;
         }

@@ -7,6 +7,7 @@ import com.tpv.pda.data.ApiClientFactory
 import com.tpv.pda.data.SessionData
 import com.tpv.pda.data.SessionStore
 import com.tpv.pda.data.api.AddTicketLineRequest
+import com.tpv.pda.data.api.AddComboTicketLineRequest
 import com.tpv.pda.data.api.CategoryResponse
 import com.tpv.pda.data.api.LoginRequest
 import com.tpv.pda.data.api.ProductResponse
@@ -17,6 +18,7 @@ import com.tpv.pda.data.api.TableLockRequest
 import com.tpv.pda.data.api.TicketResponse
 import com.tpv.pda.data.api.UpdateLinePriceRequest
 import com.tpv.pda.data.api.UpdateLineQtyRequest
+import com.tpv.pda.data.api.UpdateLineNoteRequest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -342,6 +344,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun addCombinedProduct(baseProductId: Long, mixerProductId: Long, qty: Int) {
+        val ticketId = _ui.value.currentTicket?.id ?: return
+        val safeQty = qty.coerceAtLeast(1)
+        viewModelScope.launch {
+            _ui.update { it.copy(loading = true, error = null) }
+            try {
+                val updated = posApi().addComboLine(
+                    ticketId,
+                    AddComboTicketLineRequest(
+                        baseProductId = baseProductId,
+                        mixerProductId = mixerProductId,
+                        qty = safeQty
+                    )
+                )
+                applyUpdatedTicket(updated, "Combinado anadido")
+            } catch (e: Exception) {
+                _ui.update { it.copy(loading = false, error = errorText("No se pudo anadir combinado", e)) }
+            }
+        }
+    }
+
     fun selectLine(lineId: Long?) {
         _ui.update { it.copy(selectedLineId = lineId) }
     }
@@ -380,6 +403,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 applyUpdatedTicket(updated, "Precio actualizado")
             } catch (e: Exception) {
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo actualizar precio", e)) }
+            }
+        }
+    }
+
+    fun updateSelectedLineNote(note: String) {
+        val state = _ui.value
+        val ticketId = state.currentTicket?.id ?: return
+        val lineId = state.selectedLineId ?: return
+        val normalized = note.trim()
+        if (normalized.length > 255) {
+            _ui.update { it.copy(error = "La nota no puede superar 255 caracteres.") }
+            return
+        }
+        viewModelScope.launch {
+            _ui.update { it.copy(loading = true, error = null) }
+            try {
+                val updated = posApi().updateLineNote(ticketId, lineId, UpdateLineNoteRequest(if (normalized.isBlank()) null else normalized))
+                applyUpdatedTicket(updated, "Nota actualizada")
+            } catch (e: Exception) {
+                _ui.update { it.copy(loading = false, error = errorText("No se pudo actualizar la nota", e)) }
             }
         }
     }

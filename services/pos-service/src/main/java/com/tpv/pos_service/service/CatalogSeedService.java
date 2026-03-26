@@ -153,13 +153,15 @@ public class CatalogSeedService {
             "Entrantes",
             "Platos",
             "Postres",
-            "Cafes"
+            "Cafes",
+            "Tapas"
     );
 
     private static final Map<String, String> DEFAULT_CATEGORY_DESTINATIONS = Map.of(
             "Bebidas", Category.DEST_BAR,
             "Cervezas", Category.DEST_BAR,
             "Cafes", Category.DEST_BAR,
+            "Tapas", Category.DEST_BAR,
             "Postres", Category.DEST_POSTRES,
             "Entrantes", Category.DEST_COCINA,
             "Platos", Category.DEST_COCINA
@@ -181,7 +183,17 @@ public class CatalogSeedService {
             new SeedProduct("Tarta Queso", 550, "Postres", 1000),
             new SeedProduct("Helado", 450, "Postres", 1000),
             new SeedProduct("Cafe Solo", 150, "Cafes", 1000),
-            new SeedProduct("Cafe con Leche", 180, "Cafes", 1000)
+            new SeedProduct("Cafe con Leche", 180, "Cafes", 1000),
+            new SeedProduct("TAPA 1", 0, "Tapas", 0),
+            new SeedProduct("TAPA 2", 0, "Tapas", 0),
+            new SeedProduct("TAPA 3", 0, "Tapas", 0),
+            new SeedProduct("TAPA 4", 0, "Tapas", 0),
+            new SeedProduct("TAPA 5", 0, "Tapas", 0),
+            new SeedProduct("TAPA 6", 0, "Tapas", 0),
+            new SeedProduct("TAPA 7", 0, "Tapas", 0),
+            new SeedProduct("TAPA 8", 0, "Tapas", 0),
+            new SeedProduct("TAPA 9", 0, "Tapas", 0),
+            new SeedProduct("TAPA 10", 0, "Tapas", 0)
     );
 
     private record SeedProduct(String name, int priceCents, String categoryName, int vatRateBps) {

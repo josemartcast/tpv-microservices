@@ -14,6 +14,11 @@ public final class TicketApi {
         new AddTicketLineRequest(productId, qty), TicketResponse.class);
   }
 
+  public static TicketResponse addComboLine(long ticketId, long baseProductId, long mixerProductId, int qty) throws Exception {
+    return ApiClient.post("/api/v1/pos/tickets/" + ticketId + "/lines/combo",
+        new AddComboTicketLineRequest(baseProductId, mixerProductId, qty), TicketResponse.class);
+  }
+
   public static TicketResponse updateQty(long ticketId, long lineId, int qty) throws Exception {
     return ApiClient.patch("/api/v1/pos/tickets/" + ticketId + "/lines/" + lineId,
         new UpdateLineQtyRequest(qty), TicketResponse.class);

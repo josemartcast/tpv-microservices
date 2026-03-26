@@ -76,6 +76,9 @@ public class TicketLine {
     @Column(nullable = false)
     private boolean removedAfterSent = false;
 
+    @Column(length = 255)
+    private String note;
+
     protected TicketLine() {
     }
 
@@ -91,6 +94,7 @@ public class TicketLine {
 
         this.vatRateBpsSnapshot = product.getVatRateBps();
         this.netUnitPriceCentsSnapshot = PriceCalc.netFromGross(this.unitPriceCentsSnapshot, this.vatRateBpsSnapshot);
+        this.note = "";
 
         this.qty = qty;
         recalc();
@@ -122,6 +126,13 @@ public class TicketLine {
 
     public String getProductNameSnapshot() {
         return productNameSnapshot;
+    }
+
+    public void changeProductNameSnapshot(String productNameSnapshot) {
+        if (productNameSnapshot == null || productNameSnapshot.isBlank()) {
+            return;
+        }
+        this.productNameSnapshot = productNameSnapshot.trim();
     }
 
     public int getUnitPriceCentsSnapshot() {
@@ -205,6 +216,14 @@ public class TicketLine {
 
     public boolean isRemovedAfterSent() {
         return removedAfterSent;
+    }
+
+    public String getNote() {
+        return note == null ? "" : note;
+    }
+
+    public void changeNote(String note) {
+        this.note = note == null ? "" : note.trim();
     }
 
     public void markRemovedAfterSent() {

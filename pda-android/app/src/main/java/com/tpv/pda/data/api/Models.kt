@@ -58,6 +58,7 @@ data class TicketLineResponse(
     val id: Long,
     val productId: Long,
     val productName: String,
+    val note: String? = null,
     val destination: String?,
     val sent: Boolean,
     val unitPriceCents: Int,
@@ -81,12 +82,22 @@ data class AddTicketLineRequest(
     val qty: Int
 )
 
+data class AddComboTicketLineRequest(
+    val baseProductId: Long,
+    val mixerProductId: Long,
+    val qty: Int
+)
+
 data class UpdateLineQtyRequest(
     val qty: Int
 )
 
 data class UpdateLinePriceRequest(
     val priceCents: Int
+)
+
+data class UpdateLineNoteRequest(
+    val note: String?
 )
 
 data class SendPreviewResponse(

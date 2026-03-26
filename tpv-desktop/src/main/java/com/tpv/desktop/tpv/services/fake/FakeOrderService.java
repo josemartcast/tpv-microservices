@@ -60,6 +60,12 @@ public class FakeOrderService implements OrderService {
     }
 
     @Override
+    public Order addCombinedProduct(long orderId, long baseProductId, long mixerProductId, int qty) {
+        // Fake mode: charging logic is based on base product only, mirroring real combo behavior.
+        return addProduct(orderId, baseProductId, qty);
+    }
+
+    @Override
     public Order updateLineQty(long orderId, long lineId, int qty) {
         int safeQty = qty <= 0 ? 1 : qty;
         Order order = getById(orderId);

@@ -10,6 +10,7 @@ public interface OrderService {
     Order getById(long orderId);
     Order addProduct(long orderId, long productId);
     Order addProduct(long orderId, long productId, int qty);
+    Order addCombinedProduct(long orderId, long baseProductId, long mixerProductId, int qty);
     Order updateLineQty(long orderId, long lineId, int qty);
     Order updateLinePrice(long orderId, long lineId, int priceCents);
     void removeLine(long orderId, long lineId);

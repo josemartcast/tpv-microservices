@@ -140,6 +140,12 @@ public class OrderViewModel {
         refreshOrder();
     }
 
+    public void addCombinedProduct(Product baseProduct, Product mixerProduct, int qty) {
+        int safeQty = Math.max(1, qty);
+        orderService.addCombinedProduct(orderId.get(), baseProduct.id(), mixerProduct.id(), safeQty);
+        refreshOrder();
+    }
+
     public void updateLineQty(long lineId, int qty) {
         int safeQty = Math.max(1, qty);
         orderService.updateLineQty(orderId.get(), lineId, safeQty);

@@ -52,7 +52,8 @@
     numberPad: {
       allowDecimal: false,
       resolve: null
-    }
+    },
+    pendingCombo: null
   };
 
   const els = {
@@ -308,6 +309,7 @@
       stopTablesPolling();
       state.currentTableNumber = null;
       state.currentTicket = null;
+      state.pendingCombo = null;
       state.sendPreview = null;
       state.paymentSummary = null;
       state.lockLeaseExpiresAt = null;
@@ -451,6 +453,7 @@
     state.terminalId = "";
     state.currentTableNumber = null;
     state.currentTicket = null;
+    state.pendingCombo = null;
     state.sendPreview = null;
     state.paymentSummary = null;
     state.lockLeaseExpiresAt = null;
@@ -650,6 +653,7 @@
       await lockTable(table.tableNumber);
       state.currentTableNumber = table.tableNumber;
       state.currentTicket = table.ticketId ? await getTicket(table.ticketId) : null;
+      state.pendingCombo = null;
       state.selectedLineId = null;
       clearQtyInput();
       showScreen("order");
@@ -767,6 +771,7 @@
     stopHeartbeat();
     state.currentTableNumber = null;
     state.currentTicket = null;
+    state.pendingCombo = null;
     state.selectedLineId = null;
     clearQtyInput();
     state.sendPreview = null;
@@ -858,16 +863,111 @@
       btn.className = "product-btn";
       btn.style.backgroundColor = PRODUCT_COLORS[idx % PRODUCT_COLORS.length];
       btn.textContent = product.name;
-      btn.addEventListener("click", function () { addLine(product.id); });
+      btn.addEventListener("click", async function () { await onProductPressed(product); });
       els.productsGrid.appendChild(btn);
     });
   }
 
+  async function onProductPressed(product) {
+    if (!product || !product.id) {
+      return;
+    }
+
+    if (state.pendingCombo) {
+      await onMixerPressed(product);
+      return;
+    }
+
+    const isCopa = isProductInCategoryByName(product, "COPAS");
+    if (!isCopa) {
+      await addLine(product.id);
+      return;
+    }
+
+    const combine = window.confirm("Quieres combinar esta copa con un refresco?");
+    if (!combine) {
+      await addLine(product.id);
+      return;
+    }
+
+    state.pendingCombo = {
+      baseProductId: Number(product.id),
+      baseProductName: String(product.name || ""),
+      qty: qtyFromInput()
+    };
+    clearQtyInput();
+
+    const moved = await focusCategoryByName("REFRESCOS");
+    if (moved) {
+      toast("Selecciona refresco para combinar con " + state.pendingCombo.baseProductName);
+    } else {
+      toast("No se encontro la categoria REFRESCOS");
+      state.pendingCombo = null;
+    }
+  }
+
+  async function onMixerPressed(product) {
+    const pending = state.pendingCombo;
+    if (!pending) {
+      return;
+    }
+    if (!isProductInCategoryByName(product, "REFRESCOS")) {
+      toast("Selecciona un refresco para completar el combinado");
+      return;
+    }
+    const done = await addComboLine(pending.baseProductId, Number(product.id), Math.max(1, Number(pending.qty) || 1));
+    if (done) {
+      toast("Combinado anadido: " + pending.baseProductName + " + " + String(product.name || ""));
+    }
+    state.pendingCombo = null;
+  }
+
+  function normalizeCategoryName(name) {
+    if (!name) { return ""; }
+    return String(name)
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase();
+  }
+
+  function isProductInCategoryByName(product, categoryName) {
+    const expected = normalizeCategoryName(categoryName);
+    if (!expected) { return false; }
+
+    const fromProduct = normalizeCategoryName(product.categoryName || "");
+    if (fromProduct && fromProduct === expected) {
+      return true;
+    }
+
+    const category = state.categories.find(function (c) {
+      return Number(c.id) === Number(product.categoryId);
+    });
+    return normalizeCategoryName(category && category.name) === expected;
+  }
+
+  async function focusCategoryByName(categoryName) {
+    const expected = normalizeCategoryName(categoryName);
+    const target = state.categories.find(function (cat) {
+      return normalizeCategoryName(cat.name) === expected;
+    });
+    if (!target) {
+      return false;
+    }
+    state.activeCategoryId = target.id;
+    if (!state.productsByCategory.has(target.id)) {
+      await loadProducts(target.id);
+    }
+    renderCategories();
+    renderProducts();
+    return true;
+  }
+
   async function addLine(productId) {
-    if (!state.currentTableNumber) { toast("No hay mesa activa"); return; }
+    if (!state.currentTableNumber) { toast("No hay mesa activa"); return false; }
     if (!canRunCriticalAction()) {
       toast("Sin lock valido. Reabre mesa para continuar.");
-      return;
+      return false;
     }
     const qty = qtyFromInput();
     try {
@@ -881,6 +981,7 @@
       renderTicket();
       await refreshSendPreview();
       await refreshPaymentSummary();
+      return true;
     } catch (err) {
       if (shouldQueueAction(err)) {
         enqueueAction({
@@ -892,10 +993,39 @@
         });
         clearQtyInput();
         toast("Sin conexion: linea en cola para sincronizar");
-        return;
+        return true;
       }
       pushError(err);
       toast("No se pudo anadir producto: " + err.message);
+      return false;
+    }
+  }
+
+  async function addComboLine(baseProductId, mixerProductId, qty) {
+    if (!state.currentTableNumber) { toast("No hay mesa activa"); return false; }
+    if (!canRunCriticalAction()) {
+      toast("Sin lock valido. Reabre mesa para continuar.");
+      return false;
+    }
+    try {
+      await ensureCurrentTicket();
+      state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines/combo", {
+        method: "POST",
+        body: JSON.stringify({
+          baseProductId: Number(baseProductId),
+          mixerProductId: Number(mixerProductId),
+          qty: Math.max(1, Number(qty) || 1)
+        })
+      });
+      cacheTicket(state.currentTicket);
+      renderTicket();
+      await refreshSendPreview();
+      await refreshPaymentSummary();
+      return true;
+    } catch (err) {
+      pushError(err);
+      toast("No se pudo anadir combinado: " + err.message);
+      return false;
     }
   }
 

@@ -180,6 +180,14 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         if (isSuppressed(LOCAL_SEND_SUPPRESS_UNTIL, ticketId)) {
             return;
         }
+        SnapshotSendDecision decision = decideSnapshotSend(snapshot, ticketId);
+        if (decision == SnapshotSendDecision.RETRY) {
+            pendingByTicket.put(ticketId, snapshot);
+            return;
+        }
+        if (decision == SnapshotSendDecision.SKIP) {
+            return;
+        }
         enqueueSnapshotForPrint(snapshot, ctx);
     }
 
@@ -334,6 +342,79 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         }
     }
 
+    /**
+     * Evita falsos positivos de autoimpresion:
+     * si pendientes pasa a 0 por borrar lineas no enviadas, NO debe imprimirse.
+     * Solo imprimimos cuando el backend refleja que esas lineas quedaron realmente enviadas.
+     */
+    private SnapshotSendDecision decideSnapshotSend(TicketPendingSnapshot snapshot, long ticketId) {
+        try {
+            TicketResponse ticket = TicketApi.getById(ticketId);
+            if (ticket == null || ticket.lines() == null) {
+                return SnapshotSendDecision.RETRY;
+            }
+
+            Map<Long, TicketLineResponse> currentById = new HashMap<>();
+            for (TicketLineResponse current : ticket.lines()) {
+                if (current != null) {
+                    currentById.put(current.id(), current);
+                }
+            }
+
+            boolean matchedAnyLine = false;
+            for (TicketLineResponse preview : snapshot.lines()) {
+                if (preview == null) {
+                    return SnapshotSendDecision.SKIP;
+                }
+                TicketLineResponse current = currentById.get(preview.id());
+                if (isAdjustmentPreview(preview)) {
+                    if (current != null) {
+                        if (!current.sent()) {
+                            return SnapshotSendDecision.SKIP;
+                        }
+                        matchedAnyLine = true;
+                        continue;
+                    }
+                    // [ELIM] se borra tras enviar ajuste; es un caso valido de envio.
+                    if (isDeleteAdjustment(preview)) {
+                        matchedAnyLine = true;
+                        continue;
+                    }
+                    return SnapshotSendDecision.SKIP;
+                }
+
+                // Linea normal: tras enviar debe seguir existiendo y marcada como sent.
+                if (current == null || !current.sent()) {
+                    return SnapshotSendDecision.SKIP;
+                }
+                matchedAnyLine = true;
+            }
+
+            return matchedAnyLine ? SnapshotSendDecision.PRINT : SnapshotSendDecision.SKIP;
+        } catch (Exception ignored) {
+            return SnapshotSendDecision.RETRY;
+        }
+    }
+
+    private static boolean isAdjustmentPreview(TicketLineResponse line) {
+        if (line == null || line.productName() == null) {
+            return false;
+        }
+        String name = line.productName().trim().toUpperCase(Locale.ROOT);
+        return name.startsWith("[MOD")
+                || name.startsWith("[ELIM]")
+                || name.startsWith("MOD PRECIO ")
+                || name.startsWith("ELIM ");
+    }
+
+    private static boolean isDeleteAdjustment(TicketLineResponse line) {
+        if (line == null || line.productName() == null) {
+            return false;
+        }
+        String name = line.productName().trim().toUpperCase(Locale.ROOT);
+        return name.startsWith("[ELIM]") || name.startsWith("ELIM ");
+    }
+
     private String buildComandaPayload(long ticketId, TableCtx table, DestinationKey destination, List<TicketLineResponse> lines) {
         StringBuilder out = new StringBuilder();
         out.append(restaurantNameForPrint()).append('\n');
@@ -352,7 +433,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 .append(padRight("DESCRIPCION", COMANDA_DESC_COL_WIDTH)).append('\n');
         out.append(COMANDA_SEPARATOR).append('\n');
         for (TicketLineResponse line : lines) {
-            appendComandaLine(out, Math.max(1, line.qty()), safe(line.productName()));
+            appendComandaLine(out, Math.max(1, line.qty()), safe(line.productName()), line.note());
         }
         out.append(COMANDA_SEPARATOR).append('\n');
         return out.toString();
@@ -368,6 +449,9 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         out.append(RECEIPT_SEPARATOR).append('\n');
         if (ticket.lines() != null) {
             for (TicketLineResponse line : ticket.lines()) {
+                if (isTapasOnlyLine(line.productName(), line.unitPriceCents(), line.lineTotalCents())) {
+                    continue;
+                }
                 appendReceiptLineWithAmounts(
                         out,
                         Math.max(1, line.qty()),
@@ -395,6 +479,9 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         out.append(RECEIPT_SEPARATOR).append('\n');
         if (summary.lines() != null) {
             for (TicketSummaryResponse.TicketLineSummary line : summary.lines()) {
+                if (isTapasOnlyLine(line.productName(), line.unitPriceCents(), line.lineTotalCents())) {
+                    continue;
+                }
                 appendReceiptLineWithAmounts(
                         out,
                         Math.max(1, line.qty()),
@@ -549,7 +636,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         }
     }
 
-    private static void appendComandaLine(StringBuilder out, int qty, String productName) {
+    private static void appendComandaLine(StringBuilder out, int qty, String productName, String note) {
         String qtyCell = qty + "x";
         List<String> wrapped = wrapByWords(productName, COMANDA_DESC_COL_WIDTH);
         if (wrapped.isEmpty()) {
@@ -564,6 +651,16 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                     .append(' ')
                     .append(padRight(wrapped.get(i), COMANDA_DESC_COL_WIDTH))
                     .append('\n');
+        }
+        String cleanNote = note == null ? "" : note.trim();
+        if (!cleanNote.isBlank()) {
+            List<String> wrappedNote = wrapByWords("NOTA: " + cleanNote, COMANDA_DESC_COL_WIDTH);
+            for (String part : wrappedNote) {
+                out.append(padRight("", COMANDA_QTY_COL_WIDTH))
+                        .append(' ')
+                        .append(padRight(part, COMANDA_DESC_COL_WIDTH))
+                        .append('\n');
+            }
         }
     }
 
@@ -651,6 +748,17 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
 
     private static String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static boolean isTapasOnlyLine(String productName, int unitPriceCents, int lineTotalCents) {
+        if (unitPriceCents != 0 || lineTotalCents != 0) {
+            return false;
+        }
+        if (productName == null) {
+            return false;
+        }
+        String normalized = productName.trim().toUpperCase(Locale.ROOT);
+        return normalized.matches("^TAPA\\s+\\d+$");
     }
 
     private boolean isSuppressed(Map<Long, Long> bucket, long ticketId) {
@@ -745,6 +853,12 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 return COCINA;
             }
         }
+    }
+
+    private enum SnapshotSendDecision {
+        PRINT,
+        SKIP,
+        RETRY
     }
 
     private static final class AppStateHolder {

@@ -1,6 +1,8 @@
 package com.tpv.pos_service.service;
 
 import java.util.List;
+import java.util.Locale;
+import java.text.Normalizer;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -205,6 +207,48 @@ public class TicketService {
     }
 
     @Transactional
+    public TicketResponse addCombinedLine(Long ticketId, Long baseProductId, Long mixerProductId, int qty) {
+        Ticket t = getOpenTicket(ticketId);
+
+        Product base = productRepo.findById(baseProductId)
+                .orElseThrow(() -> new NotFoundException("Product not found: " + baseProductId));
+        Product mixer = productRepo.findById(mixerProductId)
+                .orElseThrow(() -> new NotFoundException("Product not found: " + mixerProductId));
+
+        if (!base.isActive()) {
+            throw new ConflictException("Product is inactive: " + baseProductId);
+        }
+        if (!mixer.isActive()) {
+            throw new ConflictException("Product is inactive: " + mixerProductId);
+        }
+        if (!isCategory(base, "COPAS")) {
+            throw new ConflictException("Base product must be from COPAS");
+        }
+        if (!isCategory(mixer, "REFRESCOS")) {
+            throw new ConflictException("Mixer product must be from REFRESCOS");
+        }
+
+        int safeQty = qty <= 0 ? 1 : qty;
+        String combinedName = base.getName() + " + " + mixer.getName();
+
+        TicketLine line = lineRepo.findFirstByTicketIdAndProduct_IdAndProductNameSnapshotAndSentFalseOrderByIdAsc(
+                        ticketId, baseProductId, combinedName)
+                .orElse(null);
+        if (line != null) {
+            line.changeQty(line.getQty() + safeQty);
+            lineRepo.save(line);
+        } else {
+            line = new TicketLine(t, base, safeQty);
+            line.changeProductNameSnapshot(combinedName);
+            lineRepo.save(line);
+        }
+
+        recalcTotal(t.getId());
+        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+        return toResponse(t, lines);
+    }
+
+    @Transactional
     public TicketResponse updateLinePrice(Long ticketId, Long lineId, int priceCents) {
         Ticket t = getOpenTicket(ticketId);
 
@@ -217,6 +261,19 @@ public class TicketService {
         line.changeUnitPriceCents(priceCents);
 
         recalcTotal(ticketId);
+        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+        return toResponse(t, lines);
+    }
+
+    @Transactional
+    public TicketResponse updateLineNote(Long ticketId, Long lineId, String note) {
+        Ticket t = getOpenTicket(ticketId);
+
+        TicketLine line = lineRepo.findByIdAndTicketId(lineId, ticketId)
+                .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
+        line.changeNote(note);
+        lineRepo.save(line);
+
         List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
         return toResponse(t, lines);
     }
@@ -490,6 +547,7 @@ public class TicketService {
                 l.getId(),
                 l.getProduct().getId(),
                 l.getProductNameSnapshot(),
+                l.getNote(),
                 l.getDestinationSnapshot(),
                 l.isSent(),
                 l.getUnitPriceCentsSnapshot(),
@@ -498,6 +556,22 @@ public class TicketService {
                 l.getCreatedAt(),
                 l.getUpdatedAt()
         );
+    }
+
+    private boolean isCategory(Product product, String expectedName) {
+        if (product == null || product.getCategory() == null || expectedName == null) {
+            return false;
+        }
+        return normalizeCategory(product.getCategory().getName()).equals(normalizeCategory(expectedName));
+    }
+
+    private String normalizeCategory(String value) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        return normalized.toUpperCase(Locale.ROOT);
     }
 
     private TicketResponse toResponseWithLines(Ticket t) {

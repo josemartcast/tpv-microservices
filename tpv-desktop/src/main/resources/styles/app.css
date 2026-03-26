@@ -252,13 +252,34 @@
 
 .catalog-panel { -fx-background-color: transparent; }
 
+.actions-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+.actions-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.category-tabs-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+.category-tabs-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
 .category-tab {
     -fx-background-color: #e7e8ef;
     -fx-text-fill: #27304a;
     -fx-font-size: 16px;
     -fx-font-weight: 700;
     -fx-pref-height: 42;
-    -fx-pref-width: 140;
+    -fx-min-width: 118;
+    -fx-pref-width: -1;
+    -fx-max-width: 190;
+    -fx-padding: 0 14 0 14;
     -fx-cursor: hand;
 }
 .category-tab:selected {
@@ -432,7 +453,9 @@
 
 .touch-mode .category-tab {
     -fx-pref-height: 56;
-    -fx-pref-width: 190;
+    -fx-min-width: 160;
+    -fx-max-width: 260;
+    -fx-padding: 0 18 0 18;
     -fx-font-size: 20px;
 }
 

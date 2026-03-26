@@ -59,9 +59,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tpv.pda.data.api.CategoryResponse
 import com.tpv.pda.data.api.ProductResponse
 import com.tpv.pda.data.api.SalonTableResponse
 import com.tpv.pda.data.api.TicketLineResponse
+import java.text.Normalizer
 
 private object PdaPalette {
     val pageTop = Color(0xFFEFF3FB)
@@ -164,9 +166,11 @@ fun PdaApp(viewModel: MainViewModel) {
                     onQtyChange = viewModel::onQtyInputChange,
                     onSelectCategory = viewModel::selectCategory,
                     onAddProduct = viewModel::addProduct,
+                    onAddCombinedProduct = viewModel::addCombinedProduct,
                     onSelectLine = viewModel::selectLine,
                     onUpdateQty = viewModel::updateSelectedLineQty,
                     onUpdatePrice = viewModel::updateSelectedLinePrice,
+                    onUpdateNote = viewModel::updateSelectedLineNote,
                     onDeleteLine = viewModel::deleteSelectedLine,
                     onSendComanda = viewModel::sendComanda,
                     onRequestPrebill = viewModel::requestPrebill,
@@ -417,9 +421,11 @@ private fun OrderScreen(
     onQtyChange: (String) -> Unit,
     onSelectCategory: (Long) -> Unit,
     onAddProduct: (Long) -> Unit,
+    onAddCombinedProduct: (Long, Long, Int) -> Unit,
     onSelectLine: (Long?) -> Unit,
     onUpdateQty: (Int) -> Unit,
     onUpdatePrice: (Int) -> Unit,
+    onUpdateNote: (String) -> Unit,
     onDeleteLine: () -> Unit,
     onSendComanda: (String) -> Unit,
     onRequestPrebill: () -> Unit,
@@ -431,9 +437,12 @@ private fun OrderScreen(
     val selectedLine = ticket?.lines?.firstOrNull { it.id == state.selectedLineId }
     var showQtyDialog by remember { mutableStateOf(false) }
     var showPriceDialog by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }
     var showPayDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
+    var pendingCopaProduct by remember { mutableStateOf<ProductResponse?>(null) }
+    var pendingComboQty by remember { mutableStateOf(1) }
     val topScroll = rememberScrollState()
     val config = LocalConfiguration.current
     val isCompactMobile = config.screenWidthDp < 600
@@ -515,13 +524,21 @@ private fun OrderScreen(
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         ) { Text("Editar precio") }
                         Button(
+                            onClick = { showNoteDialog = true },
+                            enabled = selectedLine != null,
+                            colors = darkButtonColors(),
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        ) { Text("Nota") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
                             onClick = onDeleteLine,
                             enabled = selectedLine != null,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = PdaPalette.danger,
                                 contentColor = Color.White
                             ),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                         ) { Text("Borrar") }
                     }
                 }
@@ -650,11 +667,57 @@ private fun OrderScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(state.products, key = { it.id }) { product ->
-                        ProductCard(product = product, onAdd = { onAddProduct(product.id) })
+                        ProductCard(
+                            product = product,
+                            onAdd = {
+                                if (pendingCopaProduct != null) {
+                                    if (isRefrescosProduct(product, state.categories, state.activeCategoryId)) {
+                                        onAddCombinedProduct(
+                                            pendingCopaProduct!!.id,
+                                            product.id,
+                                            pendingComboQty
+                                        )
+                                        pendingCopaProduct = null
+                                        pendingComboQty = 1
+                                    } else {
+                                        // keep selection mode active until a refresco is selected
+                                    }
+                                } else if (isCopasProduct(product, state.categories, state.activeCategoryId)) {
+                                    pendingCopaProduct = product
+                                } else {
+                                    onAddProduct(product.id)
+                                }
+                            }
+                        )
                     }
                 }
             }
         }
+    }
+
+    pendingCopaProduct?.let { copaProduct ->
+        AlertDialog(
+            onDismissRequest = { pendingCopaProduct = null },
+            title = { Text("Combinar copa") },
+            text = { Text("Quieres combinar esta copa con un refresco?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingComboQty = state.qtyInput.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                    onQtyChange("1")
+                    findCategoryByName(state.categories, "REFRESCOS")?.let { refrescos ->
+                        onSelectCategory(refrescos.id)
+                    }
+                    pendingCopaProduct = null
+                }) { Text("Si, combinar") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    onAddProduct(copaProduct.id)
+                    pendingCopaProduct = null
+                    pendingComboQty = 1
+                }) { Text("No combinar") }
+            }
+        )
     }
 
     if (showQtyDialog && selectedLine != null) {
@@ -685,6 +748,18 @@ private fun OrderScreen(
                     onUpdatePrice((priceEur * 100.0).toInt())
                 }
                 showPriceDialog = false
+            }
+        )
+    }
+
+    if (showNoteDialog && selectedLine != null) {
+        TextDialog(
+            title = "Nota de comanda",
+            initial = selectedLine.note ?: "",
+            onDismiss = { showNoteDialog = false },
+            onConfirm = { value ->
+                onUpdateNote(value)
+                showNoteDialog = false
             }
         )
     }
@@ -804,12 +879,49 @@ private fun TicketLineRow(line: TicketLineResponse, selected: Boolean, onClick: 
                 style = MaterialTheme.typography.bodySmall,
                 color = PdaPalette.mutedInk
             )
+            val note = line.note?.trim().orEmpty()
+            if (note.isNotBlank()) {
+                Text(
+                    "Nota: $note",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = PdaPalette.warning
+                )
+            }
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(eur(line.lineTotalCents), color = PdaPalette.ink, fontWeight = FontWeight.Bold)
             Text("u: ${eur(line.unitPriceCents)}", style = MaterialTheme.typography.bodySmall, color = PdaPalette.mutedInk)
         }
     }
+}
+
+@Composable
+private fun TextDialog(
+    title: String,
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var value by remember { mutableStateOf(TextFieldValue(initial)) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onConfirm(value.text) }) { Text("Guardar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                singleLine = false,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    )
 }
 
 @Composable
@@ -948,6 +1060,58 @@ private fun elapsed(minutes: Int): String = if (minutes <= 0) "-" else "$minutes
 private fun aliasSuffix(alias: String?): String {
     val value = alias?.trim().orEmpty()
     return if (value.isBlank()) "" else " - $value"
+}
+
+private fun isCopasProduct(
+    product: ProductResponse,
+    categories: List<CategoryResponse>,
+    activeCategoryId: Long?
+): Boolean {
+    val fromProduct = normalizeCategoryName(product.categoryName)
+    if (fromProduct == "COPAS") {
+        return true
+    }
+    val byId = categories.firstOrNull { it.id == product.categoryId }?.name
+    if (normalizeCategoryName(byId) == "COPAS") {
+        return true
+    }
+    val activeName = categories.firstOrNull { it.id == activeCategoryId }?.name
+    return normalizeCategoryName(activeName) == "COPAS"
+}
+
+private fun isRefrescosProduct(
+    product: ProductResponse,
+    categories: List<CategoryResponse>,
+    activeCategoryId: Long?
+): Boolean {
+    val fromProduct = normalizeCategoryName(product.categoryName)
+    if (fromProduct == "REFRESCOS") {
+        return true
+    }
+    val byId = categories.firstOrNull { it.id == product.categoryId }?.name
+    if (normalizeCategoryName(byId) == "REFRESCOS") {
+        return true
+    }
+    val activeName = categories.firstOrNull { it.id == activeCategoryId }?.name
+    return normalizeCategoryName(activeName) == "REFRESCOS"
+}
+
+private fun findCategoryByName(
+    categories: List<CategoryResponse>,
+    expectedName: String
+): CategoryResponse? {
+    val expected = normalizeCategoryName(expectedName)
+    return categories.firstOrNull { normalizeCategoryName(it.name) == expected }
+}
+
+private fun normalizeCategoryName(name: String?): String {
+    val raw = name?.trim().orEmpty()
+    if (raw.isEmpty()) {
+        return ""
+    }
+    return Normalizer.normalize(raw, Normalizer.Form.NFD)
+        .replace("\\p{M}+".toRegex(), "")
+        .uppercase()
 }
 
 private fun eur(cents: Int): String = String.format("%.2f EUR", cents / 100.0)

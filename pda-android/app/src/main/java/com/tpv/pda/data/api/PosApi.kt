@@ -45,6 +45,9 @@ interface PosApi {
     @POST("/api/v1/pos/tickets/{id}/lines")
     suspend fun addLine(@Path("id") id: Long, @Body request: AddTicketLineRequest): TicketResponse
 
+    @POST("/api/v1/pos/tickets/{id}/lines/combo")
+    suspend fun addComboLine(@Path("id") id: Long, @Body request: AddComboTicketLineRequest): TicketResponse
+
     @PATCH("/api/v1/pos/tickets/{id}/lines/{lineId}")
     suspend fun updateLineQty(
         @Path("id") id: Long,
@@ -57,6 +60,13 @@ interface PosApi {
         @Path("id") id: Long,
         @Path("lineId") lineId: Long,
         @Body request: UpdateLinePriceRequest
+    ): TicketResponse
+
+    @PATCH("/api/v1/pos/tickets/{id}/lines/{lineId}/note")
+    suspend fun updateLineNote(
+        @Path("id") id: Long,
+        @Path("lineId") lineId: Long,
+        @Body request: UpdateLineNoteRequest
     ): TicketResponse
 
     @DELETE("/api/v1/pos/tickets/{id}/lines/{lineId}")

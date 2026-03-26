@@ -41,6 +41,7 @@ import javafx.util.Duration;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
@@ -49,6 +50,8 @@ import java.util.Locale;
 import java.util.Map;
 
 public class OrderController {
+    private static final String CATEGORY_COPAS = "COPAS";
+    private static final String CATEGORY_REFRESCOS = "REFRESCOS";
     private static final int RECEIPT_LINE_WIDTH = 42;
     private static final int RECEIPT_QTY_COL_WIDTH = 4;
     private static final int RECEIPT_DESC_COL_WIDTH = 21;
@@ -61,7 +64,7 @@ public class OrderController {
     @FXML private Label feedbackLabel;
     @FXML private Label orderHeader;
     @FXML private ToggleGroup categoryTabs;
-    @FXML private HBox categoryTabsBox;
+    @FXML private FlowPane categoryTabsBox;
     @FXML private TextField qtyField;
     @FXML private NumericPadController orderPadController;
     @FXML private FlowPane productsPane;
@@ -75,6 +78,8 @@ public class OrderController {
     @FXML private Button noteBtn;
     @FXML private Button deleteBtn;
     @FXML private Button editBtn;
+    private Product pendingComboBaseProduct;
+    private int pendingComboQty = 1;
 
     private final OrderViewModel vm = new OrderViewModel();
     private Timeline heartbeat;
@@ -171,10 +176,58 @@ public class OrderController {
     }
 
     private void onProductClicked(Product product) {
+        if (pendingComboBaseProduct != null) {
+            onMixerProductClicked(product);
+            return;
+        }
+
         int qty = parseQtyOrDefault();
+        boolean askCombine = isProductInCategory(product, CATEGORY_COPAS);
+        if (askCombine) {
+            boolean combine = UiDialogs.confirm(
+                    "Combinar copa",
+                    "Quieres combinar esta copa con un refresco?"
+            );
+            if (combine) {
+                pendingComboBaseProduct = product;
+                pendingComboQty = qty;
+                if (qtyField != null) {
+                    qtyField.setText("");
+                }
+                if (selectCategoryByName(CATEGORY_REFRESCOS)) {
+                    setFeedback("Selecciona refresco para combinar.");
+                } else {
+                    setFeedback("No se encontro la categoria REFRESCOS.");
+                    pendingComboBaseProduct = null;
+                    pendingComboQty = 1;
+                }
+                return;
+            }
+        }
+
         vm.addProduct(product, qty);
         if (qtyField != null) {
             qtyField.setText("");
+        }
+    }
+
+    private void onMixerProductClicked(Product mixerProduct) {
+        if (pendingComboBaseProduct == null) {
+            return;
+        }
+        if (!isProductInCategory(mixerProduct, CATEGORY_REFRESCOS)) {
+            setFeedback("Selecciona un refresco para completar el combinado.");
+            return;
+        }
+        try {
+            vm.addCombinedProduct(pendingComboBaseProduct, mixerProduct, pendingComboQty);
+            setFeedback("Combinado anadido: " + pendingComboBaseProduct.name() + " + " + mixerProduct.name());
+        } finally {
+            pendingComboBaseProduct = null;
+            pendingComboQty = 1;
+            if (qtyField != null) {
+                qtyField.setText("");
+            }
         }
     }
 
@@ -656,6 +709,47 @@ public class OrderController {
         return null;
     }
 
+    private boolean isProductInCategory(Product product, String categoryName) {
+        if (product == null || categoryName == null) {
+            return false;
+        }
+        String expected = normalizeCategoryName(categoryName);
+        return vm.categories().stream()
+                .filter(category -> category.id() == product.categoryId())
+                .map(Category::name)
+                .map(this::normalizeCategoryName)
+                .anyMatch(expected::equals);
+    }
+
+    private boolean selectCategoryByName(String categoryName) {
+        if (categoryName == null) {
+            return false;
+        }
+        String expected = normalizeCategoryName(categoryName);
+        for (Toggle toggle : categoryTabs.getToggles()) {
+            Object userData = toggle.getUserData();
+            if (userData instanceof Category category
+                    && expected.equals(normalizeCategoryName(category.name()))) {
+                toggle.setSelected(true);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeCategoryName(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(trimmed, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        return normalized.toUpperCase(Locale.ROOT);
+    }
+
     private void updateActionState() {
         boolean hasLines = !vm.lines().isEmpty();
         boolean hasPending = vm.lines().stream().anyMatch(line -> line.getPendingQty() > 0);
@@ -887,6 +981,9 @@ public class OrderController {
         appendReceiptItemsHeader(out);
         out.append(receiptSeparator()).append('\n');
         for (OrderLine line : vm.lines()) {
+            if (isTapasOnlyLine(line)) {
+                continue;
+            }
             int unitPrice = line.getUnitPriceCents();
             int lineTotal = line.getQty() * line.getUnitPriceCents();
             appendReceiptLineWithAmounts(out, line.getQty(), line.getProductName(), unitPrice, lineTotal);
@@ -896,6 +993,7 @@ public class OrderController {
         }
         out.append(receiptSeparator()).append('\n');
         appendReceiptAmountLine(out, "TOTAL", vm.lines().stream()
+                .filter(line -> !isTapasOnlyLine(line))
                 .mapToInt(l -> l.getQty() * l.getUnitPriceCents())
                 .sum());
         appendReceiptAmountLine(out, "PENDIENTE", vm.pendingPaymentCents());
@@ -913,6 +1011,9 @@ public class OrderController {
         appendReceiptItemsHeader(out);
         out.append(receiptSeparator()).append('\n');
         for (OrderLine line : vm.lines()) {
+            if (isTapasOnlyLine(line)) {
+                continue;
+            }
             int unitPrice = line.getUnitPriceCents();
             int lineTotal = line.getQty() * line.getUnitPriceCents();
             appendReceiptLineWithAmounts(out, line.getQty(), line.getProductName(), unitPrice, lineTotal);
@@ -939,7 +1040,10 @@ public class OrderController {
     }
 
     private PaidTicketSummary resolvePaidTicketSummary(String fallbackMethod, int fallbackPaidAmountCents) {
-        int fallbackTotal = vm.lines().stream().mapToInt(l -> l.getQty() * l.getUnitPriceCents()).sum();
+        int fallbackTotal = vm.lines().stream()
+                .filter(line -> !isTapasOnlyLine(line))
+                .mapToInt(l -> l.getQty() * l.getUnitPriceCents())
+                .sum();
         LinkedHashMap<String, Integer> fallbackBreakdown = new LinkedHashMap<>();
         if (fallbackPaidAmountCents > 0) {
             fallbackBreakdown.put(normalizePaymentMethod(fallbackMethod), fallbackPaidAmountCents);
@@ -998,6 +1102,20 @@ public class OrderController {
             return "";
         }
         return value.length() <= max ? value : value.substring(0, max - 1) + ".";
+    }
+
+    private static boolean isTapasOnlyLine(OrderLine line) {
+        if (line == null) {
+            return false;
+        }
+        if (line.getUnitPriceCents() != 0) {
+            return false;
+        }
+        String name = line.getProductName();
+        if (name == null) {
+            return false;
+        }
+        return name.trim().toUpperCase(Locale.ROOT).matches("^TAPA\\s+\\d+$");
     }
 
     private static void appendReceiptItemsHeader(StringBuilder out) {

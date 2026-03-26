@@ -108,6 +108,7 @@ public class ComandaService {
                 l.getId(),
                 l.getProduct().getId(),
                 l.getProductNameSnapshot(),
+                l.getNote(),
                 l.getDestinationSnapshot(),
                 l.isSent(),
                 l.getUnitPriceCentsSnapshot(),
@@ -126,20 +127,20 @@ public class ComandaService {
         String actionPrefix;
         int adjustmentQty;
         if (line.isRemovedAfterSent() && line.getQty() == 0) {
-            actionPrefix = "[ELIM]";
+            actionPrefix = "ELIM ";
             adjustmentQty = Math.max(1, line.getSentQtySnapshot());
         } else if (deltaQty > 0) {
-            actionPrefix = "[MOD +]";
+            actionPrefix = "";
             adjustmentQty = deltaQty;
         } else if (deltaQty < 0) {
-            actionPrefix = "[MOD -]";
+            actionPrefix = "ELIM ";
             adjustmentQty = Math.abs(deltaQty);
         } else {
-            actionPrefix = "[MOD PRECIO]";
+            actionPrefix = "MOD PRECIO ";
             adjustmentQty = Math.max(1, line.getQty());
         }
 
-        String productName = actionPrefix + " " + baseName + (priceChanged ? " (precio)" : "");
+        String productName = actionPrefix + baseName + (priceChanged ? " (precio)" : "");
         int unitPrice = Math.max(0, line.getUnitPriceCentsSnapshot());
         int lineTotal = adjustmentQty * unitPrice;
 
@@ -147,6 +148,7 @@ public class ComandaService {
                 line.getId(),
                 line.getProduct().getId(),
                 productName,
+                line.getNote(),
                 line.getDestinationSnapshot(),
                 false,
                 unitPrice,

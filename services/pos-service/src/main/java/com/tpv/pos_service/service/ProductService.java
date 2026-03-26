@@ -1,6 +1,7 @@
 package com.tpv.pos_service.service;
 
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import com.tpv.pos_service.repository.ProductRepository;
 @Service
 @SuppressWarnings("null")
 public class ProductService {
+    private static final String SPECIAL_TAPAS_CATEGORY = "TAPAS";
 
     private final ProductRepository productRepo;
     private final CategoryRepository categoryRepo;
@@ -47,26 +49,27 @@ public class ProductService {
     @Transactional
     public ProductResponse create(CreateProductRequest req) {
         String name = normalize(req.name());
-        int vat = req.vatRateBps();
         Product existingByName = productRepo.findByNameIgnoreCase(name).orElse(null);
 
         Category category = categoryRepo.findByIdAndActiveTrue(req.categoryId())
                 .orElseThrow(() -> new NotFoundException("Category not found/active: " + req.categoryId()));
+        int safePriceCents = normalizePriceForCategory(req.priceCents(), category);
+        int safeVatRateBps = normalizeVatForCategory(req.vatRateBps(), category);
 
         if (existingByName != null) {
             if (existingByName.isActive()) {
                 throw new ConflictException("Product name already exists: " + name);
             }
             existingByName.rename(name);
-            existingByName.changePrice(req.priceCents());
+            existingByName.changePrice(safePriceCents);
             existingByName.changeCategory(category);
-            existingByName.changeVatRateBps(vat);
+            existingByName.changeVatRateBps(safeVatRateBps);
             existingByName.activate();
             Product reactivated = productRepo.save(existingByName);
             return toResponse(reactivated);
         }
 
-        Product p = new Product(name, req.priceCents(), category, vat);
+        Product p = new Product(name, safePriceCents, category, safeVatRateBps);
         p = productRepo.save(p);
         return toResponse(p);
     }
@@ -84,11 +87,13 @@ public class ProductService {
 
         Category category = categoryRepo.findByIdAndActiveTrue(req.categoryId())
                 .orElseThrow(() -> new NotFoundException("Category not found/active: " + req.categoryId()));
+        int safePriceCents = normalizePriceForCategory(req.priceCents(), category);
+        int safeVatRateBps = normalizeVatForCategory(req.vatRateBps(), category);
 
         p.rename(newName);
-        p.changePrice(req.priceCents());
+        p.changePrice(safePriceCents);
         p.changeCategory(category);
-        p.changeVatRateBps(req.vatRateBps());
+        p.changeVatRateBps(safeVatRateBps);
 
         return toResponse(p);
     }
@@ -115,7 +120,28 @@ public class ProductService {
     }
 
     private String normalize(String s) {
-        return s == null ? null : s.trim();
+        return s == null ? null : s.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static int normalizePriceForCategory(int requestedPriceCents, Category category) {
+        if (isTapasCategory(category)) {
+            return 0;
+        }
+        return Math.max(0, requestedPriceCents);
+    }
+
+    private static int normalizeVatForCategory(int requestedVatRateBps, Category category) {
+        if (isTapasCategory(category)) {
+            return 0;
+        }
+        return Math.max(0, requestedVatRateBps);
+    }
+
+    private static boolean isTapasCategory(Category category) {
+        if (category == null || category.getName() == null) {
+            return false;
+        }
+        return SPECIAL_TAPAS_CATEGORY.equalsIgnoreCase(category.getName().trim());
     }
 
     private ProductResponse toResponse(Product p) {

@@ -34,6 +34,7 @@ public class AppContext {
     private final TableService tableService;
     private final BackendStatusService backendStatusService;
     private final PrintQueueService printQueueService;
+    @SuppressWarnings("unused")
     private final DesktopComandaAutoPrintService comandaAutoPrintService;
     private final boolean autoLoginEnabled;
     private final boolean kioskMode;
