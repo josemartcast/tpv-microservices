@@ -15,6 +15,7 @@ import com.tpv.desktop.tpv.services.real.RealCatalogService;
 import com.tpv.desktop.tpv.services.real.RealLockService;
 import com.tpv.desktop.tpv.services.real.RealOrderService;
 import com.tpv.desktop.tpv.services.real.RealTableService;
+import com.tpv.desktop.tpv.diagnostics.MemoryDiagnostics;
 
 public class AppContext {
     private static AppContext INSTANCE;
@@ -34,8 +35,8 @@ public class AppContext {
     private final TableService tableService;
     private final BackendStatusService backendStatusService;
     private final PrintQueueService printQueueService;
-    @SuppressWarnings("unused")
     private final DesktopComandaAutoPrintService comandaAutoPrintService;
+    private final MemoryDiagnostics memoryDiagnostics;
     private final boolean autoLoginEnabled;
     private final boolean kioskMode;
 
@@ -65,6 +66,7 @@ public class AppContext {
                 this.backendStatusService = new FakeBackendStatusService(apiClient);
                 this.printQueueService = new LocalPrintQueueService();
                 this.comandaAutoPrintService = new DesktopComandaAutoPrintService(this.printQueueService);
+                this.memoryDiagnostics = MemoryDiagnostics.startIfEnabled(this);
                 syncBusinessProfileFromBackend();
                 return;
             }
@@ -80,6 +82,7 @@ public class AppContext {
         this.backendStatusService = new FakeBackendStatusService(apiClient);
         this.printQueueService = new LocalPrintQueueService();
         this.comandaAutoPrintService = null;
+        this.memoryDiagnostics = MemoryDiagnostics.startIfEnabled(this);
     }
 
     public AppState appState() { return appState; }
@@ -89,6 +92,14 @@ public class AppContext {
     public TableService tableService() { return tableService; }
     public BackendStatusService backendStatusService() { return backendStatusService; }
     public PrintQueueService printQueueService() { return printQueueService; }
+    public DesktopComandaAutoPrintService comandaAutoPrintService() { return comandaAutoPrintService; }
+
+    public void shutdown() {
+        closeQuietly(memoryDiagnostics);
+        closeQuietly(comandaAutoPrintService);
+        closeQuietly(printQueueService);
+        closeQuietly(backendStatusService);
+    }
 
     private boolean ensureRealSession() {
         if (AuthStore.isLoggedIn()) {
@@ -193,6 +204,17 @@ public class AppContext {
         FAKE,
         REAL,
         AUTO
+    }
+
+    private static void closeQuietly(Object candidate) {
+        if (!(candidate instanceof AutoCloseable closeable)) {
+            return;
+        }
+        try {
+            closeable.close();
+        } catch (Exception ignored) {
+            // Best effort shutdown.
+        }
     }
 }
 

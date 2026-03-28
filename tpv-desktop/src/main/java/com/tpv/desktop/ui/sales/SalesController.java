@@ -13,6 +13,7 @@ import com.tpv.desktop.api.pos.TicketApi;
 import com.tpv.desktop.api.pos.TicketLineResponse;
 import com.tpv.desktop.api.pos.TicketResponse;
 import com.tpv.desktop.core.MoneyUtil;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -611,12 +612,16 @@ public class SalesController {
         }));
         lockHeartbeat.setCycleCount(Timeline.INDEFINITE);
         lockHeartbeat.play();
+        LeakDiagnostics.timerStarted("SalesController.heartbeatTimeline");
+        LeakDiagnostics.heartbeatStarted("SalesController.tableLockHeartbeat");
     }
 
     private void stopHeartbeat() {
         if (lockHeartbeat != null) {
             lockHeartbeat.stop();
             lockHeartbeat = null;
+            LeakDiagnostics.timerStopped("SalesController.heartbeatTimeline");
+            LeakDiagnostics.heartbeatStopped("SalesController.tableLockHeartbeat");
         }
     }
 

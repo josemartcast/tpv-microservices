@@ -1,6 +1,8 @@
 package com.tpv.desktop.tpv.app;
 
 import com.tpv.desktop.tpv.ui.controllers.OrderController;
+import com.tpv.desktop.tpv.ui.LifecycleAware;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -16,6 +18,8 @@ import java.io.IOException;
 public class Navigator {
     private static Navigator INSTANCE;
     private final Stage stage;
+    private Object activeController;
+    private String activeViewName;
 
     public static void init(Stage stage) {
         INSTANCE = new Navigator(stage);
@@ -33,7 +37,8 @@ public class Navigator {
     }
 
     public void goHome() {
-        setRoot(load("/fxml/views/HomeView.fxml"), 1600, 900);
+        LoadedView view = loadWithController("/fxml/views/HomeView.fxml");
+        setRoot(view.root(), 1600, 900, view.controller(), "HomeView");
     }
 
     public void goOrder(long orderId, int tableId) {
@@ -46,7 +51,7 @@ public class Navigator {
             Parent root = loader.load();
             OrderController controller = loader.getController();
             controller.bind(orderId, tableId, tableLabel);
-            setRoot(root, Math.max(stage.getWidth(), 1366), Math.max(stage.getHeight(), 768));
+            setRoot(root, Math.max(stage.getWidth(), 1366), Math.max(stage.getHeight(), 768), controller, "OrderView");
         } catch (IOException e) {
             String detail = rootMessage(e);
             throw new RuntimeException("No se pudo abrir comanda: " + detail, e);
@@ -82,15 +87,19 @@ public class Navigator {
         modal.showAndWait();
     }
 
-    private Parent load(String path) {
+    private LoadedView loadWithController(String path) {
         try {
-            return FXMLLoader.load(getClass().getResource(path));
+            FXMLLoader loader = new FXMLLoader(getClass().getResource(path));
+            Parent root = loader.load();
+            return new LoadedView(root, loader.getController());
         } catch (IOException e) {
             throw new RuntimeException("No se pudo cargar: " + path, e);
         }
     }
 
-    private void setRoot(Parent root, double width, double height) {
+    private void setRoot(Parent root, double width, double height, Object controller, String viewName) {
+        disposeActiveController();
+        LeakDiagnostics.viewEnter(viewName);
         Scene scene = new Scene(root, width, height);
         scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
         if (AppContext.get().appState().touchModeProperty().get()) {
@@ -113,6 +122,8 @@ public class Navigator {
             stage.setFullScreen(false);
         }
         stage.setScene(scene);
+        this.activeController = controller;
+        this.activeViewName = viewName;
         stage.setIconified(false);
         stage.show();
         stage.toFront();
@@ -127,6 +138,21 @@ public class Navigator {
                 stage.toFront();
             });
         }
+    }
+
+    private void disposeActiveController() {
+        if (activeViewName != null) {
+            LeakDiagnostics.viewExit(activeViewName);
+            activeViewName = null;
+        }
+        if (activeController instanceof LifecycleAware lifecycleAware) {
+            try {
+                lifecycleAware.dispose();
+            } catch (Exception ignored) {
+                // Defensive cleanup: navigation must continue.
+            }
+        }
+        activeController = null;
     }
 
     private void enforceFullscreenWindowBounds() {
@@ -149,5 +175,7 @@ public class Navigator {
             }
         });
     }
+
+    private record LoadedView(Parent root, Object controller) {}
 }
 

@@ -4,6 +4,7 @@ import com.tpv.desktop.api.pos.SalonApi;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.Nav;
 import com.tpv.desktop.core.SettingsStore;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import com.tpv.desktop.ui.components.TopBarController;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -42,6 +43,7 @@ public class MainLayoutController {
     private final Timeline backendStatusTicker =
             new Timeline(new KeyFrame(javafx.util.Duration.seconds(6), e -> checkBackendStatusAsync()));
     private final Deque<String> connectivityErrors = new ArrayDeque<>();
+    private boolean backendTickerCounted;
 
     @FXML
     public void initialize() {
@@ -56,8 +58,16 @@ public class MainLayoutController {
         content.sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 backendStatusTicker.stop();
+                if (backendTickerCounted) {
+                    backendTickerCounted = false;
+                    LeakDiagnostics.timerStopped("MainLayoutController.backendStatusTicker");
+                }
             } else {
                 backendStatusTicker.play();
+                if (!backendTickerCounted) {
+                    backendTickerCounted = true;
+                    LeakDiagnostics.timerStarted("MainLayoutController.backendStatusTicker");
+                }
             }
         });
         checkBackendStatusAsync();

@@ -12,12 +12,16 @@ import com.tpv.pos_service.repository.TicketLineRepository;
 import com.tpv.pos_service.repository.TicketRepository;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @SuppressWarnings("null")
 public class ComandaService {
+    private static final Logger log = LoggerFactory.getLogger(ComandaService.class);
 
     private final TicketRepository ticketRepo;
     private final TicketLineRepository lineRepo;
@@ -67,9 +71,22 @@ public class ComandaService {
         }
 
         String normalized = normalizeDestination(destination);
-        List<PendingComandaItem> selected = buildPendingItems(ticketId).stream()
+        List<PendingComandaItem> pendingItems = buildPendingItems(ticketId);
+        List<PendingComandaItem> selected = pendingItems.stream()
                 .filter(item -> "ALL".equals(normalized) || normalized.equals(item.preview().destination()))
                 .toList();
+
+        if (log.isInfoEnabled()) {
+            log.info(
+                    "COMANDA_SEND_START ticketId={} destination={} pendingCount={} selectedCount={} pendingLines={} selectedLines={}",
+                    ticketId,
+                    normalized,
+                    pendingItems.size(),
+                    selected.size(),
+                    summarizeItems(pendingItems),
+                    summarizeItems(selected)
+            );
+        }
 
         selected.forEach(item -> {
             TicketLine line = item.line();
@@ -85,6 +102,15 @@ public class ComandaService {
         });
 
         List<Long> ids = selected.stream().map(item -> item.line().getId()).toList();
+        if (log.isInfoEnabled()) {
+            log.info(
+                    "COMANDA_SEND_DONE ticketId={} destination={} sentCount={} sentLineIds={}",
+                    ticketId,
+                    normalized,
+                    ids.size(),
+                    ids
+            );
+        }
         return new SendComandaResponse(ticketId, normalized, ids.size(), ids);
     }
 
@@ -168,6 +194,15 @@ public class ComandaService {
             throw new ConflictException("Unsupported destination: " + destination);
         }
         return d;
+    }
+
+    private String summarizeItems(List<PendingComandaItem> items) {
+        return items.stream()
+                .map(item -> {
+                    TicketLineResponse p = item.preview();
+                    return p.id() + ":" + p.productName() + ":" + p.qty() + ":" + p.destination();
+                })
+                .collect(Collectors.joining(" | "));
     }
 
     private record PendingComandaItem(TicketLine line, TicketLineResponse preview) {

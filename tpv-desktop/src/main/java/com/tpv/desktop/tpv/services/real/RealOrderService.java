@@ -17,6 +17,7 @@ import com.tpv.desktop.tpv.services.CatalogService;
 import com.tpv.desktop.tpv.services.OrderService;
 
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -24,8 +25,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class RealOrderService implements OrderService {
+    private static final int LOCAL_NOTES_MAX_ENTRIES = 1000;
+    private static final long LOCAL_NOTES_TTL_MS = 6 * 60 * 60 * 1000L;
+
     private final CatalogService catalogService;
-    private final Map<Long, String> localNotes = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<Long, LocalNoteEntry> localNotes = new java.util.concurrent.ConcurrentHashMap<>();
 
     public RealOrderService(CatalogService catalogService) {
         this.catalogService = catalogService;
@@ -148,7 +152,13 @@ public class RealOrderService implements OrderService {
         for (int i = order.getLines().size() - 1; i >= 0; i--) {
             OrderLine line = order.getLines().get(i);
             if (line.getPendingQty() > 0) {
-                localNotes.put(line.getId(), note == null ? "" : note.trim());
+                String normalized = note == null ? "" : note.trim();
+                if (normalized.isBlank()) {
+                    localNotes.remove(line.getId());
+                } else {
+                    localNotes.put(line.getId(), new LocalNoteEntry(orderId, normalized, System.currentTimeMillis()));
+                    cleanupOldLocalNotes();
+                }
                 return;
             }
         }
@@ -258,8 +268,10 @@ public class RealOrderService implements OrderService {
         int table = t.tableNumber() == null ? 0 : t.tableNumber();
         Order out = new Order(t.id(), table, 4, t.createdAt());
         out.setBillRequested(t.billRequested());
+        Set<Long> ticketLineIds = new HashSet<>();
         if (t.lines() != null) {
             for (TicketLineResponse line : t.lines()) {
+                ticketLineIds.add(line.id());
                 Product p = catalogService.productById(line.productId());
                 OrderLine ol = new OrderLine(line.id(), p, line.qty());
                 if (line.productName() != null && !line.productName().isBlank()) {
@@ -272,7 +284,12 @@ public class RealOrderService implements OrderService {
                 }
                 String note = line.note();
                 if (note == null || note.isBlank()) {
-                    note = localNotes.get(line.id());
+                    LocalNoteEntry local = localNotes.get(line.id());
+                    if (local != null && local.orderId() == t.id()) {
+                        note = local.note();
+                    }
+                } else {
+                    localNotes.remove(line.id());
                 }
                 if (note != null && !note.isBlank()) {
                     ol.setNote(note);
@@ -280,6 +297,8 @@ public class RealOrderService implements OrderService {
                 out.getLines().add(ol);
             }
         }
+        cleanupLocalNotesForOrder(t.id(), ticketLineIds);
+        cleanupOldLocalNotes();
         return out;
     }
 
@@ -329,4 +348,39 @@ public class RealOrderService implements OrderService {
         }
         return null;
     }
+
+    private void cleanupLocalNotesForOrder(long orderId, Set<Long> activeLineIds) {
+        localNotes.entrySet().removeIf(entry -> {
+            LocalNoteEntry value = entry.getValue();
+            if (value == null) {
+                return true;
+            }
+            if (value.orderId() != orderId) {
+                return false;
+            }
+            return !activeLineIds.contains(entry.getKey());
+        });
+    }
+
+    private void cleanupOldLocalNotes() {
+        if (localNotes.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        localNotes.entrySet().removeIf(entry -> {
+            LocalNoteEntry value = entry.getValue();
+            if (value == null) {
+                return true;
+            }
+            return (now - value.createdAtMs()) > LOCAL_NOTES_TTL_MS;
+        });
+
+        if (localNotes.size() <= LOCAL_NOTES_MAX_ENTRIES) {
+            return;
+        }
+        // Safety valve in case of unexpected growth.
+        localNotes.clear();
+    }
+
+    private record LocalNoteEntry(long orderId, String note, long createdAtMs) {}
 }

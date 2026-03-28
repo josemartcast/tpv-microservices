@@ -1,6 +1,7 @@
 package com.tpv.pda.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tpv.pda.data.ApiClientFactory
@@ -65,6 +66,7 @@ data class MainUiState(
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         private const val HEARTBEAT_MS = 10_000L
+        private const val TAG = "TPV-PDA-SEND"
     }
 
     private val sessionStore = SessionStore(app.applicationContext)
@@ -447,8 +449,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                val response = posApi().sendComanda(ticketId, com.tpv.pda.data.api.SendComandaRequest(destination))
-                val refreshed = posApi().getTicket(ticketId)
+                val pos = posApi()
+                val beforeLines = _ui.value.currentTicket?.lines
+                    ?.map { "${it.id}:${it.productName}:${it.qty}:${it.sent}" }
+                    .orEmpty()
+                val previewBefore = runCatching { pos.sendPreview(ticketId) }.getOrNull()
+                val previewLines = previewBefore?.pendingLines
+                    ?.map { "${it.id}:${it.productName}:${it.qty}:${it.destination}" }
+                    .orEmpty()
+                Log.i(
+                    TAG,
+                    "SEND_START ticketId=$ticketId destination=$destination beforeLines=$beforeLines pendingPreview=$previewLines"
+                )
+
+                val response = pos.sendComanda(ticketId, com.tpv.pda.data.api.SendComandaRequest(destination))
+                val refreshed = pos.getTicket(ticketId)
+                val afterLines = refreshed.lines.map { "${it.id}:${it.productName}:${it.qty}:${it.sent}" }
+                Log.i(
+                    TAG,
+                    "SEND_DONE ticketId=$ticketId destination=${response.destination} sentCount=${response.sentCount} sentIds=${response.sentLineIds} afterLines=$afterLines"
+                )
                 applyUpdatedTicket(
                     refreshed,
                     "Comanda enviada ${response.destination}: ${response.sentCount} líneas"

@@ -1,6 +1,7 @@
 package com.tpv.desktop.tpv.services.fake;
 
 import com.tpv.desktop.tpv.domain.model.BackendStatus;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import com.tpv.desktop.tpv.services.ApiClient;
 import com.tpv.desktop.tpv.services.BackendStatusService;
 import javafx.application.Platform;
@@ -16,17 +17,31 @@ import javafx.collections.ObservableList;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class FakeBackendStatusService implements BackendStatusService {
+public class FakeBackendStatusService implements BackendStatusService, AutoCloseable {
     private final ApiClient apiClient;
     private final ObjectProperty<BackendStatus> status = new SimpleObjectProperty<>(BackendStatus.ONLINE);
     private final LongProperty latencyMs = new SimpleLongProperty(45);
     private final StringProperty lastError = new SimpleStringProperty("");
     private final ObservableList<String> errors = FXCollections.observableArrayList();
+    private final AtomicBoolean probing = new AtomicBoolean(false);
+    private final ExecutorService probeWorker = Executors.newSingleThreadExecutor(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "tpv-backend-probe");
+            t.setDaemon(true);
+            return t;
+        }
+    });
     private int failures;
 
     public FakeBackendStatusService(ApiClient apiClient) {
         this.apiClient = apiClient;
+        LeakDiagnostics.schedulerStarted("FakeBackendStatusService.probeWorker");
     }
 
     @Override
@@ -40,6 +55,10 @@ public class FakeBackendStatusService implements BackendStatusService {
 
     @Override
     public void probe() {
+        if (!probing.compareAndSet(false, true)) {
+            LeakDiagnostics.log("probe.skip reason=in-flight");
+            return;
+        }
         CompletableFuture.runAsync(() -> {
             long t0 = System.currentTimeMillis();
             try {
@@ -61,8 +80,16 @@ public class FakeBackendStatusService implements BackendStatusService {
                     errors.add(0, msg);
                     while (errors.size() > 5) errors.remove(errors.size() - 1);
                 });
+            } finally {
+                probing.set(false);
             }
-        });
+        }, probeWorker);
+    }
+
+    @Override
+    public void close() {
+        probeWorker.shutdownNow();
+        LeakDiagnostics.schedulerStopped("FakeBackendStatusService.probeWorker");
     }
 }
 

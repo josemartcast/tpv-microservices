@@ -16,6 +16,11 @@ public class App extends Application {
     Navigator.get().goHome();
   }
 
+  @Override
+  public void stop() {
+    AppContext.get().shutdown();
+  }
+
   public static void main(String[] args) {
     launch(args);
   }

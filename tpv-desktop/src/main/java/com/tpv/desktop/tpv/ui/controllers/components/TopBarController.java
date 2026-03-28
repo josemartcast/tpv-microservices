@@ -5,12 +5,16 @@ import com.tpv.desktop.core.Nav;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.app.Navigator;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
+import com.tpv.desktop.tpv.ui.LifecycleAware;
 import com.tpv.desktop.tpv.domain.model.BackendStatus;
 import com.tpv.desktop.tpv.services.BackendStatusService;
 import com.tpv.desktop.tpv.services.PrintQueueService;
 import com.tpv.desktop.tpv.ui.viewmodel.TopBarBadgeMapper;
 import com.tpv.desktop.tpv.ui.viewmodel.TopBarViewModel;
+import javafx.beans.binding.StringBinding;
 import javafx.beans.binding.Bindings;
+import javafx.beans.value.ChangeListener;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -28,7 +32,7 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 
-public class TopBarController {
+public class TopBarController implements LifecycleAware {
     @FXML private Label menuLabel;
     @FXML private Label restaurantLabel;
     @FXML private Label leftRestaurantLabel;
@@ -45,37 +49,58 @@ public class TopBarController {
     private final TopBarViewModel vm = new TopBarViewModel();
     private final BackendStatusService backendStatusService = AppContext.get().backendStatusService();
     private final PrintQueueService printQueueService = AppContext.get().printQueueService();
+    private ChangeListener<BackendStatus> backendStatusListener;
+    private ChangeListener<Object> printStateListener;
+    private ChangeListener<String> printErrorListener;
+    private ChangeListener<String> runtimeModeListener;
+    private StringBinding usernameBinding;
+    private Tooltip errorsTooltip;
+    private Tooltip printTooltip;
+    private boolean disposed;
 
     @FXML
     public void initialize() {
+        LeakDiagnostics.controllerCreated("TopBarController");
         leftRestaurantLabel.textProperty().bind(vm.restaurantNameProperty());
         centerTitleLabel.textProperty().bind(vm.centerTitleProperty());
-        usernameLabel.textProperty().bind(Bindings.createStringBinding(
+        usernameBinding = Bindings.createStringBinding(
                 () -> AppContext.get().appState().activeUserProperty().get().displayName()
                         + " | " + AppContext.get().appState().terminalIdProperty().get(),
                 AppContext.get().appState().activeUserProperty(),
                 AppContext.get().appState().terminalIdProperty()
+        );
+        usernameLabel.textProperty().bind(usernameBinding);
+        backendBadge.textProperty().bind(Bindings.createStringBinding(
+                () -> backendStatusService.statusProperty().get().name(),
+                backendStatusService.statusProperty()
         ));
-        vm.bindReactive(backendBadge.textProperty(), latencyBadge.textProperty());
+        latencyBadge.textProperty().bind(Bindings.createStringBinding(
+                () -> backendStatusService.latencyMsProperty().get() + "ms",
+                backendStatusService.latencyMsProperty()
+        ));
 
-        backendStatusService.statusProperty().addListener((obs, oldV, newV) -> applyStatusStyle(newV));
+        backendStatusListener = (obs, oldV, newV) -> applyStatusStyle(newV);
+        backendStatusService.statusProperty().addListener(backendStatusListener);
         applyStatusStyle(backendStatusService.statusProperty().get());
 
-        printQueueService.stateProperty().addListener((obs, oldV, newV) -> applyPrintStatusStyle());
-        printQueueService.pendingJobsProperty().addListener((obs, oldV, newV) -> applyPrintStatusStyle());
-        printQueueService.lastErrorProperty().addListener((obs, oldV, newV) -> applyPrintStatusStyle());
+        printStateListener = (obs, oldV, newV) -> applyPrintStatusStyle();
+        printErrorListener = (obs, oldV, newV) -> applyPrintStatusStyle();
+        printQueueService.stateProperty().addListener(printStateListener);
+        printQueueService.pendingJobsProperty().addListener(printStateListener);
+        printQueueService.lastErrorProperty().addListener(printErrorListener);
         applyPrintStatusStyle();
 
-        AppContext.get().appState().runtimeModeProperty().addListener((obs, oldV, newV) -> applyRuntimeModeStyle(newV));
+        runtimeModeListener = (obs, oldV, newV) -> applyRuntimeModeStyle(newV);
+        AppContext.get().appState().runtimeModeProperty().addListener(runtimeModeListener);
         applyRuntimeModeStyle(AppContext.get().appState().runtimeModeProperty().get());
 
-        Tooltip tip = new Tooltip();
-        tip.textProperty().bind(backendStatusService.lastErrorProperty());
-        errorsButton.setTooltip(tip);
+        errorsTooltip = new Tooltip();
+        errorsTooltip.textProperty().bind(backendStatusService.lastErrorProperty());
+        errorsButton.setTooltip(errorsTooltip);
 
-        Tooltip printTip = new Tooltip();
-        printTip.textProperty().bind(printQueueService.lastErrorProperty());
-        printerBadge.setTooltip(printTip);
+        printTooltip = new Tooltip();
+        printTooltip.textProperty().bind(printQueueService.lastErrorProperty());
+        printerBadge.setTooltip(printTooltip);
         printerBadge.setOnMouseClicked(e -> onShowPrintErrors());
     }
 
@@ -220,5 +245,49 @@ public class TopBarController {
         TopBarBadgeMapper.RuntimeModePresentation presentation = TopBarBadgeMapper.runtimeModeBadge(runtimeMode);
         modeBadge.setText(presentation.text());
         modeBadge.getStyleClass().add(presentation.styleClass());
+    }
+
+    @Override
+    public void dispose() {
+        if (disposed) {
+            return;
+        }
+        disposed = true;
+
+        if (backendStatusListener != null) {
+            backendStatusService.statusProperty().removeListener(backendStatusListener);
+            backendStatusListener = null;
+        }
+        if (printStateListener != null) {
+            printQueueService.stateProperty().removeListener(printStateListener);
+            printQueueService.pendingJobsProperty().removeListener(printStateListener);
+            printStateListener = null;
+        }
+        if (printErrorListener != null) {
+            printQueueService.lastErrorProperty().removeListener(printErrorListener);
+            printErrorListener = null;
+        }
+        if (runtimeModeListener != null) {
+            AppContext.get().appState().runtimeModeProperty().removeListener(runtimeModeListener);
+            runtimeModeListener = null;
+        }
+
+        leftRestaurantLabel.textProperty().unbind();
+        centerTitleLabel.textProperty().unbind();
+        backendBadge.textProperty().unbind();
+        latencyBadge.textProperty().unbind();
+        usernameLabel.textProperty().unbind();
+        if (usernameBinding != null) {
+            usernameBinding.dispose();
+            usernameBinding = null;
+        }
+
+        if (errorsTooltip != null) {
+            errorsTooltip.textProperty().unbind();
+        }
+        if (printTooltip != null) {
+            printTooltip.textProperty().unbind();
+        }
+        LeakDiagnostics.controllerDestroyed("TopBarController");
     }
 }

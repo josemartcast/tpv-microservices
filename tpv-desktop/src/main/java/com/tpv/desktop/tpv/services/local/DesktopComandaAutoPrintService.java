@@ -10,6 +10,7 @@ import com.tpv.desktop.api.pos.TicketLineResponse;
 import com.tpv.desktop.api.pos.TicketResponse;
 import com.tpv.desktop.api.pos.TicketSummaryResponse;
 import com.tpv.desktop.core.SettingsStore;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import com.tpv.desktop.tpv.services.PrintQueueService;
 
 import java.time.Instant;
@@ -28,6 +29,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Autoimpresion en TPV de eventos originados desde clientes remotos (PDA/Web):
@@ -36,6 +39,7 @@ import java.util.concurrent.TimeUnit;
  * - Ticket cliente al cerrar cobro
  */
 public final class DesktopComandaAutoPrintService implements AutoCloseable {
+    private static final Logger LOG = Logger.getLogger(DesktopComandaAutoPrintService.class.getName());
     private static final long POLL_MS = 2500L;
     private static final long LOCAL_SUPPRESS_MS = 15000L;
     private static final int CLOSED_TICKET_PRINT_MAX_RETRIES = 20;
@@ -80,6 +84,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 return t;
             }
         });
+        LeakDiagnostics.schedulerStarted("DesktopComandaAutoPrintService.worker");
         this.worker.scheduleWithFixedDelay(this::pollSafely, POLL_MS, POLL_MS, TimeUnit.MILLISECONDS);
     }
 
@@ -98,6 +103,19 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
     @Override
     public void close() {
         worker.shutdownNow();
+        LeakDiagnostics.schedulerStopped("DesktopComandaAutoPrintService.worker");
+    }
+
+    public DiagnosticSnapshot diagnosticSnapshot() {
+        return new DiagnosticSnapshot(
+                pendingByTicket.size(),
+                lastPendingCountByTicket.size(),
+                pendingClosedTicketPrints.size(),
+                paidPrintedAtMsByTicket.size(),
+                LOCAL_SEND_SUPPRESS_UNTIL.size(),
+                LOCAL_PAYMENT_SUPPRESS_UNTIL.size(),
+                LOCAL_PREBILL_SUPPRESS_UNTIL.size()
+        );
     }
 
     private static void markSuppress(Map<Long, Long> bucket, long ticketId) {
@@ -162,7 +180,14 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                         ? List.of()
                         : preview.pendingLines();
                 if (!pending.isEmpty()) {
-                    pendingByTicket.put(ticketId, new TicketPendingSnapshot(ticketId, copyOf(pending)));
+                    pendingByTicket.put(ticketId, new TicketPendingSnapshot(ticketId, copyOf(pending), Instant.now()));
+                    if (LOG.isLoggable(Level.INFO)) {
+                        LOG.log(
+                                Level.INFO,
+                                "AUTOPRINT_PREVIEW_CAPTURED ticketId={0} pendingCount={1} lineIds={2}",
+                                new Object[]{ticketId, pending.size(), pending.stream().map(TicketLineResponse::id).toList()}
+                        );
+                    }
                 }
             } catch (Exception ignored) {
                 // Si falla preview, esperamos siguiente ciclo.
@@ -177,6 +202,9 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             }
             return;
         }
+
+        snapshot = enrichSnapshotWithRecentSent(snapshot, ticketId);
+
         if (isSuppressed(LOCAL_SEND_SUPPRESS_UNTIL, ticketId)) {
             return;
         }
@@ -187,6 +215,17 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         }
         if (decision == SnapshotSendDecision.SKIP) {
             return;
+        }
+        if (LOG.isLoggable(Level.INFO)) {
+            LOG.log(
+                    Level.INFO,
+                    "AUTOPRINT_SNAPSHOT_PRINT ticketId={0} lines={1} lineIds={2}",
+                    new Object[]{
+                            ticketId,
+                            snapshot.lines().size(),
+                            snapshot.lines().stream().map(TicketLineResponse::id).toList()
+                    }
+            );
         }
         enqueueSnapshotForPrint(snapshot, ctx);
     }
@@ -319,7 +358,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             if (recent.isEmpty()) {
                 return;
             }
-            enqueueSnapshotForPrint(new TicketPendingSnapshot(ticketId, recent), ctx);
+            enqueueSnapshotForPrint(new TicketPendingSnapshot(ticketId, recent, Instant.now()), ctx);
             Instant maxPrinted = recent.stream()
                     .map(TicketLineResponse::updatedAt)
                     .max(Instant::compareTo)
@@ -338,7 +377,70 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         }
         for (Map.Entry<DestinationKey, List<TicketLineResponse>> entry : grouped.entrySet()) {
             String payload = buildComandaPayload(snapshot.ticketId(), table, entry.getKey(), entry.getValue());
+            if (LOG.isLoggable(Level.INFO)) {
+                LOG.log(
+                        Level.INFO,
+                        "AUTOPRINT_ENQUEUE ticketId={0} destination={1} lines={2} lineIds={3}",
+                        new Object[]{
+                                snapshot.ticketId(),
+                                entry.getKey().name(),
+                                entry.getValue().size(),
+                                entry.getValue().stream().map(TicketLineResponse::id).toList()
+                        }
+                );
+            }
             printQueueService.enqueue(entry.getKey().name(), payload);
+        }
+    }
+
+    /**
+     * Mitiga carreras PDA->send:
+     * si la snapshot de pendientes se capturo justo antes de un alta adicional de linea,
+     * al pasar pending=0 podria imprimirse incompleta.
+     * Aqui unimos lineas "sent" recientes del ticket que no estuvieran en snapshot.
+     */
+    private TicketPendingSnapshot enrichSnapshotWithRecentSent(TicketPendingSnapshot snapshot, long ticketId) {
+        try {
+            TicketResponse ticket = TicketApi.getById(ticketId);
+            if (ticket == null || ticket.lines() == null || ticket.lines().isEmpty()) {
+                return snapshot;
+            }
+
+            LinkedHashMap<Long, TicketLineResponse> merged = new LinkedHashMap<>();
+            for (TicketLineResponse line : snapshot.lines()) {
+                if (line != null) {
+                    merged.put(line.id(), line);
+                }
+            }
+            int before = merged.size();
+
+            Instant capturedAt = snapshot.capturedAt() == null ? Instant.EPOCH : snapshot.capturedAt();
+            Instant floor = capturedAt.minusSeconds(1);
+            for (TicketLineResponse line : ticket.lines()) {
+                if (line == null || !line.sent() || line.updatedAt() == null) {
+                    continue;
+                }
+                if (!line.updatedAt().isAfter(floor)) {
+                    continue;
+                }
+                merged.putIfAbsent(line.id(), line);
+            }
+
+            if (merged.size() == before) {
+                return snapshot;
+            }
+
+            List<TicketLineResponse> enriched = new ArrayList<>(merged.values());
+            if (LOG.isLoggable(Level.INFO)) {
+                LOG.log(
+                        Level.INFO,
+                        "AUTOPRINT_SNAPSHOT_ENRICHED ticketId={0} before={1} after={2} capturedAt={3} lineIds={4}",
+                        new Object[]{ticketId, before, enriched.size(), capturedAt, enriched.stream().map(TicketLineResponse::id).toList()}
+                );
+            }
+            return new TicketPendingSnapshot(ticketId, enriched, capturedAt);
+        } catch (Exception ignored) {
+            return snapshot;
         }
     }
 
@@ -825,7 +927,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         paidPrintedAtMsByTicket.put(ticketId, System.currentTimeMillis());
     }
 
-    private record TicketPendingSnapshot(long ticketId, List<TicketLineResponse> lines) {
+    private record TicketPendingSnapshot(long ticketId, List<TicketLineResponse> lines, Instant capturedAt) {
     }
 
     private record TableCtx(long ticketId, int tableNumber, String salonName) {
@@ -860,6 +962,16 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         SKIP,
         RETRY
     }
+
+    public record DiagnosticSnapshot(
+            int pendingByTicket,
+            int lastPendingCountByTicket,
+            int pendingClosedTicketPrints,
+            int paidPrintedByTicket,
+            int localSendSuppress,
+            int localPaymentSuppress,
+            int localPrebillSuppress
+    ) {}
 
     private static final class AppStateHolder {
         static String restaurantName() {

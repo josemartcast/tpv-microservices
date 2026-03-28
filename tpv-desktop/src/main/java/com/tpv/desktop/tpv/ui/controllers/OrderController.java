@@ -10,6 +10,8 @@ import com.tpv.desktop.tpv.domain.model.OrderLine;
 import com.tpv.desktop.tpv.domain.model.Product;
 import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.services.local.DesktopComandaAutoPrintService;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
+import com.tpv.desktop.tpv.ui.LifecycleAware;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.core.PrinterSettingsStore;
 import com.tpv.desktop.core.SettingsStore;
@@ -20,6 +22,7 @@ import com.tpv.desktop.tpv.ui.viewmodel.OrderViewModel;
 import com.tpv.desktop.ui.components.NumericPadController;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -49,7 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class OrderController {
+public class OrderController implements LifecycleAware {
     private static final String CATEGORY_COPAS = "COPAS";
     private static final String CATEGORY_REFRESCOS = "REFRESCOS";
     private static final int RECEIPT_LINE_WIDTH = 42;
@@ -83,6 +86,15 @@ public class OrderController {
 
     private final OrderViewModel vm = new OrderViewModel();
     private Timeline heartbeat;
+    private boolean heartbeatCounted;
+    private ChangeListener<Toggle> categorySelectionListener;
+    private ListChangeListener<OrderLine> linesListener;
+    private ChangeListener<OrderLine> selectedLineListener;
+    private ChangeListener<String> tableLabelListener;
+    private ChangeListener<Number> peopleListener;
+    private ChangeListener<String> elapsedListener;
+    private ChangeListener<String> restaurantNameListener;
+    private boolean disposed;
 
     public void bind(long orderId, int tableId, String tableLabel) {
         vm.bindOrder(orderId, tableId, tableLabel);
@@ -95,6 +107,7 @@ public class OrderController {
 
     @FXML
     public void initialize() {
+        LeakDiagnostics.controllerCreated("OrderController");
         ticketList.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(OrderLine item, boolean empty) {
@@ -115,7 +128,7 @@ public class OrderController {
             }
         });
 
-        categoryTabs.selectedToggleProperty().addListener((obs, o, n) -> {
+        categorySelectionListener = (obs, o, n) -> {
             if (n == null) {
                 return;
             }
@@ -123,11 +136,15 @@ public class OrderController {
             if (data instanceof Category selected) {
                 loadProducts(selected);
             }
-        });
+        };
+        categoryTabs.selectedToggleProperty().addListener(categorySelectionListener);
 
         heartbeat = new Timeline(new KeyFrame(Duration.seconds(20), e -> onHeartbeatTick()));
         heartbeat.setCycleCount(Timeline.INDEFINITE);
         heartbeat.play();
+        heartbeatCounted = true;
+        LeakDiagnostics.timerStarted("OrderController.heartbeatTimeline");
+        LeakDiagnostics.heartbeatStarted("OrderController.tableLockHeartbeat");
 
         if (qtyField != null) {
             qtyField.setText("");
@@ -136,8 +153,10 @@ public class OrderController {
             orderPadController.bindTargets(qtyField);
         }
 
-        vm.lines().addListener((ListChangeListener<OrderLine>) change -> updateActionState());
-        ticketList.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> updateActionState());
+        linesListener = change -> updateActionState();
+        vm.lines().addListener(linesListener);
+        selectedLineListener = (obs, oldV, newV) -> updateActionState();
+        ticketList.getSelectionModel().selectedItemProperty().addListener(selectedLineListener);
         updateActionState();
     }
 
@@ -145,14 +164,16 @@ public class OrderController {
         ticketList.setItems(vm.lines());
         subtotalLabel.textProperty().bind(vm.subtotalTextProperty());
         feedbackLabel.textProperty().bind(vm.feedbackProperty());
-        vm.tableLabelProperty().addListener((obs, oldV, newV) -> refreshOrderHeader());
-        vm.peopleProperty().addListener((obs, oldV, newV) -> refreshOrderHeader());
-        vm.elapsedProperty().addListener((obs, oldV, newV) -> refreshOrderHeader());
+        tableLabelListener = (obs, oldV, newV) -> refreshOrderHeader();
+        peopleListener = (obs, oldV, newV) -> refreshOrderHeader();
+        elapsedListener = (obs, oldV, newV) -> refreshOrderHeader();
+        vm.tableLabelProperty().addListener(tableLabelListener);
+        vm.peopleProperty().addListener(peopleListener);
+        vm.elapsedProperty().addListener(elapsedListener);
         refreshOrderHeader();
         topBarController.setCenterTitle(AppContext.get().appState().restaurantNameProperty().get());
-        AppContext.get().appState().restaurantNameProperty().addListener(
-                (obs, oldV, newV) -> topBarController.setCenterTitle(newV)
-        );
+        restaurantNameListener = (obs, oldV, newV) -> topBarController.setCenterTitle(newV);
+        AppContext.get().appState().restaurantNameProperty().addListener(restaurantNameListener);
         updateActionState();
     }
 
@@ -636,7 +657,58 @@ public class OrderController {
     private void stopHeartbeat() {
         if (heartbeat != null) {
             heartbeat.stop();
+            if (heartbeatCounted) {
+                heartbeatCounted = false;
+                LeakDiagnostics.timerStopped("OrderController.heartbeatTimeline");
+                LeakDiagnostics.heartbeatStopped("OrderController.tableLockHeartbeat");
+            }
         }
+    }
+
+    @Override
+    public void dispose() {
+        if (disposed) {
+            return;
+        }
+        disposed = true;
+        stopHeartbeat();
+
+        if (categorySelectionListener != null) {
+            categoryTabs.selectedToggleProperty().removeListener(categorySelectionListener);
+            categorySelectionListener = null;
+        }
+        if (linesListener != null) {
+            vm.lines().removeListener(linesListener);
+            linesListener = null;
+        }
+        if (selectedLineListener != null) {
+            ticketList.getSelectionModel().selectedItemProperty().removeListener(selectedLineListener);
+            selectedLineListener = null;
+        }
+        if (tableLabelListener != null) {
+            vm.tableLabelProperty().removeListener(tableLabelListener);
+            tableLabelListener = null;
+        }
+        if (peopleListener != null) {
+            vm.peopleProperty().removeListener(peopleListener);
+            peopleListener = null;
+        }
+        if (elapsedListener != null) {
+            vm.elapsedProperty().removeListener(elapsedListener);
+            elapsedListener = null;
+        }
+        if (restaurantNameListener != null) {
+            AppContext.get().appState().restaurantNameProperty().removeListener(restaurantNameListener);
+            restaurantNameListener = null;
+        }
+
+        subtotalLabel.textProperty().unbind();
+        feedbackLabel.textProperty().unbind();
+
+        if (topBarController != null) {
+            topBarController.dispose();
+        }
+        LeakDiagnostics.controllerDestroyed("OrderController");
     }
 
     private void onHeartbeatTick() {

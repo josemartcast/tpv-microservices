@@ -3,7 +3,9 @@ package com.tpv.desktop.tpv.ui.controllers;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.app.Navigator;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import com.tpv.desktop.tpv.domain.model.BackendStatus;
+import com.tpv.desktop.tpv.ui.LifecycleAware;
 import com.tpv.desktop.tpv.services.LockException;
 import com.tpv.desktop.tpv.ui.controllers.components.TableCardController;
 import com.tpv.desktop.tpv.ui.controllers.components.TopBarController;
@@ -11,6 +13,7 @@ import com.tpv.desktop.tpv.ui.viewmodel.HomeViewModel;
 import com.tpv.desktop.tpv.ui.viewmodel.TableCardViewModel;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.beans.value.ChangeListener;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
@@ -24,7 +27,7 @@ import javafx.util.Duration;
 
 import java.io.IOException;
 
-public class HomeController {
+public class HomeController implements LifecycleAware {
     @FXML private TopBarController topBarController;
     @FXML private FlowPane tablesPane;
     @FXML private FlowPane salonTabsPane;
@@ -35,18 +38,22 @@ public class HomeController {
     private final HomeViewModel vm = new HomeViewModel();
     private final ToggleGroup salonTabsGroup = new ToggleGroup();
     private Timeline refreshTimeline;
+    private ChangeListener<String> restaurantNameListener;
+    private ChangeListener<BackendStatus> backendStatusListener;
+    private boolean disposed;
 
     @FXML
     public void initialize() {
+        LeakDiagnostics.controllerCreated("HomeController");
         topBarController.setCenterTitle(AppContext.get().appState().restaurantNameProperty().get());
-        AppContext.get().appState().restaurantNameProperty().addListener(
-                (obs, oldV, newV) -> topBarController.setCenterTitle(newV)
-        );
+        restaurantNameListener = (obs, oldV, newV) -> topBarController.setCenterTitle(newV);
+        AppContext.get().appState().restaurantNameProperty().addListener(restaurantNameListener);
         tablesPane.prefWrapLengthProperty().bind(homeScroll.widthProperty().subtract(28));
-        AppContext.get().backendStatusService().statusProperty().addListener((obs, o, n) -> {
+        backendStatusListener = (obs, o, n) -> {
             offlineBanner.setVisible(n == com.tpv.desktop.tpv.domain.model.BackendStatus.OFFLINE);
             offlineBanner.setManaged(n == com.tpv.desktop.tpv.domain.model.BackendStatus.OFFLINE);
-        });
+        };
+        AppContext.get().backendStatusService().statusProperty().addListener(backendStatusListener);
 
         refreshTables();
 
@@ -58,6 +65,7 @@ public class HomeController {
         );
         refreshTimeline.setCycleCount(Timeline.INDEFINITE);
         refreshTimeline.play();
+        LeakDiagnostics.timerStarted("HomeController.refreshTimeline");
     }
 
     private void renderTables() {
@@ -163,6 +171,33 @@ public class HomeController {
             });
             salonTabsPane.getChildren().add(btn);
         }
+    }
+
+    @Override
+    public void dispose() {
+        if (disposed) {
+            return;
+        }
+        disposed = true;
+
+        if (refreshTimeline != null) {
+            refreshTimeline.stop();
+            LeakDiagnostics.timerStopped("HomeController.refreshTimeline");
+            refreshTimeline = null;
+        }
+        if (restaurantNameListener != null) {
+            AppContext.get().appState().restaurantNameProperty().removeListener(restaurantNameListener);
+            restaurantNameListener = null;
+        }
+        if (backendStatusListener != null) {
+            AppContext.get().backendStatusService().statusProperty().removeListener(backendStatusListener);
+            backendStatusListener = null;
+        }
+        tablesPane.prefWrapLengthProperty().unbind();
+        if (topBarController != null) {
+            topBarController.dispose();
+        }
+        LeakDiagnostics.controllerDestroyed("HomeController");
     }
 }
 

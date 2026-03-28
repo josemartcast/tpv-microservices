@@ -1,6 +1,7 @@
 package com.tpv.desktop.tpv.services.local;
 
 import com.tpv.desktop.core.PrinterSettingsStore;
+import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import com.tpv.desktop.tpv.domain.model.PrintQueueState;
 import com.tpv.desktop.tpv.services.PrintQueueService;
 import com.tpv.desktop.tpv.ui.util.PrintUtil;
@@ -38,6 +39,7 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
 
     public LocalPrintQueueService() {
         this(LocalPrintQueueService::printOnFxThread, Platform::runLater, createWorker());
+        LeakDiagnostics.schedulerStarted("LocalPrintQueueService.worker");
     }
 
     LocalPrintQueueService(PrintGateway printGateway, UiExecutor uiExecutor, ScheduledExecutorService worker) {
@@ -152,6 +154,7 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
     @Override
     public void close() {
         worker.shutdownNow();
+        LeakDiagnostics.schedulerStopped("LocalPrintQueueService.worker");
     }
 
     @FunctionalInterface
