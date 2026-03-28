@@ -40,6 +40,7 @@ public class FakeTableService implements TableService {
                         status = TableStatus.LOCKED_BY_OTHER;
                     }
                 out.add(new TableSnapshot(i, "Salon", "Mesa " + i, status, 0, 0, 0, false,
+                        null, null,
                         lock == null ? null : lock.owner(), lock == null ? null : lock.terminalId(), 0));
                 continue;
             }
@@ -49,7 +50,7 @@ public class FakeTableService implements TableService {
             } else if (lock != null) {
                 status = TableStatus.LOCKED_BY_ME;
             } else if (order.isBillRequested()) {
-                status = TableStatus.BILL_REQUESTED;
+                status = TableStatus.PRECUENTA_PEDIDA;
             } else if (order.pendingCount() > 0) {
                 status = TableStatus.PENDING_SEND;
             } else {
@@ -58,6 +59,7 @@ public class FakeTableService implements TableService {
 
             long elapsed = Math.max(0, Duration.between(order.getOpenedAt(), Instant.now()).toMinutes());
             out.add(new TableSnapshot(i, "Salon", "Mesa " + i, status, order.totalCents(), elapsed, order.pendingCount(), order.isBillRequested(),
+                    order.isBillRequested() ? "admin" : null, order.isBillRequested() ? appState.terminalIdProperty().get() : null,
                     lock == null ? null : lock.owner(), lock == null ? null : lock.terminalId(), order.getId()));
         }
 

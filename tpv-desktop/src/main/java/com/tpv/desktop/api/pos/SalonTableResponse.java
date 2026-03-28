@@ -11,6 +11,8 @@ public record SalonTableResponse(
         int totalCents,
         int elapsedMinutes,
         int pendingLines,
+        String prebillRequestedBy,
+        String prebillRequestedTerminalId,
         String lockedBy,
         String lockedTerminalId,
         Instant lockExpiresAt

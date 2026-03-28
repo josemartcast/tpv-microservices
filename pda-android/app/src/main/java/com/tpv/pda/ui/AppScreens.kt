@@ -81,6 +81,7 @@ private object PdaPalette {
     val tableFree = Color(0xFFF2FBF4)
     val tableBusy = Color(0xFFF4F7FF)
     val tablePending = Color(0xFFFFF6E5)
+    val tablePrebill = Color(0xFFE7F6F2)
     val tableLocked = Color(0xFFFFEEE8)
     val selected = Color(0xFFDCE8FF)
 }
@@ -372,11 +373,13 @@ private fun TableCard(table: SalonTableResponse, onOpen: () -> Unit) {
     val cardBg = when (table.status?.uppercase()) {
         "FREE" -> PdaPalette.tableFree
         "PENDING_SEND" -> PdaPalette.tablePending
+        "PRECUENTA_PEDIDA" -> PdaPalette.tablePrebill
         else -> if (table.lockedTerminalId?.isNotBlank() == true) PdaPalette.tableLocked else PdaPalette.tableBusy
     }
     val borderColor = when (table.status?.uppercase()) {
         "FREE" -> Color(0xFF7AB784)
         "PENDING_SEND" -> PdaPalette.warning
+        "PRECUENTA_PEDIDA" -> Color(0xFF2F8F80)
         else -> if (table.lockedTerminalId?.isNotBlank() == true) PdaPalette.danger else Color(0xFF8FA5D1)
     }
     Card(
@@ -395,6 +398,14 @@ private fun TableCard(table: SalonTableResponse, onOpen: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = PdaPalette.mutedInk
             )
+            if ("PRECUENTA_PEDIDA".equals(table.status, ignoreCase = true)) {
+                Text(
+                    text = prebillRequesterText(table),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF1F6D62),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             Text(
                 text = "Total: ${eur(table.totalCents)}",
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -1051,8 +1062,20 @@ private fun statusText(raw: String?): String = when (raw?.uppercase()) {
     "FREE" -> "Libre"
     "OCCUPIED" -> "Ocupada"
     "PENDING_SEND" -> "Pendiente enviar"
+    "PRECUENTA_PEDIDA" -> "Precuenta pedida"
     "BILL_REQUESTED" -> "Cuenta pedida"
     else -> raw ?: "-"
+}
+
+private fun prebillRequesterText(table: SalonTableResponse): String {
+    val actor = table.prebillRequestedBy?.trim().orEmpty()
+    val terminal = table.prebillRequestedTerminalId?.trim().orEmpty()
+    return when {
+        actor.isNotBlank() && terminal.isNotBlank() -> "Pedida por $actor ($terminal)"
+        actor.isNotBlank() -> "Pedida por $actor"
+        terminal.isNotBlank() -> "Pedida por terminal $terminal"
+        else -> "Precuenta solicitada"
+    }
 }
 
 private fun elapsed(minutes: Int): String = if (minutes <= 0) "-" else "$minutes min"

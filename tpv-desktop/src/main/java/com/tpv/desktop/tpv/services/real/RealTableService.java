@@ -24,7 +24,9 @@ public class RealTableService implements TableService {
     }
 
     private static TableSnapshot toDomain(SalonTableResponse t, String terminalId) {
+        String rawStatus = t.status() == null ? "FREE" : t.status().toUpperCase();
         TableStatus status = mapStatus(t.status(), t.lockedTerminalId(), terminalId, t.pendingLines(), t.ticketId());
+        boolean billRequested = "PRECUENTA_PEDIDA".equals(rawStatus) || "BILL_REQUESTED".equals(rawStatus);
         String salonName = t.salonName() == null || t.salonName().isBlank() ? "Salon" : t.salonName().trim();
         String alias = t.tableAlias() == null ? "" : t.tableAlias().trim();
         String label = salonName + " - Mesa " + t.tableNumber();
@@ -39,7 +41,9 @@ public class RealTableService implements TableService {
                 t.totalCents(),
                 t.elapsedMinutes(),
                 t.pendingLines(),
-                false,
+                billRequested,
+                t.prebillRequestedBy(),
+                t.prebillRequestedTerminalId(),
                 t.lockedBy(),
                 t.lockedTerminalId(),
                 t.ticketId() == null ? 0 : t.ticketId()
@@ -53,6 +57,7 @@ public class RealTableService implements TableService {
 
         if (lockByOther) return TableStatus.LOCKED_BY_OTHER;
         if (lockByMe) return TableStatus.LOCKED_BY_ME;
+        if ("PRECUENTA_PEDIDA".equals(status)) return TableStatus.PRECUENTA_PEDIDA;
         if ("BILL_REQUESTED".equals(status)) return TableStatus.BILL_REQUESTED;
         if ("PENDING_SEND".equals(status) || pending > 0) return TableStatus.PENDING_SEND;
         if ("OCCUPIED".equals(status)) return TableStatus.OCCUPIED;

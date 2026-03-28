@@ -54,11 +54,12 @@ public class TableCardController {
 
     private void applyStatus(TableStatus status) {
         card.getStyleClass().removeAll(
-                "table-free", "table-occupied", "table-pending", "table-bill", "table-locked-me", "table-locked-other");
+                "table-free", "table-occupied", "table-pending", "table-prebill", "table-bill", "table-locked-me", "table-locked-other");
         switch (status) {
             case FREE -> card.getStyleClass().add("table-free");
             case OCCUPIED -> card.getStyleClass().add("table-occupied");
             case PENDING_SEND -> card.getStyleClass().add("table-pending");
+            case PRECUENTA_PEDIDA -> card.getStyleClass().add("table-prebill");
             case BILL_REQUESTED -> card.getStyleClass().add("table-bill");
             case LOCKED_BY_ME -> card.getStyleClass().add("table-locked-me");
             case LOCKED_BY_OTHER -> card.getStyleClass().add("table-locked-other");

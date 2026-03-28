@@ -251,7 +251,7 @@ public class TicketController {
         String actor = ActorResolver.usernameFrom(auth);
         String term = ActorResolver.terminalFromHeader(terminalId);
         try {
-            TicketResponse response = service.setBillRequested(id, Boolean.TRUE.equals(req.requested()));
+            TicketResponse response = service.setBillRequested(id, Boolean.TRUE.equals(req.requested()), actor, term);
             auditService.recordSuccess("TICKET_SET_BILL_REQUESTED", "TICKET", id, actor, term, req, response);
             return response;
         } catch (RuntimeException e) {

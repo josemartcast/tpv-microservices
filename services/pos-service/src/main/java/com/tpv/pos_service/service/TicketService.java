@@ -299,8 +299,17 @@ public class TicketService {
 
     @Transactional
     public TicketResponse setBillRequested(Long ticketId, boolean requested) {
+        return setBillRequested(ticketId, requested, null, null);
+    }
+
+    @Transactional
+    public TicketResponse setBillRequested(Long ticketId, boolean requested, String requestedBy, String requestedTerminalId) {
         Ticket t = getOpenTicket(ticketId);
         t.setBillRequested(requested);
+        if (requested) {
+            t.setBillRequestedBy(normalizeRequestedBy(requestedBy));
+            t.setBillRequestedTerminalId(normalizeRequestedTerminalId(requestedTerminalId));
+        }
         List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
         return toResponse(t, lines);
     }
@@ -572,6 +581,28 @@ public class TicketService {
         String normalized = Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "");
         return normalized.toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeRequestedBy(String actor) {
+        if (actor == null) {
+            return null;
+        }
+        String value = actor.trim();
+        if (value.isBlank()) {
+            return null;
+        }
+        return value.length() > 80 ? value.substring(0, 80) : value;
+    }
+
+    private String normalizeRequestedTerminalId(String terminalId) {
+        if (terminalId == null) {
+            return null;
+        }
+        String value = terminalId.trim();
+        if (value.isBlank()) {
+            return null;
+        }
+        return value.length() > 64 ? value.substring(0, 64) : value;
     }
 
     private TicketResponse toResponseWithLines(Ticket t) {

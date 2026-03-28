@@ -20,6 +20,8 @@ data class SalonTableResponse(
     val totalCents: Int,
     val elapsedMinutes: Int,
     val pendingLines: Int,
+    val prebillRequestedBy: String?,
+    val prebillRequestedTerminalId: String?,
     val lockedBy: String?,
     val lockedTerminalId: String?,
     val lockExpiresAt: String?

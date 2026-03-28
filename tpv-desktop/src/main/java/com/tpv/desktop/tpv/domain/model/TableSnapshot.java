@@ -9,6 +9,8 @@ public record TableSnapshot(
         long elapsedMinutes,
         int pendingCount,
         boolean billRequested,
+        String prebillRequestedBy,
+        String prebillRequestedTerminalId,
         String lockOwner,
         String lockTerminalId,
         long orderId

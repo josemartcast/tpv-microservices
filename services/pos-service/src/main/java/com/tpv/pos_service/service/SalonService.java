@@ -64,6 +64,8 @@ public class SalonService {
                     String status = lock == null ? "FREE" : "LOCKED";
                     result.add(new SalonTableResponse(
                             i, salon.getName(), alias, status, null, 0, 0, 0,
+                            null,
+                            null,
                             lock == null ? null : lock.getLockedBy(),
                             lock == null ? null : lock.getTerminalId(),
                             lock == null ? null : lock.getExpiresAt()
@@ -76,9 +78,11 @@ public class SalonService {
                 int pendingLines = (int) lineRepo.countPendingByTicketId(open.getId());
                 String status = lock != null
                         ? "LOCKED"
-                        : (open.isBillRequested() ? "BILL_REQUESTED" : (pendingLines > 0 ? "PENDING_SEND" : "OCCUPIED"));
+                        : (open.isBillRequested() ? "PRECUENTA_PEDIDA" : (pendingLines > 0 ? "PENDING_SEND" : "OCCUPIED"));
                 result.add(new SalonTableResponse(
                         i, salon.getName(), alias, status, open.getId(), open.getTotalCents(), elapsed, pendingLines,
+                        open.getBillRequestedBy(),
+                        open.getBillRequestedTerminalId(),
                         lock == null ? null : lock.getLockedBy(),
                         lock == null ? null : lock.getTerminalId(),
                         lock == null ? null : lock.getExpiresAt()

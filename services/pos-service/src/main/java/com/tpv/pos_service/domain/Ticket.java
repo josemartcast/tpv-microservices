@@ -42,6 +42,12 @@ public class Ticket {
     @Column(nullable = false)
     private boolean billRequested = false;
 
+    @Column(length = 80)
+    private String billRequestedBy;
+
+    @Column(length = 64)
+    private String billRequestedTerminalId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
             name = "cash_session_id",
@@ -160,5 +166,25 @@ public class Ticket {
 
     public void setBillRequested(boolean billRequested) {
         this.billRequested = billRequested;
+        if (!billRequested) {
+            this.billRequestedBy = null;
+            this.billRequestedTerminalId = null;
+        }
+    }
+
+    public String getBillRequestedBy() {
+        return billRequestedBy;
+    }
+
+    public void setBillRequestedBy(String billRequestedBy) {
+        this.billRequestedBy = billRequestedBy;
+    }
+
+    public String getBillRequestedTerminalId() {
+        return billRequestedTerminalId;
+    }
+
+    public void setBillRequestedTerminalId(String billRequestedTerminalId) {
+        this.billRequestedTerminalId = billRequestedTerminalId;
     }
 }

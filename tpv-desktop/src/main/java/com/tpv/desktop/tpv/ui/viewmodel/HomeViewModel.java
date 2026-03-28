@@ -130,9 +130,15 @@ public class HomeViewModel {
                 vm.statusTextProperty().set("Pendiente enviar");
                 vm.actionTextProperty().set("Entrar");
             }
+            case PRECUENTA_PEDIDA -> {
+                vm.statusTextProperty().set("Precuenta pedida");
+                vm.actionTextProperty().set("Entrar");
+                vm.lockTextProperty().set(prebillRequesterText(s));
+            }
             case BILL_REQUESTED -> {
                 vm.statusTextProperty().set("Cuenta pedida");
                 vm.actionTextProperty().set("Entrar");
+                vm.lockTextProperty().set(prebillRequesterText(s));
             }
             case LOCKED_BY_ME -> {
                 vm.statusTextProperty().set("Bloqueada (yo)");
@@ -147,6 +153,21 @@ public class HomeViewModel {
             }
         }
         return vm;
+    }
+
+    private static String prebillRequesterText(TableSnapshot snapshot) {
+        String actor = snapshot.prebillRequestedBy();
+        String terminal = snapshot.prebillRequestedTerminalId();
+        if ((actor == null || actor.isBlank()) && (terminal == null || terminal.isBlank())) {
+            return "Precuenta solicitada";
+        }
+        if (actor == null || actor.isBlank()) {
+            return "Pedida por terminal " + terminal;
+        }
+        if (terminal == null || terminal.isBlank()) {
+            return "Pedida por " + actor;
+        }
+        return "Pedida por " + actor + " (" + terminal + ")";
     }
 
     private static String money(int cents) {

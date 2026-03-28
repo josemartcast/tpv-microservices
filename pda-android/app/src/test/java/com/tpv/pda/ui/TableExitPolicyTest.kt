@@ -69,6 +69,8 @@ class TableExitPolicyTest {
             totalCents = 0,
             elapsedMinutes = 0,
             pendingLines = 0,
+            prebillRequestedBy = null,
+            prebillRequestedTerminalId = null,
             lockedBy = "tester",
             lockedTerminalId = "PDA-A",
             lockExpiresAt = null
@@ -86,4 +88,3 @@ class TableExitPolicyTest {
             lines = lines
         )
 }
-

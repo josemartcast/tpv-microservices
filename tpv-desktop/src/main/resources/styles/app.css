@@ -154,6 +154,8 @@
 .table-occupied .table-state { -fx-text-fill: #3d465e; }
 .table-pending { -fx-border-color: #d29118; -fx-background-color: #fff7e6; }
 .table-pending .table-state { -fx-text-fill: #9e6b00; }
+.table-prebill { -fx-border-color: #2f8f80; -fx-background-color: #e8f7f2; }
+.table-prebill .table-state { -fx-text-fill: #1f6d62; }
 .table-bill { -fx-border-color: #2f8f80; -fx-background-color: #e9f8f4; }
 .table-bill .table-state { -fx-text-fill: #1f6d62; }
 .table-locked-me { -fx-border-color: #d77d15; -fx-background-color: #fff2de; }
