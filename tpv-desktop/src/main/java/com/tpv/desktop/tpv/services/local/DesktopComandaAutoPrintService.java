@@ -237,8 +237,13 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 return;
             }
             boolean requested = ticket.billRequested();
-            lastBillRequestedByTicket.put(ticketId, requested);
+            Boolean previousRequestedState = lastBillRequestedByTicket.put(ticketId, requested);
             if (!requested) {
+                return;
+            }
+            // Imprimir solo en transición false->true para evitar reimpresión en cada poll.
+            // Además, en la primera observación (estado previo desconocido) no auto-disparamos.
+            if (previousRequestedState == null || Boolean.TRUE.equals(previousRequestedState)) {
                 return;
             }
             if (isSuppressed(LOCAL_PREBILL_SUPPRESS_UNTIL, ticketId)) {
@@ -247,12 +252,6 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
 
             String prebill = buildPrebillText(ticket, ctx);
             printQueueService.enqueue("GENERAL", prebill);
-            try {
-                TicketApi.setBillRequested(ticketId, false);
-            } catch (Exception ignored) {
-                // Si no se puede limpiar bandera, evitamos repetir por cache local.
-            }
-            lastBillRequestedByTicket.put(ticketId, false);
         } catch (Exception ignored) {
             // best-effort
         }

@@ -1,6 +1,7 @@
 package com.tpv.desktop.tpv.ui.controllers;
 
 import com.tpv.desktop.api.pos.TicketHistoryApi;
+import com.tpv.desktop.api.pos.TicketApi;
 import com.tpv.desktop.api.pos.TicketSummaryResponse;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.ui.UiDialogs;
@@ -469,15 +470,38 @@ public class OrderController implements LifecycleAware {
             return;
         }
         if (action == printButton) {
+            if (!markPrebillRequestedForMap()) {
+                return;
+            }
             String target = printDocumentToGeneral(text);
             setFeedback("Pre-cuenta enviada a " + target + ".");
             showInfoDialog("Precuenta", "Pre-cuenta enviada a " + target + ".");
             return;
         }
         if (action == printPdfButton) {
+            if (!markPrebillRequestedForMap()) {
+                return;
+            }
             PrintUtil.printTextToPdfWithBottomMargin(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
             setFeedback("Enviado a Print to PDF.");
             showInfoDialog("Precuenta", "Enviado a Print to PDF.");
+        }
+    }
+
+    private boolean markPrebillRequestedForMap() {
+        try {
+            DesktopComandaAutoPrintService.markLocalPrebillRequest(vm.orderIdProperty().get());
+            vm.requestBill();
+            var ticket = TicketApi.getById(vm.orderIdProperty().get());
+            if (ticket == null || !ticket.billRequested()) {
+                throw new IllegalStateException("El backend no confirmó la precuenta pedida.");
+            }
+            return true;
+        } catch (Exception e) {
+            String msg = "No se pudo marcar precuenta pedida: " + e.getMessage();
+            setFeedback(msg);
+            showErrorDialog("Precuenta", msg);
+            return false;
         }
     }
 
