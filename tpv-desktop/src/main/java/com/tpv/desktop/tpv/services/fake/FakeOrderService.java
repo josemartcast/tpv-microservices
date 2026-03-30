@@ -92,6 +92,28 @@ public class FakeOrderService implements OrderService {
     }
 
     @Override
+    public Order consumeLineForPayment(long orderId, long lineId, int qty) {
+        int safeQty = Math.max(1, qty);
+        Order order = getById(orderId);
+        for (int i = 0; i < order.getLines().size(); i++) {
+            OrderLine line = order.getLines().get(i);
+            if (line.getId() != lineId) {
+                continue;
+            }
+            if (safeQty >= line.getQty()) {
+                order.getLines().remove(i);
+            } else {
+                line.setQty(line.getQty() - safeQty);
+                if (line.getSentQty() > line.getQty()) {
+                    line.markSentAll();
+                }
+            }
+            return order;
+        }
+        return order;
+    }
+
+    @Override
     public void removeLine(long orderId, long lineId) {
         Order order = getById(orderId);
         for (int i = 0; i < order.getLines().size(); i++) {

@@ -352,16 +352,20 @@ public class OrderController implements LifecycleAware {
             boolean paid;
             int paidAmountCents;
             if ("Parcial (lineas)".equalsIgnoreCase(mode)) {
-                int amountCents = promptPartialByLines(
+                PartialByLinesSelection selection = promptPartialByLines(
                         pending,
                         "Cobro parcial por lineas",
                         "Selecciona lineas y cantidades"
                 );
-                if (amountCents <= 0) {
+                if (selection == null || selection.totalCents() <= 0) {
                     return;
                 }
-                paidAmountCents = amountCents;
-                paid = vm.payPartial(method, amountCents);
+                paidAmountCents = selection.totalCents();
+                paid = vm.payPartial(method, paidAmountCents);
+                if (!paid) {
+                    vm.consumePaidLines(selection.paidLinesForTicketMutation());
+                }
+                printPaidTicketSafe(method, paidAmountCents, selection.printLines());
             } else if ("Parcial".equalsIgnoreCase(mode)) {
                 String defaultAmount = String.format(Locale.US, "%.2f", pending / 100.0);
                 TextInputDialog amountDialog = new TextInputDialog(defaultAmount);
@@ -382,7 +386,9 @@ public class OrderController implements LifecycleAware {
 
             if (paid) {
                 DesktopComandaAutoPrintService.markLocalPayment(vm.orderIdProperty().get());
-                printPaidTicketSafe(method, paidAmountCents);
+                if (!"Parcial (lineas)".equalsIgnoreCase(mode)) {
+                    printPaidTicketSafe(method, paidAmountCents);
+                }
                 stopHeartbeat();
                 Navigator.get().goHome();
             }
@@ -403,12 +409,12 @@ public class OrderController implements LifecycleAware {
                 return;
             }
 
-            int amountCents = promptPartialByLines(
+            PartialByLinesSelection selection = promptPartialByLines(
                     pending,
                     "Dividir cuenta",
                     "Selecciona lineas/cantidades para la parte separada"
             );
-            if (amountCents <= 0) {
+            if (selection == null || selection.totalCents() <= 0) {
                 return;
             }
 
@@ -417,10 +423,14 @@ public class OrderController implements LifecycleAware {
                 return;
             }
 
+            int amountCents = selection.totalCents();
             boolean paid = vm.payPartial(method, amountCents);
+            if (!paid) {
+                vm.consumePaidLines(selection.paidLinesForTicketMutation());
+            }
+            printPaidTicketSafe(method, amountCents, selection.printLines());
             if (paid) {
                 DesktopComandaAutoPrintService.markLocalPayment(vm.orderIdProperty().get());
-                printPaidTicketSafe(method, amountCents);
                 stopHeartbeat();
                 Navigator.get().goHome();
                 return;
@@ -887,10 +897,10 @@ public class OrderController implements LifecycleAware {
         methodDialog.setContentText("Metodo:");
         return methodDialog.showAndWait().map(PaymentChoice::apiCode).orElse(null);
     }
-    private int promptPartialByLines(int pendingCents, String title, String header) {
+    private PartialByLinesSelection promptPartialByLines(int pendingCents, String title, String header) {
         if (vm.lines().isEmpty()) {
             setFeedback("No hay lineas para cobro parcial.");
-            return 0;
+            return null;
         }
 
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -982,7 +992,7 @@ public class OrderController implements LifecycleAware {
 
         var result = dialog.showAndWait();
         if (result.isEmpty() || result.get() != applyButton) {
-            return 0;
+            return null;
         }
 
         int selectedCents = selections.stream().mapToInt(LineSelection::selectedCents).sum();
@@ -992,7 +1002,29 @@ public class OrderController implements LifecycleAware {
         if (selectedCents > pendingCents) {
             throw new IllegalArgumentException("Seleccion supera el pendiente (" + money(pendingCents) + ").");
         }
-        return selectedCents;
+        List<PartialPaidPrintLine> printLines = new java.util.ArrayList<>();
+        List<OrderViewModel.PartialPaidLine> paidLinesForMutation = new java.util.ArrayList<>();
+        for (LineSelection selection : selections) {
+            if (!selection.include().isSelected()) {
+                continue;
+            }
+            Integer selectedQty = selection.qty().getValue();
+            int qtyValue = selectedQty == null ? 0 : selectedQty;
+            if (qtyValue <= 0) {
+                continue;
+            }
+            printLines.add(new PartialPaidPrintLine(
+                    selection.line().getProductName(),
+                    selection.line().getNote(),
+                    qtyValue,
+                    selection.line().getUnitPriceCents()
+            ));
+            paidLinesForMutation.add(new OrderViewModel.PartialPaidLine(selection.line().getId(), qtyValue));
+        }
+        if (printLines.isEmpty()) {
+            throw new IllegalArgumentException("Selecciona al menos una linea.");
+        }
+        return new PartialByLinesSelection(selectedCents, printLines, paidLinesForMutation);
     }
 
     private static String money(int cents) {
@@ -1130,6 +1162,41 @@ public class OrderController implements LifecycleAware {
                 appendReceiptAmountLine(out, entry.getKey(), entry.getValue());
             }
         }
+        out.append(receiptSeparator()).append('\n');
+        out.append("Gracias por su visita.").append('\n');
+        return out.toString();
+    }
+
+    private String buildPaidTicketTextForPartialLines(String method, int paidAmountCents, List<PartialPaidPrintLine> paidLines) {
+        StringBuilder out = new StringBuilder();
+        appendBusinessHeader(out, "TICKET CLIENTE");
+        appendWrappedLine(out, tableLabelForTicket() + " Ticket " + vm.orderIdProperty().get());
+        appendWrappedLine(out, "Fecha " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        out.append(receiptSeparator()).append('\n');
+        appendReceiptItemsHeader(out);
+        out.append(receiptSeparator()).append('\n');
+
+        int totalLines = 0;
+        if (paidLines != null) {
+            for (PartialPaidPrintLine line : paidLines) {
+                if (line == null || line.qty() <= 0) {
+                    continue;
+                }
+                int lineTotal = line.qty() * line.unitPriceCents();
+                totalLines += lineTotal;
+                appendReceiptLineWithAmounts(out, line.qty(), line.productName(), line.unitPriceCents(), lineTotal);
+                if (line.note() != null && !line.note().isBlank()) {
+                    out.append("   - ").append(line.note()).append('\n');
+                }
+            }
+        }
+        int safeTotal = paidAmountCents > 0 ? paidAmountCents : totalLines;
+
+        out.append(receiptSeparator()).append('\n');
+        appendReceiptAmountLine(out, "TOTAL", safeTotal);
+        out.append("IVA INCLUIDO").append('\n');
+        appendReceiptAmountLine(out, "PAGADO", safeTotal);
+        appendReceiptAmountLine(out, normalizePaymentMethod(method), safeTotal);
         out.append(receiptSeparator()).append('\n');
         out.append("Gracias por su visita.").append('\n');
         return out.toString();
@@ -1364,6 +1431,15 @@ public class OrderController implements LifecycleAware {
         }
     }
 
+    private void printPaidTicketSafe(String method, int paidAmountCents, List<PartialPaidPrintLine> paidLines) {
+        try {
+            String target = printDocumentToGeneral(buildPaidTicketTextForPartialLines(method, paidAmountCents, paidLines));
+            setFeedback("Cobro registrado. Ticket enviado a " + target + ".");
+        } catch (Exception e) {
+            UiDialogs.warn("Ticket cliente", "Cobro registrado, pero no se pudo imprimir ticket:\n" + e.getMessage());
+        }
+    }
+
     private String printDocumentToGeneral(String text) {
         java.util.List<String> candidates = new java.util.ArrayList<>();
         addPrinters(candidates, PrinterSettingsStore.resolveSystemPrintersForDestination("GENERAL"));
@@ -1420,6 +1496,14 @@ public class OrderController implements LifecycleAware {
             return include.isSelected() ? qtyValue * line.getUnitPriceCents() : 0;
         }
     }
+
+    private record PartialByLinesSelection(
+            int totalCents,
+            List<PartialPaidPrintLine> printLines,
+            List<OrderViewModel.PartialPaidLine> paidLinesForTicketMutation
+    ) {}
+
+    private record PartialPaidPrintLine(String productName, String note, int qty, int unitPriceCents) {}
 
     private record PaidTicketSummary(int totalCents, int paidCents, Map<String, Integer> paymentBreakdown) {}
 

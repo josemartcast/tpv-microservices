@@ -345,6 +345,11 @@ class OrderViewModelSendQueueTest {
         }
 
         @Override
+        public Order consumeLineForPayment(long orderId, long lineId, int qty) {
+            return order;
+        }
+
+        @Override
         public void removeLine(long orderId, long lineId) {
         }
 

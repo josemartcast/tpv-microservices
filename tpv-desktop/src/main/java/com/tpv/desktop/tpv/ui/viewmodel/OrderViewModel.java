@@ -234,6 +234,31 @@ public class OrderViewModel {
         return false;
     }
 
+    public void consumePaidLines(List<PartialPaidLine> paidLines) {
+        if (paidLines == null || paidLines.isEmpty()) {
+            return;
+        }
+        Map<Long, Integer> qtyByLineId = new HashMap<>();
+        for (PartialPaidLine paidLine : paidLines) {
+            if (paidLine == null || paidLine.lineId() <= 0 || paidLine.qty() <= 0) {
+                continue;
+            }
+            qtyByLineId.merge(paidLine.lineId(), paidLine.qty(), Integer::sum);
+        }
+        if (qtyByLineId.isEmpty()) {
+            return;
+        }
+
+        for (OrderLine currentLine : new ArrayList<>(lines)) {
+            Integer paidQty = qtyByLineId.get(currentLine.getId());
+            if (paidQty == null || paidQty <= 0) {
+                continue;
+            }
+            orderService.consumeLineForPayment(orderId.get(), currentLine.getId(), paidQty);
+        }
+        refreshOrder();
+    }
+
     public void requestBill() {
         orderService.setBillRequested(orderId.get(), true);
         refreshOrder();
@@ -716,6 +741,7 @@ public class OrderViewModel {
         return value.trim();
     }
 
+    public record PartialPaidLine(long lineId, int qty) {}
     private record PrintBatch(String lastComandaText, Map<String, String> printJobsByDestination) {}
     private record PendingPrintLine(Destination destination, int qty, String productName, String note) {}
 }

@@ -249,6 +249,38 @@ public class TicketService {
     }
 
     @Transactional
+    public TicketResponse consumeLineForPayment(Long ticketId, Long lineId, int qty) {
+        Ticket t = getOpenTicket(ticketId);
+
+        TicketLine line = lineRepo.findByIdAndTicketId(lineId, ticketId)
+                .orElseThrow(() -> new NotFoundException("Line not found: " + lineId + " (ticket " + ticketId + ")"));
+
+        if (qty <= 0) {
+            throw new ConflictException("Qty must be > 0");
+        }
+        if (qty > line.getQty()) {
+            throw new ConflictException("Qty exceeds line qty");
+        }
+
+        int remainingQty = line.getQty() - qty;
+        if (remainingQty <= 0) {
+            lineRepo.delete(line);
+        } else {
+            line.changeQty(remainingQty);
+            if (line.isSent()) {
+                // Align sent snapshot with the remaining qty to avoid generating
+                // comanda adjustments for quantities already paid.
+                line.markSent();
+            }
+            lineRepo.save(line);
+        }
+
+        recalcTotal(ticketId);
+        List<TicketLine> lines = lineRepo.findAllByTicketIdOrderByIdAsc(ticketId);
+        return toResponse(t, lines);
+    }
+
+    @Transactional
     public TicketResponse updateLinePrice(Long ticketId, Long lineId, int priceCents) {
         Ticket t = getOpenTicket(ticketId);
 

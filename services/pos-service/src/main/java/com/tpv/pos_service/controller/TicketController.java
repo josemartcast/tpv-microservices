@@ -9,6 +9,7 @@ import com.tpv.pos_service.dto.AddTicketLineRequest;
 import com.tpv.pos_service.dto.AddComboTicketLineRequest;
 import com.tpv.pos_service.dto.ApplyDiscountRequest;
 import com.tpv.pos_service.dto.CreateTicketRequest;
+import com.tpv.pos_service.dto.ConsumeLineForPaymentRequest;
 import com.tpv.pos_service.dto.InvoiceResponse;
 import com.tpv.pos_service.dto.IssueInvoiceRequest;
 import com.tpv.pos_service.dto.MoveTableRequest;
@@ -142,6 +143,26 @@ public class TicketController {
             return response;
         } catch (RuntimeException e) {
             auditService.recordFailure("TICKET_UPDATE_LINE", "TICKET", id, actor, term, req, e);
+            throw e;
+        }
+    }
+
+    @PatchMapping("/{id}/lines/{lineId}/consume-payment")
+    public TicketResponse consumeLineForPayment(
+            @PathVariable Long id,
+            @PathVariable Long lineId,
+            @Valid @RequestBody ConsumeLineForPaymentRequest req,
+            Authentication auth,
+            @RequestHeader(value = "X-Terminal-Id", required = false) String terminalId
+    ) {
+        String actor = ActorResolver.usernameFrom(auth);
+        String term = ActorResolver.terminalFromHeader(terminalId);
+        try {
+            TicketResponse response = service.consumeLineForPayment(id, lineId, req.qty());
+            auditService.recordSuccess("TICKET_CONSUME_LINE_PAYMENT", "TICKET", id, actor, term, req, response);
+            return response;
+        } catch (RuntimeException e) {
+            auditService.recordFailure("TICKET_CONSUME_LINE_PAYMENT", "TICKET", id, actor, term, req, e);
             throw e;
         }
     }

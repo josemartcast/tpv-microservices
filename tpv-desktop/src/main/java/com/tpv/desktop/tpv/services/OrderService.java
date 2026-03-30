@@ -13,6 +13,7 @@ public interface OrderService {
     Order addCombinedProduct(long orderId, long baseProductId, long mixerProductId, int qty);
     Order updateLineQty(long orderId, long lineId, int qty);
     Order updateLinePrice(long orderId, long lineId, int priceCents);
+    Order consumeLineForPayment(long orderId, long lineId, int qty);
     void removeLine(long orderId, long lineId);
     void removeLastPendingLine(long orderId);
     void setLastLineNote(long orderId, String note);

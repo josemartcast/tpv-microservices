@@ -105,6 +105,16 @@ public class RealOrderService implements OrderService {
     }
 
     @Override
+    public Order consumeLineForPayment(long orderId, long lineId, int qty) {
+        int safeQty = qty <= 0 ? 1 : qty;
+        try {
+            return toDomain(TicketApi.consumeLineForPayment(orderId, lineId, safeQty));
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo consumir linea para pago: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public void removeLine(long orderId, long lineId) {
         try {
             TicketApi.deleteLine(orderId, lineId);
