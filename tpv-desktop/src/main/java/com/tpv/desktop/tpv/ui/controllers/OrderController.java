@@ -21,10 +21,12 @@ import com.tpv.desktop.tpv.ui.controllers.components.TicketLineCellController;
 import com.tpv.desktop.tpv.ui.controllers.components.TopBarController;
 import com.tpv.desktop.tpv.ui.viewmodel.OrderViewModel;
 import com.tpv.desktop.ui.components.NumericPadController;
+import javafx.application.Platform;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
@@ -33,6 +35,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -95,6 +98,11 @@ public class OrderController implements LifecycleAware {
     private ChangeListener<Number> peopleListener;
     private ChangeListener<String> elapsedListener;
     private ChangeListener<String> restaurantNameListener;
+    private ScrollBar ticketVerticalScrollBar;
+    private ChangeListener<Number> ticketScrollValueListener;
+    private EventHandler<ScrollEvent> ticketListScrollHandler;
+    private boolean autoScrollTicketToBottom = true;
+    private boolean forcingTicketAutoScroll;
     private boolean disposed;
 
     public void bind(long orderId, int tableId, String tableLabel) {
@@ -154,10 +162,30 @@ public class OrderController implements LifecycleAware {
             orderPadController.bindTargets(qtyField);
         }
 
-        linesListener = change -> updateActionState();
+        linesListener = change -> {
+            boolean hasAddedLines = false;
+            while (change.next()) {
+                if (change.wasAdded() && !change.getAddedSubList().isEmpty()) {
+                    hasAddedLines = true;
+                }
+            }
+            updateActionState();
+            if (hasAddedLines) {
+                // Al anadir nueva linea volvemos siempre al final del ticket.
+                autoScrollTicketToBottom = true;
+                maybeAutoScrollTicketList();
+            }
+        };
         vm.lines().addListener(linesListener);
         selectedLineListener = (obs, oldV, newV) -> updateActionState();
         ticketList.getSelectionModel().selectedItemProperty().addListener(selectedLineListener);
+        ticketListScrollHandler = event -> {
+            if (event.getDeltaY() > 0) {
+                autoScrollTicketToBottom = false;
+            }
+        };
+        ticketList.addEventFilter(ScrollEvent.SCROLL, ticketListScrollHandler);
+        Platform.runLater(this::bindTicketScrollBarIfNeeded);
         updateActionState();
     }
 
@@ -175,7 +203,54 @@ public class OrderController implements LifecycleAware {
         topBarController.setCenterTitle(AppContext.get().appState().restaurantNameProperty().get());
         restaurantNameListener = (obs, oldV, newV) -> topBarController.setCenterTitle(newV);
         AppContext.get().appState().restaurantNameProperty().addListener(restaurantNameListener);
+        maybeAutoScrollTicketList();
         updateActionState();
+    }
+
+    private void bindTicketScrollBarIfNeeded() {
+        if (ticketList == null || ticketVerticalScrollBar != null) {
+            return;
+        }
+        Node node = ticketList.lookup(".scroll-bar:vertical");
+        if (!(node instanceof ScrollBar scrollBar)) {
+            Platform.runLater(this::bindTicketScrollBarIfNeeded);
+            return;
+        }
+        ticketVerticalScrollBar = scrollBar;
+        ticketScrollValueListener = (obs, oldValue, newValue) -> {
+            if (forcingTicketAutoScroll) {
+                return;
+            }
+            double value = newValue == null ? 1.0 : newValue.doubleValue();
+            if (value >= 0.99) {
+                autoScrollTicketToBottom = true;
+            }
+        };
+        ticketVerticalScrollBar.valueProperty().addListener(ticketScrollValueListener);
+    }
+
+    private void maybeAutoScrollTicketList() {
+        if (ticketList == null || ticketList.getItems() == null || ticketList.getItems().isEmpty()) {
+            return;
+        }
+        if (!autoScrollTicketToBottom && !isTicketScrollNearBottom()) {
+            return;
+        }
+        autoScrollTicketToBottom = true;
+        forcingTicketAutoScroll = true;
+        Platform.runLater(() -> {
+            try {
+                if (ticketList.getItems() != null && !ticketList.getItems().isEmpty()) {
+                    ticketList.scrollTo(ticketList.getItems().size() - 1);
+                }
+            } finally {
+                forcingTicketAutoScroll = false;
+            }
+        });
+    }
+
+    private boolean isTicketScrollNearBottom() {
+        return ticketVerticalScrollBar == null || ticketVerticalScrollBar.getValue() >= 0.97;
     }
 
     private void loadProducts(Category category) {
@@ -718,6 +793,15 @@ public class OrderController implements LifecycleAware {
         if (selectedLineListener != null) {
             ticketList.getSelectionModel().selectedItemProperty().removeListener(selectedLineListener);
             selectedLineListener = null;
+        }
+        if (ticketListScrollHandler != null) {
+            ticketList.removeEventFilter(ScrollEvent.SCROLL, ticketListScrollHandler);
+            ticketListScrollHandler = null;
+        }
+        if (ticketVerticalScrollBar != null && ticketScrollValueListener != null) {
+            ticketVerticalScrollBar.valueProperty().removeListener(ticketScrollValueListener);
+            ticketScrollValueListener = null;
+            ticketVerticalScrollBar = null;
         }
         if (tableLabelListener != null) {
             vm.tableLabelProperty().removeListener(tableLabelListener);
