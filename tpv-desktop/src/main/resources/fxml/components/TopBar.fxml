@@ -10,7 +10,7 @@
 
   <HBox alignment="CENTER_LEFT" spacing="8">
     <Label fx:id="menuLabel" text="Menu" styleClass="topbar-icon" onMouseClicked="#onOpenMenu"/>
-    <Label fx:id="restaurantLabel" text="Restaurante" styleClass="topbar-link" onMouseClicked="#onGoHome"/>
+    <Label fx:id="restaurantLabel" text="Mapa de Mesas" styleClass="topbar-link" onMouseClicked="#onGoHome"/>
     <Label text="|" styleClass="topbar-sep"/>
     <Label fx:id="leftRestaurantLabel" text="Restaurante EL GUSTO" styleClass="topbar-link" onMouseClicked="#onGoHome"/>
   </HBox>

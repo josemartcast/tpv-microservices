@@ -64,10 +64,14 @@ public class TopBarController implements LifecycleAware {
         leftRestaurantLabel.textProperty().bind(vm.restaurantNameProperty());
         centerTitleLabel.textProperty().bind(vm.centerTitleProperty());
         usernameBinding = Bindings.createStringBinding(
-                () -> AppContext.get().appState().activeUserProperty().get().displayName()
-                        + " | " + AppContext.get().appState().terminalIdProperty().get(),
-                AppContext.get().appState().activeUserProperty(),
-                AppContext.get().appState().terminalIdProperty()
+                () -> {
+                    var activeUser = AppContext.get().appState().activeUserProperty().get();
+                    if (activeUser == null || activeUser.displayName() == null || activeUser.displayName().isBlank()) {
+                        return "Usuario";
+                    }
+                    return activeUser.displayName();
+                },
+                AppContext.get().appState().activeUserProperty()
         );
         usernameLabel.textProperty().bind(usernameBinding);
         backendBadge.textProperty().bind(Bindings.createStringBinding(
