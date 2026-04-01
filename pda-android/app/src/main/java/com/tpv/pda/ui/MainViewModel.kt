@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tpv.pda.data.ApiClientFactory
+import com.tpv.pda.data.NetworkMonitor
 import com.tpv.pda.data.SessionData
 import com.tpv.pda.data.SessionStore
 import com.tpv.pda.data.api.AddTicketLineRequest
@@ -25,6 +26,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -48,6 +50,8 @@ data class MainUiState(
     val username: String = "",
     val password: String = "",
     val terminalId: String = "PDA-1",
+    val networkAvailable: Boolean = true,
+    val serverReachable: Boolean = true,
     val token: String = "",
     val loggedIn: Boolean = false,
     val tables: List<SalonTableResponse> = emptyList(),
@@ -70,6 +74,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val sessionStore = SessionStore(app.applicationContext)
+    private val networkMonitor = NetworkMonitor(app.applicationContext)
     private val apiFactory = ApiClientFactory()
     private val productsCache = linkedMapOf<Long, List<ProductResponse>>()
     private var lockHeartbeatJob: Job? = null
@@ -79,6 +84,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
 
     init {
+        observeConnectivity()
         val session = sessionStore.load()
         _ui.update {
             it.copy(
@@ -95,7 +101,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun onBaseUrlChange(value: String) = _ui.update { it.copy(baseUrl = value) }
+    fun onBaseUrlChange(value: String) {
+        apiFactory.clearAllCaches()
+        _ui.update { it.copy(baseUrl = value) }
+    }
     fun onUsernameChange(value: String) = _ui.update { it.copy(username = value) }
     fun onPasswordChange(value: String) = _ui.update { it.copy(password = value) }
     fun onTerminalChange(value: String) = _ui.update { it.copy(terminalId = value) }
@@ -103,12 +112,55 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun onSalonFilterChange(value: String) = _ui.update { it.copy(salonFilter = value) }
     fun clearMessage() = _ui.update { it.copy(message = null, error = null) }
 
+    private fun observeConnectivity() {
+        viewModelScope.launch {
+            var previous = _ui.value.networkAvailable
+            networkMonitor.observeOnline().collectLatest { online ->
+                _ui.update { current ->
+                    current.copy(
+                        networkAvailable = online,
+                        serverReachable = if (online) current.serverReachable else false
+                    )
+                }
+                if (online && !previous && _ui.value.loggedIn) {
+                    _ui.update { it.copy(message = "Conexión recuperada. Sincronizando...") }
+                    refreshTablesSilent()
+                }
+                previous = online
+            }
+        }
+    }
+
+    private fun markRequestSuccess() {
+        _ui.update { current ->
+            if (current.serverReachable) current else current.copy(serverReachable = true)
+        }
+    }
+
+    private fun markRequestFailure(error: Exception) {
+        if (isConnectivityError(error)) {
+            _ui.update { it.copy(serverReachable = false) }
+        }
+    }
+
+    private fun isConnectivityError(error: Exception): Boolean {
+        return error is UnknownHostException ||
+            error is ConnectException ||
+            error is SocketTimeoutException ||
+            error is SSLException ||
+            error is IOException
+    }
+
     fun login() {
         val state = _ui.value
         val username = state.username.trim()
         val password = state.password
         val terminalId = state.terminalId.trim()
         val baseUrl = apiFactory.normalizeBaseUrl(state.baseUrl)
+        if (!state.networkAvailable) {
+            _ui.update { it.copy(error = "Sin conexión a Internet. Revisa la red del móvil.") }
+            return
+        }
 
         if (username.isBlank() || password.isBlank() || terminalId.isBlank() || baseUrl.isBlank()) {
             _ui.update { it.copy(error = "Completa servidor, usuario, contraseña y terminal.") }
@@ -121,6 +173,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val auth = apiFactory.authApi(baseUrl)
                 val response = auth.login(LoginRequest(username = username, password = password))
                 val token = response.accessToken
+                markRequestSuccess()
                 if (token.isBlank()) {
                     throw IllegalStateException("Inicio de sesión incompleto")
                 }
@@ -148,6 +201,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 refreshTables()
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo iniciar sesión", e)) }
             }
         }
@@ -167,6 +221,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             lockedTableNumber = null
             sessionStore.clearToken()
             productsCache.clear()
+            apiFactory.clearPosCache()
             _ui.update {
                 it.copy(
                     token = "",
@@ -201,6 +256,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     terminalId = state.terminalId
                 )
                 val tables = pos.listTables().sortedBy { it.tableNumber }
+                markRequestSuccess()
                 _ui.update {
                     it.copy(
                         loading = false,
@@ -210,6 +266,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudieron cargar las mesas", e)) }
             }
         }
@@ -264,6 +321,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 refreshOrderSummaries(ticket.id)
                 refreshTablesSilent()
             } catch (e: Exception) {
+                markRequestFailure(e)
                 if (locked) {
                     releaseLock(tableNumber, reportErrors = false)
                 }
@@ -292,6 +350,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         val response = posApi().sendComanda(ticketId, SendComandaRequest("ALL"))
                         exitMessage = "Comanda enviada (${response.sentCount} líneas)."
                     } catch (e: Exception) {
+                        markRequestFailure(e)
                         exitError = errorText("No se pudo enviar comanda al salir", e)
                     }
                 }
@@ -327,6 +386,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val products = loadProductsForCategory(categoryId, pos)
                 _ui.update { it.copy(loading = false, products = products) }
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudieron cargar productos", e)) }
             }
         }
@@ -341,6 +401,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val updated = posApi().addLine(ticketId, AddTicketLineRequest(productId = productId, qty = qty))
                 applyUpdatedTicket(updated, "Línea añadida")
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo añadir la línea", e)) }
             }
         }
@@ -362,6 +423,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
                 applyUpdatedTicket(updated, "Combinado anadido")
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo anadir combinado", e)) }
             }
         }
@@ -385,6 +447,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val updated = posApi().updateLineQty(ticketId, lineId, UpdateLineQtyRequest(qty))
                 applyUpdatedTicket(updated, "Cantidad actualizada")
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo actualizar la cantidad", e)) }
             }
         }
@@ -404,6 +467,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val updated = posApi().updateLinePrice(ticketId, lineId, UpdateLinePriceRequest(priceCents))
                 applyUpdatedTicket(updated, "Precio actualizado")
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo actualizar precio", e)) }
             }
         }
@@ -424,6 +488,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val updated = posApi().updateLineNote(ticketId, lineId, UpdateLineNoteRequest(if (normalized.isBlank()) null else normalized))
                 applyUpdatedTicket(updated, "Nota actualizada")
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo actualizar la nota", e)) }
             }
         }
@@ -439,6 +504,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val updated = posApi().deleteLine(ticketId, lineId)
                 applyUpdatedTicket(updated, "Linea eliminada")
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo eliminar la línea", e)) }
             }
         }
@@ -474,6 +540,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     "Comanda enviada ${response.destination}: ${response.sentCount} líneas"
                 )
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo enviar comanda", e)) }
             }
         }
@@ -487,6 +554,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val updated = posApi().setBillRequested(ticketId, SetBillRequestedRequest(requested = true))
                 applyUpdatedTicket(updated, "Precuenta solicitada. Se imprimirá en TPV.")
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo solicitar precuenta", e)) }
             }
         }
@@ -526,6 +594,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     applyUpdatedTicket(refreshed, paymentMessage)
                 }
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo registrar pago", e)) }
             }
         }
@@ -542,6 +611,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val moved = posApi().moveTable(ticketId, com.tpv.pda.data.api.MoveTableRequest(targetTableNumber))
                 val tables = posApi().listTables().sortedBy { it.tableNumber }
+                markRequestSuccess()
                 val targetTable = tables.firstOrNull { it.tableNumber == targetTableNumber }
                 _ui.update {
                     it.copy(
@@ -555,12 +625,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 refreshOrderSummaries(moved.id)
             } catch (e: Exception) {
+                markRequestFailure(e)
                 _ui.update { it.copy(loading = false, error = errorText("No se pudo mover mesa", e)) }
             }
         }
     }
 
     private fun applyUpdatedTicket(ticket: TicketResponse, message: String) {
+        markRequestSuccess()
         _ui.update { current ->
             current.copy(
                 loading = false,
@@ -639,6 +711,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         try {
             posApi().unlockTable(tableNumber, TableLockRequest(terminalId))
         } catch (e: Exception) {
+            markRequestFailure(e)
             if (reportErrors) {
                 _ui.update { it.copy(error = errorText("No se pudo liberar el bloqueo de la mesa $tableNumber", e)) }
             }
@@ -650,6 +723,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         try {
             posApi().cancelEmptyTicket(ticketId)
         } catch (e: Exception) {
+            markRequestFailure(e)
             if (e is HttpException && (e.code() == 404 || e.code() == 409)) {
                 return
             }
@@ -682,6 +756,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val tables = posApi().listTables().sortedBy { it.tableNumber }
+                markRequestSuccess()
                 _ui.update { it.copy(tables = tables) }
             } catch (_: Exception) {
             }
@@ -743,6 +818,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         lockHeartbeatJob?.cancel()
         lockHeartbeatJob = null
+        apiFactory.clearAllCaches()
         super.onCleared()
     }
 }

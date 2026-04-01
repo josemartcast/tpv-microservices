@@ -1,5 +1,6 @@
-package com.tpv.pda.ui
+﻿package com.tpv.pda.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,13 +12,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -210,6 +214,11 @@ private fun LoginScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = PdaPalette.mutedInk
                 )
+                Text(
+                    text = if (state.networkAvailable) "Red del dispositivo: ONLINE" else "Red del dispositivo: OFFLINE",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (state.networkAvailable) Color(0xFF1F7A3A) else PdaPalette.danger
+                )
 
                 OutlinedTextField(
                     value = state.baseUrl,
@@ -268,6 +277,13 @@ private fun TablesScreen(
     onSalonFilterChange: (String) -> Unit,
     onLogout: () -> Unit
 ) {
+    val config = LocalConfiguration.current
+    val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val screenPadding = if (isLandscape) 8.dp else 16.dp
+    val sectionSpacing = if (isLandscape) 6.dp else 10.dp
+    val headerPadding = if (isLandscape) 8.dp else 12.dp
+    val actionButtonMinHeight = if (isLandscape) 38.dp else 44.dp
+    val filterButtonMinHeight = if (isLandscape) 36.dp else 42.dp
     val salonOptions = remember(state.tables) {
         listOf("ALL") + state.tables
             .mapNotNull { it.salonName?.trim()?.takeIf(String::isNotBlank) }
@@ -279,21 +295,24 @@ private fun TablesScreen(
         else state.tables.filter { (it.salonName ?: "").equals(state.salonFilter, ignoreCase = true) }
     }
 
-    Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = modifier.padding(screenPadding), verticalArrangement = Arrangement.spacedBy(sectionSpacing)) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = panelCardColors(),
             border = BorderStroke(1.dp, PdaPalette.panelBorder)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(headerPadding),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                     Text(
                         "Mapa de Mesas",
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        style = if (isLandscape)
+                            MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                        else
+                            MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                         color = PdaPalette.ink
                     )
                     Text(
@@ -301,21 +320,35 @@ private fun TablesScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = PdaPalette.mutedInk
                     )
+                    Text(
+                        text = buildString {
+                            append(if (state.networkAvailable) "RED ONLINE" else "RED OFFLINE")
+                            append(" · ")
+                            append(if (state.serverReachable) "SERVIDOR OK" else "SERVIDOR NO DISPONIBLE")
+                        },
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (state.networkAvailable && state.serverReachable) Color(0xFF1F7A3A) else PdaPalette.warning
+                    )
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
                     Button(
                         onClick = onRefresh,
                         enabled = !state.loading,
                         colors = darkButtonColors(),
-                        modifier = Modifier.heightIn(min = 44.dp)
-                    ) { Text("Refrescar") }
+                        modifier = Modifier.widthIn(min = 112.dp).heightIn(min = actionButtonMinHeight)
+                    ) {
+                        Text("Refrescar", maxLines = 1, softWrap = false)
+                    }
                     Button(
                         onClick = onLogout,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = PdaPalette.danger,
                             contentColor = Color.White
                         ),
-                        modifier = Modifier.heightIn(min = 44.dp)
+                        modifier = Modifier.widthIn(min = 112.dp).heightIn(min = actionButtonMinHeight)
                     ) { Text("Salir") }
                 }
             }
@@ -339,13 +372,15 @@ private fun TablesScreen(
                     ),
                     border = BorderStroke(1.dp, if (active) PdaPalette.primaryDark else PdaPalette.panelBorder),
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.heightIn(min = 42.dp)
+                    modifier = Modifier.heightIn(min = filterButtonMinHeight)
                 ) {
                     Text(if (option == "ALL") "Todos" else option)
                 }
             }
         }
-        HorizontalDivider(color = PdaPalette.panelBorder)
+        if (!isLandscape) {
+            HorizontalDivider(color = PdaPalette.panelBorder)
+        }
 
         if (state.loading) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
@@ -356,12 +391,15 @@ private fun TablesScreen(
         if (filteredTables.isEmpty() && !state.loading) {
             Text("Sin mesas para mostrar.")
         } else {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = if (isLandscape) GridCells.Adaptive(minSize = 240.dp) else GridCells.Fixed(1),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 8.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(items = filteredTables, key = { it.tableNumber }) { table ->
-                    TableCard(table = table, onOpen = { onOpenTable(table) })
+                    TableCard(table = table, compact = isLandscape, onOpen = { onOpenTable(table) })
                 }
             }
         }
@@ -369,7 +407,10 @@ private fun TablesScreen(
 }
 
 @Composable
-private fun TableCard(table: SalonTableResponse, onOpen: () -> Unit) {
+private fun TableCard(table: SalonTableResponse, compact: Boolean = false, onOpen: () -> Unit) {
+    val contentPadding = if (compact) 8.dp else 12.dp
+    val rowSpacing = if (compact) 2.dp else 4.dp
+    val fixedCompactHeight = 98.dp
     val cardBg = when (table.status?.uppercase()) {
         "FREE" -> PdaPalette.tableFree
         "PENDING_SEND" -> PdaPalette.tablePending
@@ -382,41 +423,64 @@ private fun TableCard(table: SalonTableResponse, onOpen: () -> Unit) {
         "PRECUENTA_PEDIDA" -> Color(0xFF2F8F80)
         else -> if (table.lockedTerminalId?.isNotBlank() == true) PdaPalette.danger else Color(0xFF8FA5D1)
     }
+    val cardModifier = if (compact) {
+        Modifier
+            .fillMaxWidth()
+            .height(fixedCompactHeight)
+            .clickable(onClick = onOpen)
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+    }
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
+        modifier = cardModifier,
         colors = CardDefaults.cardColors(containerColor = cardBg),
         border = BorderStroke(1.dp, borderColor)
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier = Modifier.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(rowSpacing)) {
             Text(
                 text = "Mesa ${table.tableNumber}${aliasSuffix(table.tableAlias)}",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = PdaPalette.ink
+                style = if (compact)
+                    MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                else
+                    MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = PdaPalette.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = "${table.salonName ?: "-"} | ${statusText(table.status)} | ${elapsed(table.elapsedMinutes)}",
                 style = MaterialTheme.typography.bodySmall,
-                color = PdaPalette.mutedInk
+                color = PdaPalette.mutedInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if ("PRECUENTA_PEDIDA".equals(table.status, ignoreCase = true)) {
                 Text(
                     text = prebillRequesterText(table),
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF1F6D62),
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Text(
                 text = "Total: ${eur(table.totalCents)}",
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = PdaPalette.ink
+                color = PdaPalette.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if (table.lockedTerminalId?.isNotBlank() == true) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Bloqueada por ${table.lockedTerminalId}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = PdaPalette.danger
+                    color = PdaPalette.danger,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -454,9 +518,41 @@ private fun OrderScreen(
     var showExitConfirmDialog by remember { mutableStateOf(false) }
     var pendingCopaProduct by remember { mutableStateOf<ProductResponse?>(null) }
     var pendingComboQty by remember { mutableStateOf(1) }
-    val topScroll = rememberScrollState()
+    val controlsScroll = rememberScrollState()
+    val ticketListState = rememberLazyListState()
     val config = LocalConfiguration.current
+    val isPortrait = config.orientation == Configuration.ORIENTATION_PORTRAIT
     val isCompactMobile = config.screenWidthDp < 600
+    val isCompactPortrait = isCompactMobile && isPortrait
+    val isShortHeight = config.screenHeightDp <= 560
+    val useWeightedSplit = isCompactPortrait || isShortHeight
+    val controlsWeight = if (isShortHeight) 0.30f else 0.38f
+    val productsWeight = 1f - controlsWeight
+    val controlsMaxHeight = when {
+        isCompactPortrait && config.screenHeightDp <= 700 -> 180.dp
+        isCompactPortrait && config.screenHeightDp <= 820 -> 210.dp
+        isCompactPortrait && config.screenHeightDp <= 950 -> 230.dp
+        isCompactPortrait -> 250.dp
+        isShortHeight -> 180.dp
+        config.screenHeightDp <= 700 -> 220.dp
+        config.screenHeightDp <= 820 -> 250.dp
+        config.screenHeightDp <= 950 -> 280.dp
+        else -> 340.dp
+    }
+    val ticketListMaxHeight = when {
+        isShortHeight -> 72.dp
+        isCompactPortrait -> 80.dp
+        isCompactMobile -> 92.dp
+        else -> 120.dp
+    }
+    val productsMinHeight = if (isCompactPortrait) 120.dp else 180.dp
+
+    LaunchedEffect(ticket?.id, ticket?.lines?.size, ticket?.totalCents) {
+        val lines = ticket?.lines ?: emptyList()
+        if (lines.isNotEmpty()) {
+            ticketListState.scrollToItem(lines.lastIndex)
+        }
+    }
 
     val requestBack: () -> Unit = {
         if (state.pendingSendLines > 0) {
@@ -472,240 +568,291 @@ private fun OrderScreen(
         modifier = modifier.padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 380.dp)
-                .verticalScroll(topScroll),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = requestBack,
-                    colors = darkButtonColors(),
-                    modifier = Modifier.heightIn(min = 42.dp)
-                ) { Text("Volver") }
-                Text(
-                    text = if (table == null) "Mesa" else "Mesa ${table.tableNumber}${aliasSuffix(table.tableAlias)}",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = PdaPalette.ink
-                )
-                Text(text = table?.salonName ?: "-", style = MaterialTheme.typography.bodySmall, color = PdaPalette.mutedInk)
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = panelCardColors(),
-                border = BorderStroke(1.dp, PdaPalette.panelBorder)
-            ) {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Ticket", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
-                    if (ticket == null || ticket.lines.isEmpty()) {
-                        Text("Sin líneas", color = PdaPalette.mutedInk)
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            items(ticket.lines, key = { it.id }) { line ->
-                                TicketLineRow(
-                                    line = line,
-                                    selected = line.id == state.selectedLineId,
-                                    onClick = { onSelectLine(line.id) }
-                                )
-                            }
-                        }
-                    }
-                    Text("Total: ${eur(ticket?.totalCents ?: 0)}", color = PdaPalette.ink, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = { showQtyDialog = true },
-                            enabled = selectedLine != null,
-                            colors = darkButtonColors(),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("Editar qty") }
-                        Button(
-                            onClick = { showPriceDialog = true },
-                            enabled = selectedLine != null,
-                            colors = darkButtonColors(),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("Editar precio") }
-                        Button(
-                            onClick = { showNoteDialog = true },
-                            enabled = selectedLine != null,
-                            colors = darkButtonColors(),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("Nota") }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = onDeleteLine,
-                            enabled = selectedLine != null,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PdaPalette.danger,
-                                contentColor = Color.White
-                            ),
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                        ) { Text("Borrar") }
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = panelCardColors(),
-                border = BorderStroke(1.dp, PdaPalette.panelBorder)
-            ) {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Cantidad", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
-                    OutlinedTextField(
-                        value = state.qtyInput,
-                        onValueChange = onQtyChange,
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("1", "2", "3", "5", "10").forEach { qty ->
-                            Button(
-                                onClick = { onQtyChange(qty) },
-                                colors = darkButtonColors(),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.heightIn(min = 40.dp)
-                            ) { Text(qty) }
-                        }
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = panelCardColors(),
-                border = BorderStroke(1.dp, PdaPalette.panelBorder)
-            ) {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Operaciones", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
-                    Text(
-                        "Pendiente enviar: ${state.pendingSendLines} líneas | Pendiente cobro: ${eur(state.pendingPaymentCents)}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = { onSendComanda("ALL") },
-                            enabled = state.pendingSendLines > 0 && !state.loading,
-                            colors = primaryButtonColors(),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("Enviar") }
-                        Button(
-                            onClick = { onSendComanda("BAR") },
-                            enabled = state.pendingSendLines > 0 && !state.loading,
-                            colors = darkButtonColors(),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("BAR") }
-                        Button(
-                            onClick = { onSendComanda("COCINA") },
-                            enabled = state.pendingSendLines > 0 && !state.loading,
-                            colors = darkButtonColors(),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("COCINA") }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = onRequestPrebill,
-                            enabled = ticket != null && !state.loading,
-                            colors = darkButtonColors(),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("Precuenta") }
-                        Button(
-                            onClick = { showPayDialog = true },
-                            enabled = state.pendingPaymentCents > 0 && !state.loading,
-                            colors = successButtonColors(),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("Cobrar") }
-                        Button(
-                            onClick = { showMoveDialog = true },
-                            enabled = !state.loading,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PdaPalette.warning,
-                                contentColor = Color.White
-                            ),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        ) { Text("Mover mesa") }
-                    }
-                }
-            }
-
-            if (state.categories.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    items(state.categories, key = { it.id }) { category ->
-                        val active = category.id == state.activeCategoryId
-                        Button(
-                            onClick = { onSelectCategory(category.id) },
-                            colors = if (active) primaryButtonColors() else ButtonDefaults.buttonColors(
-                                containerColor = PdaPalette.panel,
-                                contentColor = PdaPalette.ink
-                            ),
-                            border = BorderStroke(1.dp, if (active) PdaPalette.primaryDark else PdaPalette.panelBorder),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.heightIn(min = 40.dp)
-                        ) {
-                            Text(category.name)
-                        }
-                    }
-                }
-            }
-        }
-
         Card(
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             colors = panelCardColors(),
             border = BorderStroke(1.dp, PdaPalette.panelBorder)
         ) {
-            if (state.products.isEmpty()) {
-                Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.Center) {
-                    Text("No hay productos en la categoría.", color = PdaPalette.mutedInk)
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = if (isCompactMobile) GridCells.Fixed(2) else GridCells.Adaptive(150.dp),
-                    contentPadding = PaddingValues(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxSize()
+            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(state.products, key = { it.id }) { product ->
-                        ProductCard(
-                            product = product,
-                            onAdd = {
-                                if (pendingCopaProduct != null) {
-                                    if (isRefrescosProduct(product, state.categories, state.activeCategoryId)) {
-                                        onAddCombinedProduct(
-                                            pendingCopaProduct!!.id,
-                                            product.id,
-                                            pendingComboQty
-                                        )
-                                        pendingCopaProduct = null
-                                        pendingComboQty = 1
-                                    } else {
-                                        // keep selection mode active until a refresco is selected
-                                    }
-                                } else if (isCopasProduct(product, state.categories, state.activeCategoryId)) {
-                                    pendingCopaProduct = product
-                                } else {
-                                    onAddProduct(product.id)
-                                }
+                    Button(
+                        onClick = requestBack,
+                        colors = darkButtonColors(),
+                        modifier = Modifier.heightIn(min = 42.dp)
+                    ) { Text("Volver") }
+                    Text(
+                        text = if (table == null) "Mesa" else "Mesa ${table.tableNumber}${aliasSuffix(table.tableAlias)}",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = PdaPalette.ink
+                    )
+                    Text(text = table?.salonName ?: "-", style = MaterialTheme.typography.bodySmall, color = PdaPalette.mutedInk)
+                }
+
+                if (state.categories.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        items(state.categories, key = { it.id }) { category ->
+                            val active = category.id == state.activeCategoryId
+                            Button(
+                                onClick = { onSelectCategory(category.id) },
+                                colors = if (active) primaryButtonColors() else ButtonDefaults.buttonColors(
+                                    containerColor = PdaPalette.panel,
+                                    contentColor = PdaPalette.ink
+                                ),
+                                border = BorderStroke(1.dp, if (active) PdaPalette.primaryDark else PdaPalette.panelBorder),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.heightIn(min = 40.dp)
+                            ) {
+                                Text(category.name)
                             }
-                        )
+                        }
                     }
                 }
             }
         }
-    }
 
+        @Composable
+        fun ControlsPanel(panelModifier: Modifier) {
+            Column(
+                modifier = panelModifier.verticalScroll(controlsScroll),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = panelCardColors(),
+                    border = BorderStroke(1.dp, PdaPalette.panelBorder)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Ticket", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
+                        if (ticket == null || ticket.lines.isEmpty()) {
+                            Text("Sin líneas", color = PdaPalette.mutedInk)
+                        } else {
+                            LazyColumn(
+                                state = ticketListState,
+                                modifier = Modifier.fillMaxWidth().heightIn(max = ticketListMaxHeight),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(ticket.lines, key = { it.id }) { line ->
+                                    TicketLineRow(
+                                        line = line,
+                                        selected = line.id == state.selectedLineId,
+                                        onClick = { onSelectLine(line.id) }
+                                    )
+                                }
+                            }
+                        }
+                        Text("Total: ${eur(ticket?.totalCents ?: 0)}", color = PdaPalette.ink, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = { showQtyDialog = true },
+                                enabled = selectedLine != null,
+                                colors = darkButtonColors(),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("Editar qty") }
+                            Button(
+                                onClick = { showPriceDialog = true },
+                                enabled = selectedLine != null,
+                                colors = darkButtonColors(),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("Editar precio") }
+                            Button(
+                                onClick = { showNoteDialog = true },
+                                enabled = selectedLine != null,
+                                colors = darkButtonColors(),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("Nota") }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = onDeleteLine,
+                                enabled = selectedLine != null,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PdaPalette.danger,
+                                    contentColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            ) { Text("Borrar") }
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = panelCardColors(),
+                    border = BorderStroke(1.dp, PdaPalette.panelBorder)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Cantidad", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
+                        OutlinedTextField(
+                            value = state.qtyInput,
+                            onValueChange = onQtyChange,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("1", "2", "3", "5", "10").forEach { qty ->
+                                Button(
+                                    onClick = { onQtyChange(qty) },
+                                    colors = darkButtonColors(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.heightIn(min = 40.dp)
+                                ) { Text(qty) }
+                            }
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = panelCardColors(),
+                    border = BorderStroke(1.dp, PdaPalette.panelBorder)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Operaciones", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = PdaPalette.ink)
+                        Text(
+                            "Pendiente enviar: ${state.pendingSendLines} líneas | Pendiente cobro: ${eur(state.pendingPaymentCents)}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = { onSendComanda("ALL") },
+                                enabled = state.pendingSendLines > 0 && !state.loading,
+                                colors = primaryButtonColors(),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("Enviar") }
+                            Button(
+                                onClick = { onSendComanda("BAR") },
+                                enabled = state.pendingSendLines > 0 && !state.loading,
+                                colors = darkButtonColors(),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("BAR") }
+                            Button(
+                                onClick = { onSendComanda("COCINA") },
+                                enabled = state.pendingSendLines > 0 && !state.loading,
+                                colors = darkButtonColors(),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("COCINA") }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = onRequestPrebill,
+                                enabled = ticket != null && !state.loading,
+                                colors = darkButtonColors(),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("Precuenta") }
+                            Button(
+                                onClick = { showPayDialog = true },
+                                enabled = state.pendingPaymentCents > 0 && !state.loading,
+                                colors = successButtonColors(),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("Cobrar") }
+                            Button(
+                                onClick = { showMoveDialog = true },
+                                enabled = !state.loading,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PdaPalette.warning,
+                                    contentColor = Color.White
+                                ),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            ) { Text("Mover mesa") }
+                        }
+                    }
+                }
+            }
+        }
+
+        @Composable
+        fun ProductsPanel(panelModifier: Modifier) {
+            Card(
+                modifier = panelModifier,
+                colors = panelCardColors(),
+                border = BorderStroke(1.dp, PdaPalette.panelBorder)
+            ) {
+                if (state.products.isEmpty()) {
+                    Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.Center) {
+                        Text("No hay productos en la categoría.", color = PdaPalette.mutedInk)
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = if (isCompactMobile) GridCells.Fixed(2) else GridCells.Adaptive(150.dp),
+                        contentPadding = PaddingValues(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(state.products, key = { it.id }) { product ->
+                            ProductCard(
+                                product = product,
+                                onAdd = {
+                                    if (pendingCopaProduct != null) {
+                                        if (isRefrescosProduct(product, state.categories, state.activeCategoryId)) {
+                                            onAddCombinedProduct(
+                                                pendingCopaProduct!!.id,
+                                                product.id,
+                                                pendingComboQty
+                                            )
+                                            pendingCopaProduct = null
+                                            pendingComboQty = 1
+                                        }
+                                    } else if (isCopasProduct(product, state.categories, state.activeCategoryId)) {
+                                        pendingCopaProduct = product
+                                    } else {
+                                        onAddProduct(product.id)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!isPortrait) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = true),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                ControlsPanel(
+                    panelModifier = Modifier
+                        .fillMaxHeight()
+                        .weight(0.40f, fill = true)
+                )
+                ProductsPanel(
+                    panelModifier = Modifier
+                        .fillMaxHeight()
+                        .weight(0.60f, fill = true)
+                )
+            }
+        } else {
+            val controlsModifier = if (useWeightedSplit) {
+                Modifier
+                    .fillMaxWidth()
+                    .weight(controlsWeight, fill = true)
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = controlsMaxHeight)
+            }
+            ControlsPanel(panelModifier = controlsModifier)
+
+            val productsModifier = if (useWeightedSplit) {
+                Modifier
+                    .fillMaxWidth()
+                    .weight(productsWeight, fill = true)
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = productsMinHeight)
+                    .weight(1f)
+            }
+            ProductsPanel(panelModifier = productsModifier)
+        }
     pendingCopaProduct?.let { copaProduct ->
         AlertDialog(
             onDismissRequest = { pendingCopaProduct = null },
@@ -804,7 +951,7 @@ private fun OrderScreen(
         AlertDialog(
             onDismissRequest = { showExitConfirmDialog = false },
             title = { Text("Enviar comanda") },
-            text = { Text("Hay ${state.pendingSendLines} lineas pendientes. Quieres enviarlas antes de salir de la mesa?") },
+            text = { Text("Hay ${state.pendingSendLines} líneas pendientes. ¿Quieres enviarlas antes de salir de la mesa?") },
             confirmButton = {
                 TextButton(onClick = {
                     showExitConfirmDialog = false
@@ -820,6 +967,9 @@ private fun OrderScreen(
         )
     }
 }
+
+}
+
 
 @Composable
 private fun ProductCard(product: ProductResponse, onAdd: () -> Unit) {
