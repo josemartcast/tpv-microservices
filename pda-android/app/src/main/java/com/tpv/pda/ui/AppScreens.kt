@@ -865,7 +865,6 @@ private fun OrderScreen(
                     findCategoryByName(state.categories, "REFRESCOS")?.let { refrescos ->
                         onSelectCategory(refrescos.id)
                     }
-                    pendingCopaProduct = null
                 }) { Text("Si, combinar") }
             },
             dismissButton = {
