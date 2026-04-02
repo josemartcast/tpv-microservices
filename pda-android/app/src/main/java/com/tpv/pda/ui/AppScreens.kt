@@ -517,6 +517,7 @@ private fun OrderScreen(
     var showMoveDialog by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
     var pendingCopaProduct by remember { mutableStateOf<ProductResponse?>(null) }
+    var showCopaCombineDialog by remember { mutableStateOf(false) }
     var pendingComboQty by remember { mutableStateOf(1) }
     val controlsScroll = rememberScrollState()
     val ticketListState = rememberLazyListState()
@@ -800,6 +801,7 @@ private fun OrderScreen(
                                         }
                                     } else if (isCopasProduct(product, state.categories, state.activeCategoryId)) {
                                         pendingCopaProduct = product
+                                        showCopaCombineDialog = true
                                     } else {
                                         onAddProduct(product.id)
                                     }
@@ -853,15 +855,21 @@ private fun OrderScreen(
             }
             ProductsPanel(panelModifier = productsModifier)
         }
-    pendingCopaProduct?.let { copaProduct ->
+    if (showCopaCombineDialog && pendingCopaProduct != null) {
+        val copaProduct = pendingCopaProduct!!
         AlertDialog(
-            onDismissRequest = { pendingCopaProduct = null },
+            onDismissRequest = {
+                showCopaCombineDialog = false
+                pendingCopaProduct = null
+                pendingComboQty = 1
+            },
             title = { Text("Combinar copa") },
             text = { Text("Quieres combinar esta copa con un refresco?") },
             confirmButton = {
                 TextButton(onClick = {
                     pendingComboQty = state.qtyInput.toIntOrNull()?.coerceAtLeast(1) ?: 1
                     onQtyChange("1")
+                    showCopaCombineDialog = false
                     findCategoryByName(state.categories, "REFRESCOS")?.let { refrescos ->
                         onSelectCategory(refrescos.id)
                     }
@@ -869,6 +877,7 @@ private fun OrderScreen(
             },
             dismissButton = {
                 TextButton(onClick = {
+                    showCopaCombineDialog = false
                     onAddProduct(copaProduct.id)
                     pendingCopaProduct = null
                     pendingComboQty = 1
