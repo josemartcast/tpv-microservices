@@ -64,7 +64,7 @@ public class ComandaService {
     }
 
     private SendComandaResponse doSend(Long ticketId, String destination) {
-        Ticket t = ticketRepo.findById(ticketId)
+        Ticket t = ticketRepo.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
         if (t.getStatus() != TicketStatus.OPEN) {
             throw new ConflictException("Ticket is not OPEN: " + ticketId);

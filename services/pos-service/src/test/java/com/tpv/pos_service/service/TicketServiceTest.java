@@ -65,6 +65,7 @@ class TicketServiceTest {
         Ticket ticket = new Ticket(cashSession);
         ReflectionTestUtils.setField(ticket, "id", 1L);
 
+        when(ticketRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(ticket));
         when(ticketRepo.findById(1L)).thenReturn(Optional.of(ticket));
         when(lineRepo.sumGrossByTicketId(1L)).thenReturn(1_000);
         when(lineRepo.sumNetByTicketId(1L)).thenReturn(800);
@@ -205,6 +206,7 @@ class TicketServiceTest {
         Product mixer = new Product("COCA COLA", 290, refrescos, 2100);
         ReflectionTestUtils.setField(mixer, "id", 22L);
 
+        when(ticketRepo.findByIdForUpdate(200L)).thenReturn(Optional.of(ticket));
         when(ticketRepo.findById(200L)).thenReturn(Optional.of(ticket));
         when(productRepo.findById(21L)).thenReturn(Optional.of(base));
         when(productRepo.findById(22L)).thenReturn(Optional.of(mixer));

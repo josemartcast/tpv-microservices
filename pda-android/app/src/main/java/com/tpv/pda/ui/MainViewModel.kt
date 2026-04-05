@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.ConnectException
@@ -77,6 +79,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val networkMonitor = NetworkMonitor(app.applicationContext)
     private val apiFactory = ApiClientFactory()
     private val productsCache = linkedMapOf<Long, List<ProductResponse>>()
+    private val orderActionMutex = Mutex()
     private var lockHeartbeatJob: Job? = null
     private var lockedTableNumber: Int? = null
 
@@ -138,8 +141,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun markRequestFailure(error: Exception) {
+        if (isUnauthorized(error)) {
+            forceLogoutOnUnauthorized()
+            return
+        }
         if (isConnectivityError(error)) {
             _ui.update { it.copy(serverReachable = false) }
+        }
+    }
+
+    private fun isUnauthorized(error: Exception): Boolean {
+        return error is HttpException && error.code() == 401
+    }
+
+    private fun forceLogoutOnUnauthorized() {
+        if (_ui.value.token.isBlank() && !_ui.value.loggedIn) {
+            return
+        }
+        lockHeartbeatJob?.cancel()
+        lockHeartbeatJob = null
+        lockedTableNumber = null
+        sessionStore.clearToken()
+        productsCache.clear()
+        apiFactory.clearPosCache()
+        _ui.update {
+            it.copy(
+                loading = false,
+                token = "",
+                loggedIn = false,
+                tables = emptyList(),
+                currentTable = null,
+                currentTicket = null,
+                categories = emptyList(),
+                products = emptyList(),
+                activeCategoryId = null,
+                selectedLineId = null,
+                pendingSendLines = 0,
+                pendingPaymentCents = 0,
+                password = "",
+                screen = ScreenMode.LOGIN,
+                message = null,
+                error = "Sesión caducada. Inicia sesión de nuevo."
+            )
         }
     }
 
@@ -396,39 +439,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val ticketId = _ui.value.currentTicket?.id ?: return
         val qty = _ui.value.qtyInput.toIntOrNull()?.coerceAtLeast(1) ?: 1
         viewModelScope.launch {
-            _ui.update { it.copy(loading = true, error = null) }
-            try {
-                val updated = posApi().addLine(ticketId, AddTicketLineRequest(productId = productId, qty = qty))
-                applyUpdatedTicket(updated, "Línea añadida")
-            } catch (e: Exception) {
-                markRequestFailure(e)
-                _ui.update { it.copy(loading = false, error = errorText("No se pudo añadir la línea", e)) }
+            orderActionMutex.withLock {
+                _ui.update { it.copy(loading = true, error = null) }
+                try {
+                    val updated = posApi().addLine(ticketId, AddTicketLineRequest(productId = productId, qty = qty))
+                    applyUpdatedTicket(updated, "Línea añadida")
+                } catch (e: Exception) {
+                    markRequestFailure(e)
+                    _ui.update { it.copy(loading = false, error = errorText("No se pudo añadir la línea", e)) }
+                }
             }
         }
     }
-
     fun addCombinedProduct(baseProductId: Long, mixerProductId: Long, qty: Int) {
         val ticketId = _ui.value.currentTicket?.id ?: return
         val safeQty = qty.coerceAtLeast(1)
         viewModelScope.launch {
-            _ui.update { it.copy(loading = true, error = null) }
-            try {
-                val updated = posApi().addComboLine(
-                    ticketId,
-                    AddComboTicketLineRequest(
-                        baseProductId = baseProductId,
-                        mixerProductId = mixerProductId,
-                        qty = safeQty
+            orderActionMutex.withLock {
+                _ui.update { it.copy(loading = true, error = null) }
+                try {
+                    val updated = posApi().addComboLine(
+                        ticketId,
+                        AddComboTicketLineRequest(
+                            baseProductId = baseProductId,
+                            mixerProductId = mixerProductId,
+                            qty = safeQty
+                        )
                     )
-                )
-                applyUpdatedTicket(updated, "Combinado anadido")
-            } catch (e: Exception) {
-                markRequestFailure(e)
-                _ui.update { it.copy(loading = false, error = errorText("No se pudo anadir combinado", e)) }
+                    applyUpdatedTicket(updated, "Combinado añadido")
+                } catch (e: Exception) {
+                    markRequestFailure(e)
+                    _ui.update { it.copy(loading = false, error = errorText("No se pudo añadir combinado", e)) }
+                }
             }
         }
     }
-
     fun selectLine(lineId: Long?) {
         _ui.update { it.copy(selectedLineId = lineId) }
     }
@@ -513,39 +558,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun sendComanda(destination: String) {
         val ticketId = _ui.value.currentTicket?.id ?: return
         viewModelScope.launch {
-            _ui.update { it.copy(loading = true, error = null) }
-            try {
-                val pos = posApi()
-                val beforeLines = _ui.value.currentTicket?.lines
-                    ?.map { "${it.id}:${it.productName}:${it.qty}:${it.sent}" }
-                    .orEmpty()
-                val previewBefore = runCatching { pos.sendPreview(ticketId) }.getOrNull()
-                val previewLines = previewBefore?.pendingLines
-                    ?.map { "${it.id}:${it.productName}:${it.qty}:${it.destination}" }
-                    .orEmpty()
-                Log.i(
-                    TAG,
-                    "SEND_START ticketId=$ticketId destination=$destination beforeLines=$beforeLines pendingPreview=$previewLines"
-                )
+            orderActionMutex.withLock {
+                _ui.update { it.copy(loading = true, error = null) }
+                try {
+                    val pos = posApi()
+                    val beforeLines = _ui.value.currentTicket?.lines
+                        ?.map { "${it.id}:${it.productName}:${it.qty}:${it.sent}" }
+                        .orEmpty()
+                    val previewBefore = runCatching { pos.sendPreview(ticketId) }.getOrNull()
+                    val previewLines = previewBefore?.pendingLines
+                        ?.map { "${it.id}:${it.productName}:${it.qty}:${it.destination}" }
+                        .orEmpty()
+                    Log.i(
+                        TAG,
+                        "SEND_START ticketId=$ticketId destination=$destination beforeLines=$beforeLines pendingPreview=$previewLines"
+                    )
 
-                val response = pos.sendComanda(ticketId, com.tpv.pda.data.api.SendComandaRequest(destination))
-                val refreshed = pos.getTicket(ticketId)
-                val afterLines = refreshed.lines.map { "${it.id}:${it.productName}:${it.qty}:${it.sent}" }
-                Log.i(
-                    TAG,
-                    "SEND_DONE ticketId=$ticketId destination=${response.destination} sentCount=${response.sentCount} sentIds=${response.sentLineIds} afterLines=$afterLines"
-                )
-                applyUpdatedTicket(
-                    refreshed,
-                    "Comanda enviada ${response.destination}: ${response.sentCount} líneas"
-                )
-            } catch (e: Exception) {
-                markRequestFailure(e)
-                _ui.update { it.copy(loading = false, error = errorText("No se pudo enviar comanda", e)) }
+                    val response = pos.sendComanda(ticketId, com.tpv.pda.data.api.SendComandaRequest(destination))
+                    val refreshed = pos.getTicket(ticketId)
+                    val afterLines = refreshed.lines.map { "${it.id}:${it.productName}:${it.qty}:${it.sent}" }
+                    Log.i(
+                        TAG,
+                        "SEND_DONE ticketId=$ticketId destination=${response.destination} sentCount=${response.sentCount} sentIds=${response.sentLineIds} afterLines=$afterLines"
+                    )
+                    applyUpdatedTicket(
+                        refreshed,
+                        "Comanda enviada ${response.destination}: ${response.sentCount} líneas"
+                    )
+                } catch (e: Exception) {
+                    markRequestFailure(e)
+                    _ui.update { it.copy(loading = false, error = errorText("No se pudo enviar comanda", e)) }
+                }
             }
         }
     }
-
     fun requestPrebill() {
         val ticketId = _ui.value.currentTicket?.id ?: return
         viewModelScope.launch {

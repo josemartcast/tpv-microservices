@@ -184,8 +184,8 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                     if (LOG.isLoggable(Level.INFO)) {
                         LOG.log(
                                 Level.INFO,
-                                "AUTOPRINT_PREVIEW_CAPTURED ticketId={0} pendingCount={1} lineIds={2}",
-                                new Object[]{ticketId, pending.size(), pending.stream().map(TicketLineResponse::id).toList()}
+                                "AUTOPRINT_PREVIEW_CAPTURED ticketId={0} pendingCount={1} lines={2}",
+                                new Object[]{ticketId, pending.size(), summarizeLines(pending)}
                         );
                     }
                 }
@@ -219,11 +219,11 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(
                     Level.INFO,
-                    "AUTOPRINT_SNAPSHOT_PRINT ticketId={0} lines={1} lineIds={2}",
+                    "AUTOPRINT_SNAPSHOT_PRINT ticketId={0} lines={1} detail={2}",
                     new Object[]{
                             ticketId,
                             snapshot.lines().size(),
-                            snapshot.lines().stream().map(TicketLineResponse::id).toList()
+                            summarizeLines(snapshot.lines())
                     }
             );
         }
@@ -412,6 +412,8 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 }
             }
             int before = merged.size();
+            int replaced = 0;
+            int added = 0;
 
             Instant capturedAt = snapshot.capturedAt() == null ? Instant.EPOCH : snapshot.capturedAt();
             Instant floor = capturedAt.minusSeconds(1);
@@ -422,10 +424,19 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 if (!line.updatedAt().isAfter(floor)) {
                     continue;
                 }
-                merged.putIfAbsent(line.id(), line);
+                TicketLineResponse existing = merged.get(line.id());
+                if (existing == null) {
+                    merged.put(line.id(), line);
+                    added++;
+                    continue;
+                }
+                if (shouldReplacePreviewLine(existing, line)) {
+                    merged.put(line.id(), line);
+                    replaced++;
+                }
             }
 
-            if (merged.size() == before) {
+            if (merged.size() == before && replaced == 0) {
                 return snapshot;
             }
 
@@ -433,8 +444,8 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             if (LOG.isLoggable(Level.INFO)) {
                 LOG.log(
                         Level.INFO,
-                        "AUTOPRINT_SNAPSHOT_ENRICHED ticketId={0} before={1} after={2} capturedAt={3} lineIds={4}",
-                        new Object[]{ticketId, before, enriched.size(), capturedAt, enriched.stream().map(TicketLineResponse::id).toList()}
+                        "AUTOPRINT_SNAPSHOT_ENRICHED ticketId={0} before={1} after={2} added={3} replaced={4} capturedAt={5} detail={6}",
+                        new Object[]{ticketId, before, enriched.size(), added, replaced, capturedAt, summarizeLines(enriched)}
                 );
             }
             return new TicketPendingSnapshot(ticketId, enriched, capturedAt);
@@ -514,6 +525,42 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         }
         String name = line.productName().trim().toUpperCase(Locale.ROOT);
         return name.startsWith("[ELIM]") || name.startsWith("ELIM ");
+    }
+
+    private static boolean shouldReplacePreviewLine(TicketLineResponse preview, TicketLineResponse current) {
+        if (preview == null || current == null) {
+            return false;
+        }
+        Instant previewUpdated = preview.updatedAt() == null ? Instant.EPOCH : preview.updatedAt();
+        Instant currentUpdated = current.updatedAt() == null ? Instant.EPOCH : current.updatedAt();
+        if (currentUpdated.isAfter(previewUpdated)) {
+            return true;
+        }
+        if (preview.qty() != current.qty()) {
+            return true;
+        }
+        if (preview.unitPriceCents() != current.unitPriceCents()) {
+            return true;
+        }
+        if (!safe(preview.productName()).equals(safe(current.productName()))) {
+            return true;
+        }
+        if (!safe(preview.note()).equals(safe(current.note()))) {
+            return true;
+        }
+        return !safe(preview.destination()).equals(safe(current.destination()));
+    }
+
+    private static String summarizeLines(List<TicketLineResponse> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return "-";
+        }
+        return lines.stream()
+                .map(line -> line == null
+                        ? "null"
+                        : line.id() + ":" + line.qty() + ":" + safe(line.productName()))
+                .toList()
+                .toString();
     }
 
     private String buildComandaPayload(long ticketId, TableCtx table, DestinationKey destination, List<TicketLineResponse> lines) {

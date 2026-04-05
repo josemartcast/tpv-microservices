@@ -20,8 +20,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
@@ -49,7 +49,7 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
     }
 
     private static ScheduledExecutorService createWorker() {
-        return Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
                 Thread t = new Thread(r, "tpv-print-queue");
@@ -57,6 +57,8 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
                 return t;
             }
         });
+        executor.setRemoveOnCancelPolicy(true);
+        return executor;
     }
 
     @Override
@@ -157,6 +159,19 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
         LeakDiagnostics.schedulerStopped("LocalPrintQueueService.worker");
     }
 
+    public DiagnosticSnapshot diagnosticSnapshot() {
+        int queueSize = -1;
+        if (worker instanceof ScheduledThreadPoolExecutor scheduled) {
+            queueSize = scheduled.getQueue().size();
+        }
+        return new DiagnosticSnapshot(
+                queueSize,
+                pendingJobs.get(),
+                errors.size(),
+                state.get()
+        );
+    }
+
     @FunctionalInterface
     interface PrintGateway {
         void print(String destination, String text) throws Exception;
@@ -168,4 +183,11 @@ public class LocalPrintQueueService implements PrintQueueService, AutoCloseable 
     }
 
     private record PrintJob(String destination, String text, int attempt) { }
+
+    public record DiagnosticSnapshot(
+            int workerQueueSize,
+            int pendingJobs,
+            int errorHistorySize,
+            PrintQueueState state
+    ) { }
 }

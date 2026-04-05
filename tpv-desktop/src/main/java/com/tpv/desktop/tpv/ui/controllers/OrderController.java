@@ -64,6 +64,7 @@ public class OrderController implements LifecycleAware {
     private static final int RECEIPT_DESC_COL_WIDTH = 21;
     private static final int RECEIPT_UNIT_COL_WIDTH = 7;
     private static final int RECEIPT_TOTAL_COL_WIDTH = 7;
+    private static final int MAX_SCROLLBAR_BIND_ATTEMPTS = 40;
 
     @FXML private TopBarController topBarController;
     @FXML private ListView<OrderLine> ticketList;
@@ -103,6 +104,7 @@ public class OrderController implements LifecycleAware {
     private EventHandler<ScrollEvent> ticketListScrollHandler;
     private boolean autoScrollTicketToBottom = true;
     private boolean forcingTicketAutoScroll;
+    private int ticketScrollBarBindAttempts;
     private boolean disposed;
 
     public void bind(long orderId, int tableId, String tableLabel) {
@@ -118,22 +120,40 @@ public class OrderController implements LifecycleAware {
     public void initialize() {
         LeakDiagnostics.controllerCreated("OrderController");
         ticketList.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(OrderLine item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setGraphic(null);
+            private Node cachedNode;
+            private TicketLineCellController cachedController;
+            private boolean loadFailed;
+
+            private void ensureViewLoaded() {
+                if (cachedController != null || loadFailed) {
                     return;
                 }
                 try {
                     FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/components/TicketLineCell.fxml"));
-                    Node node = loader.load();
-                    TicketLineCellController c = loader.getController();
-                    c.bind(item);
-                    setGraphic(node);
+                    cachedNode = loader.load();
+                    cachedController = loader.getController();
                 } catch (IOException e) {
-                    setText(item.getProductName());
+                    loadFailed = true;
                 }
+            }
+
+            @Override
+            protected void updateItem(OrderLine item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+                ensureViewLoaded();
+                if (cachedController != null && cachedNode != null) {
+                    cachedController.bind(item);
+                    setText(null);
+                    setGraphic(cachedNode);
+                    return;
+                }
+                setGraphic(null);
+                setText(item.getProductName());
             }
         });
 
@@ -174,6 +194,9 @@ public class OrderController implements LifecycleAware {
                 // Al anadir nueva linea volvemos siempre al final del ticket.
                 autoScrollTicketToBottom = true;
                 maybeAutoScrollTicketList();
+                if (ticketVerticalScrollBar == null) {
+                    scheduleBindTicketScrollBarAttempt();
+                }
             }
         };
         vm.lines().addListener(linesListener);
@@ -185,7 +208,8 @@ public class OrderController implements LifecycleAware {
             }
         };
         ticketList.addEventFilter(ScrollEvent.SCROLL, ticketListScrollHandler);
-        Platform.runLater(this::bindTicketScrollBarIfNeeded);
+        ticketScrollBarBindAttempts = 0;
+        scheduleBindTicketScrollBarAttempt();
         updateActionState();
     }
 
@@ -213,9 +237,10 @@ public class OrderController implements LifecycleAware {
         }
         Node node = ticketList.lookup(".scroll-bar:vertical");
         if (!(node instanceof ScrollBar scrollBar)) {
-            Platform.runLater(this::bindTicketScrollBarIfNeeded);
+            scheduleBindTicketScrollBarAttempt();
             return;
         }
+        ticketScrollBarBindAttempts = 0;
         ticketVerticalScrollBar = scrollBar;
         ticketScrollValueListener = (obs, oldValue, newValue) -> {
             if (forcingTicketAutoScroll) {
@@ -227,6 +252,17 @@ public class OrderController implements LifecycleAware {
             }
         };
         ticketVerticalScrollBar.valueProperty().addListener(ticketScrollValueListener);
+    }
+
+    private void scheduleBindTicketScrollBarAttempt() {
+        if (disposed || ticketVerticalScrollBar != null) {
+            return;
+        }
+        if (ticketScrollBarBindAttempts >= MAX_SCROLLBAR_BIND_ATTEMPTS) {
+            return;
+        }
+        ticketScrollBarBindAttempts++;
+        Platform.runLater(this::bindTicketScrollBarIfNeeded);
     }
 
     private void maybeAutoScrollTicketList() {

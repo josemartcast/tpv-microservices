@@ -44,14 +44,14 @@ class ProductServiceTest {
         ReflectionTestUtils.setField(inactive, "id", 9L);
         inactive.deactivate();
 
-        when(productRepo.findByNameIgnoreCase("Refresco")).thenReturn(Optional.of(inactive));
+        when(productRepo.findByNameIgnoreCase("REFRESCO")).thenReturn(Optional.of(inactive));
         when(categoryRepo.findByIdAndActiveTrue(5L)).thenReturn(Optional.of(category));
         when(productRepo.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ProductResponse out = service.create(new CreateProductRequest("Refresco", 300, 5L, 1000));
 
         assertEquals(9L, out.id());
-        assertEquals("Refresco", out.name());
+        assertEquals("REFRESCO", out.name());
         assertEquals(300, out.priceCents());
         assertEquals(5L, out.categoryId());
         assertTrue(out.active());
@@ -67,7 +67,7 @@ class ProductServiceTest {
         Product active = new Product("Refresco", 250, category, 1000);
         ReflectionTestUtils.setField(active, "id", 3L);
 
-        when(productRepo.findByNameIgnoreCase("Refresco")).thenReturn(Optional.of(active));
+        when(productRepo.findByNameIgnoreCase("REFRESCO")).thenReturn(Optional.of(active));
         when(categoryRepo.findByIdAndActiveTrue(5L)).thenReturn(Optional.of(category));
 
         assertThrows(

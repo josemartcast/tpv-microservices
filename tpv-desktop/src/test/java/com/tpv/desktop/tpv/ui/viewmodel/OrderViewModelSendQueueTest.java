@@ -55,9 +55,10 @@ class OrderViewModelSendQueueTest {
         assertEquals(Set.of(Destination.BAR, Destination.COCINA, Destination.POSTRES), orderService.lastSentDestinations);
         assertEquals(1, orderService.sendCalls);
         assertEquals(List.of("BAR", "COCINA"), queue.destinations());
-        assertTrue(queue.payloads().get(0).contains("BAR"));
-        assertTrue(queue.payloads().get(1).contains("COCINA"));
-        assertTrue(appState.lastComandaPrintTextProperty().get().contains("ULTIMA COMANDA ENVIADA"));
+        assertTrue(queue.payloads().get(0).contains("DESTINO BAR"));
+        assertTrue(queue.payloads().get(1).contains("DESTINO COCINA"));
+        assertTrue(appState.lastComandaPrintTextProperty().get().contains("DESTINO BAR"));
+        assertTrue(appState.lastComandaPrintTextProperty().get().contains("DESTINO COCINA"));
     }
 
     @Test
@@ -130,12 +131,12 @@ class OrderViewModelSendQueueTest {
         String bar = queue.payloads().get(0);
         String cocina = queue.payloads().get(1);
 
-        assertTrue(bar.contains("2x Cerveza"));
+        assertTrue(bar.matches("(?s).*2x\\s+Cerveza.*"));
         assertTrue(bar.contains("sin alcohol"));
         assertFalse(bar.contains("EUR"));
         assertFalse(bar.contains("Calamares"));
 
-        assertTrue(cocina.contains("1x Calamares"));
+        assertTrue(cocina.matches("(?s).*1x\\s+Calamares.*"));
         assertFalse(cocina.contains("EUR"));
         assertFalse(cocina.contains("Cerveza"));
     }

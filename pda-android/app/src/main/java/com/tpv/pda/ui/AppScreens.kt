@@ -720,12 +720,6 @@ private fun OrderScreen(
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                             Button(
-                                onClick = { onSendComanda("ALL") },
-                                enabled = state.pendingSendLines > 0 && !state.loading,
-                                colors = primaryButtonColors(),
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                            ) { Text("Enviar") }
-                            Button(
                                 onClick = { onSendComanda("BAR") },
                                 enabled = state.pendingSendLines > 0 && !state.loading,
                                 colors = darkButtonColors(),

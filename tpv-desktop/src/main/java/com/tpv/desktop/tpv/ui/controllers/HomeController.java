@@ -40,6 +40,8 @@ public class HomeController implements LifecycleAware {
     private Timeline refreshTimeline;
     private ChangeListener<String> restaurantNameListener;
     private ChangeListener<BackendStatus> backendStatusListener;
+    private String lastSalonsSignature = "";
+    private String lastTablesSignature = "";
     private boolean disposed;
 
     @FXML
@@ -129,8 +131,17 @@ public class HomeController implements LifecycleAware {
     private void refreshTables() {
         try {
             vm.refresh();
-            renderSalonTabs();
-            renderTables();
+            String salonsSignature = buildSalonsSignature();
+            if (!salonsSignature.equals(lastSalonsSignature)) {
+                renderSalonTabs();
+                lastSalonsSignature = salonsSignature;
+            }
+
+            String tablesSignature = buildTablesSignature();
+            if (!tablesSignature.equals(lastTablesSignature)) {
+                renderTables();
+                lastTablesSignature = tablesSignature;
+            }
             if (feedbackLabel.getText() != null && feedbackLabel.getText().startsWith("No se pudo")) {
                 feedbackLabel.setText("");
             }
@@ -155,6 +166,31 @@ public class HomeController implements LifecycleAware {
         } else {
             UiDialogs.info(title, message);
         }
+    }
+
+    private String buildSalonsSignature() {
+        StringBuilder out = new StringBuilder();
+        out.append(vm.selectedSalonProperty().get()).append('|');
+        for (String salon : vm.salons()) {
+            out.append(salon).append(';');
+        }
+        return out.toString();
+    }
+
+    private String buildTablesSignature() {
+        StringBuilder out = new StringBuilder();
+        for (TableCardViewModel table : vm.tables()) {
+            out.append(table.getTableId()).append('|')
+                    .append(table.getOrderId()).append('|')
+                    .append(table.statusProperty().get()).append('|')
+                    .append(table.statusTextProperty().get()).append('|')
+                    .append(table.totalTextProperty().get()).append('|')
+                    .append(table.elapsedTextProperty().get()).append('|')
+                    .append(table.lockTextProperty().get()).append('|')
+                    .append(table.pendingWarnProperty().get()).append('|')
+                    .append(table.billWarnProperty().get()).append('\n');
+        }
+        return out.toString();
     }
 
     private void renderSalonTabs() {
@@ -185,6 +221,8 @@ public class HomeController implements LifecycleAware {
             LeakDiagnostics.timerStopped("HomeController.refreshTimeline");
             refreshTimeline = null;
         }
+        lastSalonsSignature = "";
+        lastTablesSignature = "";
         if (restaurantNameListener != null) {
             AppContext.get().appState().restaurantNameProperty().removeListener(restaurantNameListener);
             restaurantNameListener = null;

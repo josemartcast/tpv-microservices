@@ -53,7 +53,8 @@
       allowDecimal: false,
       resolve: null
     },
-    pendingCombo: null
+    pendingCombo: null,
+    orderActionInFlight: false
   };
 
   const els = {
@@ -969,7 +970,12 @@
       toast("Sin lock valido. Reabre mesa para continuar.");
       return false;
     }
+    if (state.orderActionInFlight) {
+      toast("Espera un instante, procesando accion anterior");
+      return false;
+    }
     const qty = qtyFromInput();
+    state.orderActionInFlight = true;
     try {
       await ensureCurrentTicket();
       state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines", {
@@ -998,6 +1004,8 @@
       pushError(err);
       toast("No se pudo anadir producto: " + err.message);
       return false;
+    } finally {
+      state.orderActionInFlight = false;
     }
   }
 
@@ -1007,6 +1015,11 @@
       toast("Sin lock valido. Reabre mesa para continuar.");
       return false;
     }
+    if (state.orderActionInFlight) {
+      toast("Espera un instante, procesando accion anterior");
+      return false;
+    }
+    state.orderActionInFlight = true;
     try {
       await ensureCurrentTicket();
       state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines/combo", {
@@ -1026,6 +1039,8 @@
       pushError(err);
       toast("No se pudo anadir combinado: " + err.message);
       return false;
+    } finally {
+      state.orderActionInFlight = false;
     }
   }
 
@@ -1125,7 +1140,12 @@
       toast("Sin lock valido. Reabre mesa para enviar.");
       return;
     }
+    if (state.orderActionInFlight) {
+      toast("Espera un instante, procesando accion anterior");
+      return;
+    }
     const idempotencyKey = buildIdempotencyKey("pda-send");
+    state.orderActionInFlight = true;
     try {
       const sendRes = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/send", {
         method: "POST",
@@ -1151,6 +1171,8 @@
       }
       pushError(err);
       toast("Error enviando comanda: " + err.message);
+    } finally {
+      state.orderActionInFlight = false;
     }
   }
 

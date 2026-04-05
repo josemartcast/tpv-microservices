@@ -524,7 +524,7 @@ public class TicketService {
 
     // ================= helpers =================
     private Ticket getOpenTicket(Long id) {
-        Ticket t = ticketRepo.findById(id)
+        Ticket t = ticketRepo.findByIdForUpdate(id)
                 .orElseThrow(() -> new NotFoundException("Ticket not found: " + id));
 
         if (t.getStatus() != TicketStatus.OPEN) {

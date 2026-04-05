@@ -385,6 +385,7 @@ public class OrderViewModel {
             out.append("Sin lineas pendientes para enviar").append('\n');
             out.append(COMANDA_SEPARATOR).append('\n');
             appState.lastComandaPrintTextProperty().set(out.toString());
+            appState.lastComandaPrintJobsProperty().set(Map.of());
             return new PrintBatch(out.toString(), printJobsByDestination);
         }
 
@@ -411,6 +412,7 @@ public class OrderViewModel {
         }
 
         appState.lastComandaPrintTextProperty().set(out.toString());
+        appState.lastComandaPrintJobsProperty().set(new LinkedHashMap<>(printJobsByDestination));
         return new PrintBatch(out.toString(), printJobsByDestination);
     }
 

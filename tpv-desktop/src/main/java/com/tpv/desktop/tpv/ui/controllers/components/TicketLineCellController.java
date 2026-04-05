@@ -14,6 +14,7 @@ public class TicketLineCellController {
     @FXML private Label destinationLabel;
 
     public void bind(OrderLine line) {
+        root.getStyleClass().remove("ticket-line-sent");
         qtyLabel.setText(line.getQty() + "x");
         nameLabel.setText(line.getProductName());
         priceLabel.setText(String.format(java.util.Locale.US, "%.2f EUR", line.lineTotalCents() / 100.0));

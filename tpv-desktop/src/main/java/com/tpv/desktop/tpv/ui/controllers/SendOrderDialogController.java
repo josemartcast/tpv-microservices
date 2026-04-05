@@ -1,15 +1,17 @@
 package com.tpv.desktop.tpv.ui.controllers;
 
+import com.tpv.desktop.core.PrinterSettingsStore;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.tpv.domain.model.Destination;
-import com.tpv.desktop.tpv.ui.util.PrintUtil;
 import com.tpv.desktop.tpv.ui.viewmodel.OrderViewModel;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 
 public class SendOrderDialogController {
@@ -75,13 +77,46 @@ public class SendOrderDialogController {
     @FXML
     public void onReprintLast() {
         try {
+            Map<String, String> jobs = AppContext.get().appState().lastComandaPrintJobsProperty().get();
+            if (jobs != null && !jobs.isEmpty()) {
+                int queued = 0;
+                List<String> missingDestinationConfig = new ArrayList<>();
+                for (Map.Entry<String, String> entry : jobs.entrySet()) {
+                    String destination = entry.getKey();
+                    if (PrinterSettingsStore.resolveSystemPrintersForDestination(destination).isEmpty()) {
+                        missingDestinationConfig.add(destination);
+                        continue;
+                    }
+                    AppContext.get().printQueueService().enqueue(destination, entry.getValue());
+                    queued++;
+                }
+                if (queued <= 0) {
+                    viewModel.feedbackProperty().set("No hay impresora configurada para reenviar la comanda.");
+                    return;
+                }
+                if (missingDestinationConfig.isEmpty()) {
+                    viewModel.feedbackProperty().set("Reimpresion enviada a impresoras configuradas.");
+                } else {
+                    viewModel.feedbackProperty().set(
+                            "Reimpresion enviada. Sin impresora para: "
+                                    + String.join(", ", missingDestinationConfig)
+                                    + "."
+                    );
+                }
+                return;
+            }
+
             String text = AppContext.get().appState().lastComandaPrintTextProperty().get();
             if (text == null || text.isBlank()) {
                 viewModel.feedbackProperty().set("No hay comanda enviada para reimprimir.");
                 return;
             }
-            PrintUtil.printTextToPdf(text, barCount.getScene().getWindow());
-            viewModel.feedbackProperty().set("Reimpresion enviada a Print to PDF.");
+            if (PrinterSettingsStore.resolveSystemPrintersForDestination("ALL").isEmpty()) {
+                viewModel.feedbackProperty().set("No hay impresora configurada para reenviar la comanda.");
+                return;
+            }
+            AppContext.get().printQueueService().enqueue("ALL", text);
+            viewModel.feedbackProperty().set("Reimpresion enviada a impresoras configuradas.");
         } catch (Exception e) {
             viewModel.feedbackProperty().set("No se pudo reimprimir: " + e.getMessage());
         }

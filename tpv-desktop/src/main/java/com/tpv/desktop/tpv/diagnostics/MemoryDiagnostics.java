@@ -1,6 +1,7 @@
 package com.tpv.desktop.tpv.diagnostics;
 
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.tpv.services.local.LocalPrintQueueService;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
@@ -70,6 +71,18 @@ public final class MemoryDiagnostics implements AutoCloseable {
             int backendErrors = context.backendStatusService().errorHistory().size();
             int printErrors = context.printQueueService().errorHistory().size();
             String status = String.valueOf(context.backendStatusService().statusProperty().get());
+            String printQueueStats = "n/a";
+            if (context.printQueueService() instanceof LocalPrintQueueService localPrintQueueService) {
+                LocalPrintQueueService.DiagnosticSnapshot snapshot = localPrintQueueService.diagnosticSnapshot();
+                printQueueStats = String.format(
+                        Locale.US,
+                        "workerQ=%d,pending=%d,errors=%d,state=%s",
+                        snapshot.workerQueueSize(),
+                        snapshot.pendingJobs(),
+                        snapshot.errorHistorySize(),
+                        snapshot.state()
+                );
+            }
             var autoPrint = context.comandaAutoPrintService() == null
                     ? null
                     : context.comandaAutoPrintService().diagnosticSnapshot();
@@ -100,7 +113,7 @@ public final class MemoryDiagnostics implements AutoCloseable {
                     LeakDiagnostics.controllersAlive(),
                     LeakDiagnostics.controllersAliveByType(),
                     pendingPrintJobs,
-                    "n/a",
+                    printQueueStats,
                     status,
                     backendErrors,
                     printErrors,

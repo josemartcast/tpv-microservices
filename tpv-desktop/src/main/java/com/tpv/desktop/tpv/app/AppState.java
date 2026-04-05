@@ -9,6 +9,8 @@ import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
+import java.util.Map;
+
 public class AppState {
     private final StringProperty terminalId = new SimpleStringProperty("T-001");
     private final ObjectProperty<User> activeUser = new SimpleObjectProperty<>(new User(1, "Gasa Carmona", "GC"));
@@ -17,6 +19,7 @@ public class AppState {
     private final StringProperty runtimeMode = new SimpleStringProperty("FAKE");
     private final StringProperty activeCustomer = new SimpleStringProperty("Mostrador");
     private final StringProperty lastComandaPrintText = new SimpleStringProperty("");
+    private final ObjectProperty<Map<String, String>> lastComandaPrintJobs = new SimpleObjectProperty<>(Map.of());
     private final BooleanProperty printSeparateByDestination = new SimpleBooleanProperty(true);
     private final BooleanProperty touchMode = new SimpleBooleanProperty(false);
     private final BooleanProperty kioskMode = new SimpleBooleanProperty(false);
@@ -28,6 +31,7 @@ public class AppState {
     public StringProperty runtimeModeProperty() { return runtimeMode; }
     public StringProperty activeCustomerProperty() { return activeCustomer; }
     public StringProperty lastComandaPrintTextProperty() { return lastComandaPrintText; }
+    public ObjectProperty<Map<String, String>> lastComandaPrintJobsProperty() { return lastComandaPrintJobs; }
     public BooleanProperty printSeparateByDestinationProperty() { return printSeparateByDestination; }
     public BooleanProperty touchModeProperty() { return touchMode; }
     public BooleanProperty kioskModeProperty() { return kioskMode; }

@@ -97,7 +97,7 @@ class OrderViewModelLockFlowTest {
 
         assertTrue(paid);
         assertEquals(1, orders.addPaymentCalls.get());
-        assertEquals("Cobro registrado (CARD).", vm.feedbackProperty().get());
+        assertEquals("Cobro registrado (TARJETA).", vm.feedbackProperty().get());
     }
 
     @Test
