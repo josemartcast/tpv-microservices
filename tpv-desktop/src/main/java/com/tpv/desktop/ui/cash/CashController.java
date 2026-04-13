@@ -328,7 +328,8 @@ public class CashController {
 
       String successMsg = success.toString();
       errorLabel.setText(successMsg);
-      showInfoDialog("Cerrar caja", successMsg);
+      // Evitamos modal bloqueante tras imprimir en termica (POS-80):
+      // dejamos el resultado visible en pantalla sin requerir "Aceptar".
     } catch (ApiException e) {
       if (e.getStatus() == 409 && e.getMessage() != null && e.getMessage().contains("OPEN tickets")) {
         try {

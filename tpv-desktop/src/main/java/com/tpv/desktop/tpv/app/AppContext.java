@@ -127,7 +127,7 @@ public class AppContext {
     }
 
     private static String initials(String user) {
-        if (user == null || user.isBlank()) return "TPV";
+        if (user == null || user.isBlank()) return "BX";
         String u = user.trim().toUpperCase();
         return u.length() <= 2 ? u : u.substring(0, 2);
     }

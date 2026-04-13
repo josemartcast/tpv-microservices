@@ -52,7 +52,7 @@ public class LoginController {
 
     private static String initials(String user) {
         if (user == null || user.isBlank()) {
-            return "TPV";
+            return "BX";
         }
         String normalized = user.trim().toUpperCase();
         return normalized.length() <= 2 ? normalized : normalized.substring(0, 2);

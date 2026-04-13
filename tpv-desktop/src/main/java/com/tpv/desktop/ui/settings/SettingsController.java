@@ -452,21 +452,21 @@ public class SettingsController {
       Path repoRoot = resolveRepoRoot();
       Path script = repoRoot.resolve("scripts").resolve("db-backup.ps1");
       if (!Files.exists(script)) {
-        UiDialogs.error("Backup", "No se encontro script:\n" + script);
+        UiDialogs.error("Copias de seguridad", "No se encontro el script de copia:\n" + script);
         return;
       }
       Path backupRoot = repoRoot.resolve(".backups");
       Files.createDirectories(backupRoot);
-      statusLabel.setText("Creando backup...");
+      statusLabel.setText("Creando copia de seguridad...");
       String output = runPowerShellScript(repoRoot, script, List.of(
               "-OutputRoot", backupRoot.toString()
       ));
-      statusLabel.setText("Backup completado.");
-      UiDialogs.info("Backup", "Backup completado.\n\n" + trimForDialog(output));
+      statusLabel.setText("Copia de seguridad creada.");
+      UiDialogs.info("Copias de seguridad", "Copia creada correctamente.\n\n" + trimForDialog(output));
     } catch (Exception e) {
-      String msg = "No se pudo crear backup:\n" + e.getMessage();
+      String msg = "No se pudo crear la copia de seguridad:\n" + e.getMessage();
       statusLabel.setText(msg);
-      UiDialogs.error("Backup", msg);
+      UiDialogs.error("Copias de seguridad", msg);
     }
   }
 
@@ -476,14 +476,14 @@ public class SettingsController {
       Path repoRoot = resolveRepoRoot();
       Path script = repoRoot.resolve("scripts").resolve("db-restore.ps1");
       if (!Files.exists(script)) {
-        UiDialogs.error("Restore", "No se encontro script:\n" + script);
+        UiDialogs.error("Copias de seguridad", "No se encontro el script de recuperacion:\n" + script);
         return;
       }
       Path backupRoot = repoRoot.resolve(".backups");
       Files.createDirectories(backupRoot);
 
       DirectoryChooser chooser = new DirectoryChooser();
-      chooser.setTitle("Selecciona carpeta de backup");
+      chooser.setTitle("Selecciona carpeta de copia");
       chooser.setInitialDirectory(backupRoot.toFile());
       var selected = chooser.showDialog(statusLabel.getScene().getWindow());
       if (selected == null) {
@@ -491,36 +491,36 @@ public class SettingsController {
       }
       Path backupDir = selected.toPath();
       if (!Files.isDirectory(backupDir)) {
-        UiDialogs.warn("Restore", "Seleccion no valida.");
+        UiDialogs.warn("Copias de seguridad", "Seleccion no valida.");
         return;
       }
 
       boolean confirm = UiDialogs.confirm(
-              "Restaurar backup",
-              "Se restauraran las bases tpv_auth y tpv_pos desde:\n" + backupDir + "\n\nEsto sobrescribe datos actuales. Continuar?"
+              "Recuperar copia",
+              "Se recuperaran los datos desde:\n" + backupDir + "\n\nEsto sobrescribe datos actuales. Continuar?"
       );
       if (!confirm) {
         return;
       }
       boolean confirm2 = UiDialogs.confirm(
               "Confirmacion final",
-              "Ultima confirmacion: vas a sobrescribir la base de datos actual.\n\nQuieres continuar con la restauracion?"
+              "Ultima confirmacion: vas a sobrescribir los datos actuales.\n\nQuieres continuar con la recuperacion?"
       );
       if (!confirm2) {
         return;
       }
 
-      statusLabel.setText("Restaurando backup...");
+      statusLabel.setText("Recuperando copia de seguridad...");
       String output = runPowerShellScript(repoRoot, script, List.of(
               "-BackupDir", backupDir.toString(),
               "-AllowProductionRestore"
       ));
-      statusLabel.setText("Restore completado.");
-      UiDialogs.info("Restore", "Restore completado.\n\n" + trimForDialog(output));
+      statusLabel.setText("Copia recuperada.");
+      UiDialogs.info("Copias de seguridad", "Copia recuperada correctamente.\n\n" + trimForDialog(output));
     } catch (Exception e) {
-      String msg = "No se pudo restaurar backup:\n" + e.getMessage();
+      String msg = "No se pudo recuperar la copia de seguridad:\n" + e.getMessage();
       statusLabel.setText(msg);
-      UiDialogs.error("Restore", msg);
+      UiDialogs.error("Copias de seguridad", msg);
     }
   }
 
@@ -535,11 +535,11 @@ public class SettingsController {
         return;
       }
       Desktop.getDesktop().open(backupRoot.toFile());
-      statusLabel.setText("Carpeta de backups abierta.");
+      statusLabel.setText("Carpeta de copias abierta.");
     } catch (Exception e) {
-      String msg = "No se pudo abrir carpeta backups: " + e.getMessage();
+      String msg = "No se pudo abrir la carpeta de copias: " + e.getMessage();
       statusLabel.setText(msg);
-      UiDialogs.error("Backups", msg);
+      UiDialogs.error("Copias de seguridad", msg);
     }
   }
 
@@ -633,7 +633,7 @@ public class SettingsController {
       return;
     }
     try {
-      String text = "TPV Desktop\nTEST IMPRESION\n" + LocalDateTime.now().format(TS_FMT) + "\n";
+      String text = "BARIX TPV\nTEST IMPRESION\n" + LocalDateTime.now().format(TS_FMT) + "\n";
       PrintUtil.printTextToPrinter(printerName, text, null);
       statusLabel.setText("Test enviado a '" + printerName + "'.");
     } catch (Exception e) {

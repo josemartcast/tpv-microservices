@@ -374,6 +374,15 @@
 .send-dialog-head { -fx-background-color: linear-gradient(to right, #2e3650, #262d42); }
 .send-dialog-title { -fx-text-fill: #f3f6ff; -fx-font-size: 28px; -fx-font-weight: 800; }
 .send-dialog-content { -fx-background-color: #f4f5fa; }
+/* Hide DialogPane default bottom bar to avoid flicker strip in send modal */
+.send-dialog > .button-bar {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+    -fx-opacity: 0;
+}
 .send-group {
     -fx-background-color: #2f374d;
     -fx-background-radius: 4;

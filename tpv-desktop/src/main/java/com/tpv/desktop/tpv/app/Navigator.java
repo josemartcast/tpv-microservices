@@ -31,7 +31,7 @@ public class Navigator {
 
     private Navigator(Stage stage) {
         this.stage = stage;
-        stage.setTitle("TPV Desktop");
+        stage.setTitle("BARIX TPV");
         stage.setMinWidth(1200);
         stage.setMinHeight(720);
     }

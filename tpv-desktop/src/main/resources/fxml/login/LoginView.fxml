@@ -11,7 +11,7 @@
       fx:controller="com.tpv.desktop.ui.login.LoginController"
       spacing="12" alignment="CENTER" prefWidth="420" prefHeight="520">
 
-    <Label text="TPV" style="-fx-font-size: 28px; -fx-font-weight: bold;"/>
+    <Label text="BARIX TPV" style="-fx-font-size: 28px; -fx-font-weight: bold;"/>
     <Label text="Inicia sesion" style="-fx-font-size: 14px; -fx-opacity: 0.8;"/>
 
     <VBox spacing="8" maxWidth="320">

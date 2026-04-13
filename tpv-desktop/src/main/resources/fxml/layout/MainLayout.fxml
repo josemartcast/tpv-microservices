@@ -15,7 +15,7 @@
 
   <left>
     <VBox spacing="10" styleClass="sidebar">
-      <Label text="TPV" styleClass="sidebar-title"/>
+      <Label text="BARIX TPV" styleClass="sidebar-title"/>
 
       <Button text="Salon" onAction="#goSalon" maxWidth="Infinity"/>
       <Button text="Sales" onAction="#goSales" maxWidth="Infinity"/>

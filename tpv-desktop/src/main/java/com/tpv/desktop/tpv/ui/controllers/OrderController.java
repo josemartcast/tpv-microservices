@@ -33,8 +33,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.FlowPane;
@@ -560,52 +558,18 @@ public class OrderController implements LifecycleAware {
         if (vm.lines().isEmpty()) {
             String msg = "No hay lineas en ticket para pre-cuenta.";
             setFeedback(msg);
-            showInfoDialog("Precuenta", msg);
             return;
         }
-
-        String text = buildPrebillText();
-        TextArea preview = new TextArea(text);
-        preview.setEditable(false);
-        preview.setWrapText(false);
-        preview.setPrefColumnCount(44);
-        preview.setPrefRowCount(22);
-        preview.setStyle("-fx-font-family: 'Monospaced'; -fx-font-size: 12px; -fx-font-weight: bold;");
-
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Precuenta");
-        dialog.setHeaderText("Vista previa de pre-cuenta");
-        ButtonType copyButton = new ButtonType("Copiar", ButtonBar.ButtonData.LEFT);
-        ButtonType printButton = new ButtonType("Imprimir", ButtonBar.ButtonData.LEFT);
-        ButtonType printPdfButton = new ButtonType("Print to PDF", ButtonBar.ButtonData.LEFT);
-        dialog.getDialogPane().getButtonTypes().addAll(copyButton, printButton, printPdfButton, ButtonType.CLOSE);
-        dialog.getDialogPane().setContent(preview);
-
-        ButtonType action = dialog.showAndWait().orElse(ButtonType.CLOSE);
-        if (action == copyButton) {
-            ClipboardContent content = new ClipboardContent();
-            content.putString(text);
-            Clipboard.getSystemClipboard().setContent(content);
-            setFeedback("Pre-cuenta copiada al portapapeles.");
-            showInfoDialog("Precuenta", "Pre-cuenta copiada al portapapeles.");
+        if (!markPrebillRequestedForMap()) {
             return;
         }
-        if (action == printButton) {
-            if (!markPrebillRequestedForMap()) {
-                return;
-            }
-            String target = printDocumentToGeneral(text);
+        try {
+            String target = printDocumentToGeneral(buildPrebillText());
             setFeedback("Pre-cuenta enviada a " + target + ".");
-            showInfoDialog("Precuenta", "Pre-cuenta enviada a " + target + ".");
-            return;
-        }
-        if (action == printPdfButton) {
-            if (!markPrebillRequestedForMap()) {
-                return;
-            }
-            PrintUtil.printTextToPdfWithBottomMargin(text, feedbackLabel != null && feedbackLabel.getScene() != null ? feedbackLabel.getScene().getWindow() : null);
-            setFeedback("Enviado a Print to PDF.");
-            showInfoDialog("Precuenta", "Enviado a Print to PDF.");
+        } catch (Exception e) {
+            String msg = "No se pudo imprimir pre-cuenta: " + e.getMessage();
+            setFeedback(msg);
+            showErrorDialog("Precuenta", msg);
         }
     }
 

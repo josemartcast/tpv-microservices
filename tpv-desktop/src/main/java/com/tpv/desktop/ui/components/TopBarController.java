@@ -30,7 +30,7 @@ public class TopBarController {
     }
 
     public void setTitle(String title) {
-        titleLabel.setText(title == null || title.isBlank() ? "TPV" : title);
+        titleLabel.setText(title == null || title.isBlank() ? "BARIX TPV" : title);
     }
 
     public void setCurrentUser(String username) {

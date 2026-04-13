@@ -205,7 +205,7 @@ private fun LoginScreen(
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "TPV PDA",
+                    text = "BARIX PDA",
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                     color = PdaPalette.ink
                 )
