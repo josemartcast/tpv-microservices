@@ -64,6 +64,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
 
     private final PrintQueueService printQueueService;
     private final ScheduledExecutorService worker;
+    private final Instant startedAt = Instant.now();
 
     private final Map<Long, TicketPendingSnapshot> pendingByTicket = new HashMap<>();
     private final Map<Long, Integer> lastPendingCountByTicket = new HashMap<>();
@@ -170,7 +171,6 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
 
     private void processComandaSend(long ticketId, SalonTableResponse t, TableCtx ctx) {
         int currentPending = Math.max(0, t.pendingLines());
-        int previousPending = lastPendingCountByTicket.getOrDefault(ticketId, currentPending);
         lastPendingCountByTicket.put(ticketId, currentPending);
 
         if (currentPending > 0) {
@@ -197,7 +197,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
 
         TicketPendingSnapshot snapshot = pendingByTicket.remove(ticketId);
         if (snapshot == null || snapshot.lines().isEmpty()) {
-            if (previousPending > 0 && !isSuppressed(LOCAL_SEND_SUPPRESS_UNTIL, ticketId)) {
+            if (!isSuppressed(LOCAL_SEND_SUPPRESS_UNTIL, ticketId)) {
                 enqueueFallbackFromRecentSentLines(ticketId, ctx);
             }
             return;
@@ -346,7 +346,10 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 return;
             }
             Instant now = Instant.now();
-            Instant recentFloor = now.minusSeconds(20);
+            // We keep fallback bounded to recent events and never before service start,
+            // preventing reprint storms after restart while still catching fast PDA sends.
+            Instant recentFloorBase = now.minusSeconds(20);
+            Instant recentFloor = startedAt.isAfter(recentFloorBase) ? startedAt : recentFloorBase;
             Instant lastPrinted = lastFallbackPrintedAtByTicket.getOrDefault(ticketId, Instant.EPOCH);
             List<TicketLineResponse> recent = ticket.lines().stream()
                     .filter(TicketLineResponse::sent)
