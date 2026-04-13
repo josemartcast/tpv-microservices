@@ -15,8 +15,8 @@
         <junit.version>5.10.2</junit.version>
         <tpv.mode>auto</tpv.mode>
         <tpv.auto.login>false</tpv.auto.login>
-        <tpv.auth.user>admin</tpv.auth.user>
-        <tpv.auth.pass>admin123</tpv.auth.pass>
+        <tpv.auth.user></tpv.auth.user>
+        <tpv.auth.pass></tpv.auth.pass>
         <tpv.kiosk.mode>false</tpv.kiosk.mode>
     </properties>
 

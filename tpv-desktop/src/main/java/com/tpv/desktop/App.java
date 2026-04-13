@@ -2,6 +2,7 @@ package com.tpv.desktop;
 
 import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.core.AuthStore;
 import javafx.application.Application;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
@@ -13,6 +14,12 @@ public class App extends Application {
     context.appState().touchModeProperty().set(resolveTouchMode());
     context.appState().kioskModeProperty().set(resolveKioskMode());
     Navigator.init(stage);
+    boolean needsLogin = "REAL".equalsIgnoreCase(context.appState().runtimeModeProperty().get())
+            && !AuthStore.isLoggedIn();
+    if (needsLogin) {
+      Navigator.get().goLogin();
+      return;
+    }
     Navigator.get().goHome();
   }
 

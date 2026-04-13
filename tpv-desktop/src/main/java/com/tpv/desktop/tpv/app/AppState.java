@@ -13,7 +13,7 @@ import java.util.Map;
 
 public class AppState {
     private final StringProperty terminalId = new SimpleStringProperty("T-001");
-    private final ObjectProperty<User> activeUser = new SimpleObjectProperty<>(new User(1, "Gasa Carmona", "GC"));
+    private final ObjectProperty<User> activeUser = new SimpleObjectProperty<>(new User(0, "", ""));
     private final ObjectProperty<BackendStatus> backendStatus = new SimpleObjectProperty<>(BackendStatus.ONLINE);
     private final StringProperty restaurantName = new SimpleStringProperty("Restaurante EL GUSTO");
     private final StringProperty runtimeMode = new SimpleStringProperty("FAKE");

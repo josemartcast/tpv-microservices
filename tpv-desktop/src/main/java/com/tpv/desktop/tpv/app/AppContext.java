@@ -110,6 +110,9 @@ public class AppContext {
         }
         String user = resolveAuthUser();
         String pass = resolveAuthPass();
+        if (user.isBlank() || pass.isBlank()) {
+            return false;
+        }
         try {
             var login = AuthApi.login(user, pass);
             if (login == null || login.accessToken() == null || login.accessToken().isBlank()) {
@@ -157,7 +160,7 @@ public class AppContext {
             String kioskUser = readConfig("TPV_KIOSK_AUTH_USER", "tpv.kiosk.auth.user", "");
             if (!kioskUser.isBlank()) return kioskUser;
         }
-        return readConfig("TPV_AUTH_USER", "tpv.auth.user", "admin");
+        return readConfig("TPV_AUTH_USER", "tpv.auth.user", "");
     }
 
     private String resolveAuthPass() {
@@ -165,7 +168,7 @@ public class AppContext {
             String kioskPass = readConfig("TPV_KIOSK_AUTH_PASS", "tpv.kiosk.auth.pass", "");
             if (!kioskPass.isBlank()) return kioskPass;
         }
-        return readConfig("TPV_AUTH_PASS", "tpv.auth.pass", "admin123");
+        return readConfig("TPV_AUTH_PASS", "tpv.auth.pass", "");
     }
 
     private void syncBusinessProfileFromBackend() {

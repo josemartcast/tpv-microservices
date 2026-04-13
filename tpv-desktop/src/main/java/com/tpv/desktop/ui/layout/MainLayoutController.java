@@ -2,8 +2,10 @@ package com.tpv.desktop.ui.layout;
 
 import com.tpv.desktop.api.pos.SalonApi;
 import com.tpv.desktop.core.AuthStore;
-import com.tpv.desktop.core.Nav;
 import com.tpv.desktop.core.SettingsStore;
+import com.tpv.desktop.tpv.app.AppContext;
+import com.tpv.desktop.tpv.app.Navigator;
+import com.tpv.desktop.tpv.domain.model.User;
 import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import com.tpv.desktop.ui.components.TopBarController;
 import java.time.LocalTime;
@@ -131,7 +133,8 @@ public class MainLayoutController {
     public void logout() {
         backendStatusTicker.stop();
         AuthStore.clear();
-        Nav.goToLogin();
+        AppContext.get().appState().activeUserProperty().set(new User(0, "", ""));
+        Navigator.get().goLogin();
     }
 
     private void loadCenter(String fxml) {

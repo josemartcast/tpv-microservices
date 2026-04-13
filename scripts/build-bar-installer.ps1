@@ -168,9 +168,7 @@ if (-not $SkipDesktopInstaller) {
             "--win-shortcut",
             "--win-menu",
             "--java-options", "-Dtpv.mode=real",
-            "--java-options", "-Dtpv.auto.login=true",
-            "--java-options", "-Dtpv.auth.user=admin",
-            "--java-options", "-Dtpv.auth.pass=admin123",
+            "--java-options", "-Dtpv.auto.login=false",
             "--java-options", "-Dfile.encoding=UTF-8"
         )
 

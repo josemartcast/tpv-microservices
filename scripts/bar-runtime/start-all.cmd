@@ -32,7 +32,7 @@ if exist "%ROOT%\jdk\bin\javaw.exe" (
 
 if exist "%DESKTOP_INPUT%\tpv-desktop-1.0.0.jar" if not "%JAVA_UI_BIN%"=="" (
   echo [INFO] Lanzando TPV Desktop desde paquete local...
-  start "tpv-desktop-ui" "%JAVA_UI_BIN%" --module-path "%DESKTOP_INPUT%" --add-modules javafx.controls,javafx.fxml -cp "%DESKTOP_INPUT%\*" -Dtpv.mode=real -Dtpv.auto.login=true -Dtpv.auth.user=admin -Dtpv.auth.pass=admin123 -Dfile.encoding=UTF-8 com.tpv.desktop.App
+  start "tpv-desktop-ui" "%JAVA_UI_BIN%" --module-path "%DESKTOP_INPUT%" --add-modules javafx.controls,javafx.fxml -cp "%DESKTOP_INPUT%\*" -Dtpv.mode=real -Dtpv.auto.login=false -Dfile.encoding=UTF-8 com.tpv.desktop.App
 ) else (
   set "DESKTOP_EXE=%ProgramFiles%\TPV-Desktop\TPV-Desktop.exe"
   if not exist "%DESKTOP_EXE%" (

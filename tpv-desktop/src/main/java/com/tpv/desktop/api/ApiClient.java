@@ -163,8 +163,11 @@ public final class ApiClient {
     }
 
     private static synchronized boolean tryRecoverToken() {
-        String user = readConfig("TPV_AUTH_USER", "tpv.auth.user", "admin");
-        String pass = readConfig("TPV_AUTH_PASS", "tpv.auth.pass", "admin123");
+        String user = readConfig("TPV_AUTH_USER", "tpv.auth.user", "");
+        String pass = readConfig("TPV_AUTH_PASS", "tpv.auth.pass", "");
+        if (user.isBlank() || pass.isBlank()) {
+            return false;
+        }
         try {
             String loginJson = MAPPER.writeValueAsString(Map.of("username", user, "password", pass));
             HttpRequest loginRequest = HttpRequest.newBuilder()
