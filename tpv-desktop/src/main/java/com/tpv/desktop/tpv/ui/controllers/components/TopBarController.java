@@ -1,11 +1,11 @@
 package com.tpv.desktop.tpv.ui.controllers.components;
 
 import com.tpv.desktop.core.AuthStore;
-import com.tpv.desktop.core.Nav;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.ui.UiDialogs;
 import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
+import com.tpv.desktop.tpv.domain.model.User;
 import com.tpv.desktop.tpv.ui.LifecycleAware;
 import com.tpv.desktop.tpv.domain.model.BackendStatus;
 import com.tpv.desktop.tpv.services.BackendStatusService;
@@ -158,7 +158,8 @@ public class TopBarController implements LifecycleAware {
         MenuItem logout = new MenuItem("Logout");
         logout.setOnAction(e -> {
             AuthStore.clear();
-            Nav.goToLogin();
+            AppContext.get().appState().activeUserProperty().set(new User(0, "", ""));
+            Navigator.get().goLogin();
         });
 
         menu.getItems().addAll(salon, settings, usersAdmin, new SeparatorMenuItem(), logout);
@@ -184,7 +185,8 @@ public class TopBarController implements LifecycleAware {
         MenuItem logout = new MenuItem("Logout");
         logout.setOnAction(e -> {
             AuthStore.clear();
-            Nav.goToLogin();
+            AppContext.get().appState().activeUserProperty().set(new User(0, "", ""));
+            Navigator.get().goLogin();
         });
 
         menu.getItems().addAll(settings, usersAdmin, new SeparatorMenuItem(), logout);

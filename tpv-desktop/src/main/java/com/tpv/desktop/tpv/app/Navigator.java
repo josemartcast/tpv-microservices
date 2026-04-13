@@ -41,6 +41,11 @@ public class Navigator {
         setRoot(view.root(), 1600, 900, view.controller(), "HomeView");
     }
 
+    public void goLogin() {
+        LoadedView view = loadWithController("/fxml/login/LoginView.fxml");
+        setRoot(view.root(), 420, 520, view.controller(), "LoginView");
+    }
+
     public void goOrder(long orderId, int tableId) {
         goOrder(orderId, tableId, null);
     }

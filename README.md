@@ -62,7 +62,7 @@ cd gateway
 
 ```powershell
 cd tpv-desktop
-.\mvnw.cmd -q -Dtpv.mode=real -Dtpv.auto.login=true -Dtpv.auth.user=admin -Dtpv.auth.pass=admin123 javafx:run
+.\mvnw.cmd -q -Dtpv.mode=real -Dtpv.auto.login=false javafx:run
 ```
 
 3. PDA web:
@@ -105,3 +105,4 @@ Detalles en:
 - Arquitectura: `architecture.md`
 - Funcionalidades: `features.md`
 - API: `api.md`
+- Flujo de contribucion: `CONTRIBUTING.md`
