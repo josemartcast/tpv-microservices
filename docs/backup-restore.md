@@ -1,69 +1,78 @@
-# Runbook Backup/Restore MySQL (TPV)
+﻿# Backup / Restore MySQL (TPV)
 
-Base de datos: MySQL local nativo (`TPVMySQL`) o contenedor `tpv-mysql` en desarrollo  
-BDs de negocio: `tpv_auth` y `tpv_pos`
+Estado documentado a fecha: 2026-04-13.
 
-## 1) Operativa diaria (backup)
-Ejecutar al inicio o fin de turno:
+## Contexto
+
+Bases de datos de negocio:
+
+- `tpv_auth`
+- `tpv_pos`
+
+Soporte:
+
+- MySQL nativo (`TPVMySQL`) en portatil de bar
+- MySQL en docker para desarrollo
+
+## 1) Crear backup
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\db-backup.ps1
 ```
 
-Opcional con compresion:
+Con compresion:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\db-backup.ps1 -Compress
 ```
 
-Resultado esperado:
-- carpeta nueva en `.backups\yyyyMMdd-HHmmss\`
-- `tpv_auth.sql` y `tpv_pos.sql` (o `.sql.gz`)
+Salida tipica:
+
+- `.backups\yyyyMMdd-HHmmss\`
+- `tpv_auth.sql` / `tpv_pos.sql` (o `.gz`)
 - `backup-meta.json`
 
-## 2) Restore de prueba (recomendado antes de tocar produccion)
-Nunca restaurar directo sobre produccion sin validar primero:
+## 2) Restore en entorno de prueba (recomendado)
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\db-restore.ps1 `
-  -BackupDir .\.backups\20260314-072537 `
+  -BackupDir .\.backups\20260413-083000 `
   -TargetAuthDb tpv_auth_restore_test `
   -TargetPosDb tpv_pos_restore_test
 ```
 
-## 3) Restore de incidencia sobre produccion
-Usar solo en incidente real y con doble confirmacion operativa:
+## 3) Restore sobre produccion (solo incidente real)
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\db-restore.ps1 `
-  -BackupDir .\.backups\20260314-072537 `
+  -BackupDir .\.backups\20260413-083000 `
   -AllowProductionRestore
 ```
 
-## 4) Smoke automatico end-to-end (backup + restore + validacion)
-Script recomendado para pre-release y QA operativo:
+## 4) Smoke automatizado backup+restore
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\db-backup-restore-smoke.ps1 `
-  -Mode auto `
-  -RootPassword root `
-  -OutputRoot .backups
+powershell -ExecutionPolicy Bypass -File .\scripts\db-backup-restore-smoke.ps1 -Mode auto -RootPassword root
 ```
 
-Este smoke:
-1. crea backup de `tpv_auth` y `tpv_pos`
-2. restaura en BDs temporales `*_smoke_<timestamp>`
-3. compara set de tablas y `COUNT(*)` por tabla entre origen y restaurada
-4. elimina BDs temporales al finalizar
+Valida:
 
-Para inspeccionar BDs temporales manualmente:
+- dump
+- restore temporal
+- tablas y conteos
+- limpieza final
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\db-backup-restore-smoke.ps1 -KeepRestoredDbs
-```
+## 5) Integracion en TPV Desktop
 
-## 5) Validacion SQL minima post-restore
-Comprobaciones rapidas en `tpv_pos`:
+En Settings del TPV hay acciones para:
+
+- crear backup
+- restaurar backup
+- abrir carpeta de backups
+
+## 6) SQL de comprobacion rapida
+
+`tpv_pos`:
 
 ```sql
 SELECT COUNT(*) AS categories FROM categories;
@@ -72,31 +81,18 @@ SELECT COUNT(*) AS tickets FROM tickets;
 SELECT COUNT(*) AS cash_sessions FROM cash_sessions;
 ```
 
-En `tpv_auth`:
+`tpv_auth`:
 
 ```sql
 SELECT COUNT(*) AS users FROM users;
 ```
 
-## 6) Integracion en TPV Desktop
-En `Settings` hay seccion **Copias de seguridad** con:
-- `Crear backup`
-- `Restaurar backup`
-- `Abrir carpeta backups`
+## 7) Politica recomendada en bar
 
-La UI llama internamente a:
-- `scripts/db-backup.ps1`
-- `scripts/db-restore.ps1`
-
-## 7) Checklist RC (obligatorio)
-Antes de tag RC:
-1. backup diario generado sin error
-2. smoke `db-backup-restore-smoke.ps1` en verde
-3. restore de prueba validado
-4. evidencia guardada (ruta de backup + fecha/hora + responsable)
-
-## 8) Notas de seguridad operativa
-- No guardar backups en repositorio Git.
-- Conservar al menos las ultimas 3 copias verificadas.
-- Ejecutar restore productivo solo con ventana operativa definida.
-- En instalacion de bar, por defecto los scripts intentan usar MySQL nativo antes que Docker.
+- Backup al inicio o cierre de turno.
+- Backup obligatorio antes de:
+  - actualizar version
+  - carga masiva de catalogo
+  - cambios fiscales
+- Conservar minimo 3 copias verificadas.
+- No subir backups al repositorio.

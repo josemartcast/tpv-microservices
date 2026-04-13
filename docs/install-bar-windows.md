@@ -1,123 +1,97 @@
-# Instalacion Windows Bar (TPV + Backend)
+﻿# Instalacion Windows en bar (TPV + backend)
 
-## 1. Generar instalador maestro en equipo de desarrollo
+Estado documentado a fecha: 2026-04-13.
 
-Desde la raiz del repo:
+## 1) Generar paquete en equipo de desarrollo
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\download-bar-prereqs.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-installer.ps1 -Version 1.0.0-rc2 -BundlePrereqs
-powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-setup-exe.ps1 -Version 1.0.0-rc2 -SkipPackageBuild
+powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-installer.ps1 -Version 1.0.0-rcX -BundlePrereqs
+powershell -ExecutionPolicy Bypass -File .\scripts\build-bar-setup-exe.ps1 -Version 1.0.0-rcX -SkipPackageBuild
 ```
 
-Salida:
+Salida esperada:
 
-- Carpeta: `dist\bar-package-1.0.0-rc2\`
-- ZIP: `dist\bar-package-1.0.0-rc2.zip`
-- Instalador maestro: `dist\TPV-Bar-Setup-1.0.0-rc2.exe`
+- `dist\bar-package-1.0.0-rcX\`
+- `dist\bar-package-1.0.0-rcX.zip`
+- `dist\TPV-Bar-Setup-1.0.0-rcX.exe`
 
-## 2. Instalacion en portatil limpio (recomendado)
+## 2) Instalar en portatil destino
 
-Copiar `dist\TPV-Bar-Setup-<version>.exe` al portatil destino y ejecutar **como Administrador**.
+1. Copiar `TPV-Bar-Setup-*.exe`.
+2. Ejecutar **como Administrador**.
+3. Esperar a que complete prerequisitos e instalacion TPV.
 
-El instalador maestro hace:
+El instalador prepara normalmente:
 
-- copia runtime a `C:\TPV-Bar`
-- instala prerequisitos offline incluidos en el paquete:
-  - JDK 21
-  - MySQL Server nativo
-  - Tailscale opcional
-- instala TPV Desktop
-- crea accesos directos en escritorio:
-  - `Iniciar TPV (Backend + UI)`
-  - `Parar Backend TPV`
+- `C:\TPV-Bar\jdk`
+- `C:\TPV-Bar\mysql`
+- servicio MySQL `TPVMySQL`
+- runtime scripts (`start-all.cmd`, `start-backend.cmd`, `stop-backend.ps1`)
 
-## 3. Modo manual (si no usas instalador maestro)
+## 3) Arranque y parada
 
-Copiar el contenido de `dist\bar-package-<version>\` al portatil destino.
+Arranque completo:
 
-Abrir PowerShell como administrador y ejecutar:
+```cmd
+C:\TPV-Bar\scripts\bar-runtime\start-all.cmd
+```
+
+Solo backend:
+
+```cmd
+C:\TPV-Bar\scripts\bar-runtime\start-backend.cmd
+```
+
+Parada backend:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install-portatil-prereqs.ps1 -OfflineMediaRoot .\prereqs -InstallTailscale
+powershell -ExecutionPolicy Bypass -File C:\TPV-Bar\scripts\bar-runtime\stop-backend.ps1 -Force
 ```
 
-Esto instala:
+## 4) Comprobaciones post-instalacion
 
-- JDK 21
-- MySQL Server nativo
-- Tailscale (si se usa opcion `-InstallTailscale`)
+- Servicio `TPVMySQL` en running.
+- `http://localhost:8080/pda` responde.
+- TPV Desktop abre en modo real.
+- Login admin funcional.
+- Impresoras visibles y mapeadas en ajustes.
 
-## 4. Instalar TPV Desktop (manual)
+## 5) Problemas tipicos y solucion
 
-En `.\installers\`, ejecutar el instalador `TPV-Desktop-*.exe`.
+### Error: debe ejecutarse como Administrador
 
-## 5. Arrancar sistema
+- Cerrar instalador.
+- Reabrir EXE con click derecho > Ejecutar como administrador.
 
-### Backend (auth + pos + gateway)
+### Error MSI 1638
 
-```cmd
-.\scripts\start-backend.cmd
-```
+- Ya existe version instalada.
+- El instalador intenta modo interactivo; seguir asistente o desinstalar previa.
 
-### Todo (backend + abrir TPV Desktop)
+### Java no encontrado al iniciar
 
-```cmd
-.\scripts\start-all.cmd
-```
+- Reejecutar instalador/prerequisitos.
+- Verificar `C:\TPV-Bar\jdk` y variables de entorno.
 
-`start-all.cmd` arranca:
+### Backend no arranca
 
-- servicio MySQL local (`TPVMySQL`)
-- auth-service
-- pos-service
-- gateway
-- TPV Desktop
+- Revisar `TPVMySQL`.
+- Revisar logs en carpeta runtime/logs.
 
-## 6. Parar backend
+## 6) PDA remota
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\stop-backend.ps1 -Force
-```
+Configurar Tailscale en portatil y movil.
 
-Parar MySQL:
+- PDA web: `http://<host>.tail<id>.ts.net:8080/pda`
+- PDA nativa: `http://<host>.tail<id>.ts.net:8080`
 
-```cmd
-.\scripts\stop-db.cmd
-```
+## 7) Backup antes de operar
 
-## 7. Base de datos: backup y restore
-
-Backup:
+Antes de tocar catalogo/precios o actualizar version:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\db-backup.ps1 -Compress
 ```
 
-Restore:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\db-restore.ps1 -BackupDir "C:\ruta\backup\20260315-103000"
-```
-
-## 8. Configuracion PDA
-
-Mantener Tailscale activo en portatil y PDA.  
-En la PDA usar base URL del gateway del portatil (Tailscale):
-
-```text
-http://<nombre-o-ip-tailscale>:8080
-```
-
-Si usas MagicDNS:
-
-```text
-http://<host>.tail<id>.ts.net:8080
-```
-
-## 9. Notas operativas
-
-- No abrir puertos del router.
-- Validar impresoras en `Settings` del TPV.
-- Antes de cambios de catalogo/precios en produccion, ejecutar backup.
-- Verificar en `services.msc` que `TPVMySQL` esta en ejecucion si el backend no levanta.
+Ver guia completa: `docs/backup-restore.md`.

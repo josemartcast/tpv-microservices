@@ -1,57 +1,50 @@
-# QA Final Report - TPV/PDA
+﻿# QA final report (estado actual)
 
-Fecha: 2026-02-13
-Estado general: `GO PRODUCCION CONTROLADA`
-Version/tag objetivo: `v1.0.0-rc2`
+Fecha de corte: 2026-04-13.
 
-## Alcance validado
-- Flujo TPV/PDA con backend real (`auth-service`, `pos-service`, `gateway`).
-- Concurrencia multi-terminal en locks de mesa.
-- Concurrencia en cambio de mesa (`move-table`).
-- Concurrencia en cobro (evitar doble cargo).
-- Replay idempotente en reconexion para `SEND` y `PAYMENT`.
+Estado global: `ESTABLE EN PRODUCCION CONTROLADA`.
 
-## Evidencia automatizada
-- Workflow: `.github/workflows/pda-e2e-smoke.yml`
-- Script: `scripts/pda-e2e-smoke.ps1`
-- Referencia: `docs/pda-e2e-smoke.md`
+## Validado
 
-Cobertura ejecutada en CI:
-- Login y carga PDA.
-- Apertura/reuso de ticket.
-- Lock race paralelo (`1x success` + `1x denied`).
-- Heartbeat y unlock.
-- Alta de linea, send preview, send comanda.
-- Cobro total y cierre pendiente.
-- Replay idempotente (`SEND`/`PAYMENT` con misma `Idempotency-Key`).
-- Move-table race paralelo (`1x success` + `1x denied`).
-- Payment race paralelo (`1x success` + `1x denied`, sin doble cobro persistido).
+- Flujo core TPV Desktop en backend real.
+- PDA web y PDA Android con operativa completa de mesa.
+- Roles y seguridad (incluido bloqueo de caja desde PDA).
+- Caja, cobros parciales/totales, cierre con resumen.
+- Historial, facturas y reimpresion.
+- Catalogo, salones, alias, impresoras por destino.
+- CI smoke:
+  - `PDA E2E Smoke`
+  - `DB Backup Restore Smoke`
 
-## Criterio de salida alcanzado
-- No edicion simultanea efectiva de la misma mesa.
-- No doble aplicacion en acciones idempotentes de reconexion.
-- No doble cobro en carrera concurrente.
-- Resultado estable en pipeline (`check verde`).
-- `move-table` protegido ante carrera concurrente (backend + test de integracion).
+## Mejoras ya cerradas recientemente
 
-## Riesgo residual (no bloqueante para piloto)
-- Impresion fisica en hardware real (colas, cortes, reconexion impresora).
-- Prueba de red inestable real en PDA (cortes largos, roaming, latencia extrema).
-- Carga sostenida con mas terminales simultaneos (escenario pico de servicio).
+- Reenviar comanda usa impresora real configurada.
+- Formato de ticket/precuenta/factura ajustado para 80mm.
+- Ticket largo en modo continuo con corte final.
+- Correcciones de codificacion de caracteres en impresion.
+- Ajustes responsive PDA (portrait/landscape).
+- `PRECUENTA_PEDIDA` visible en mapas.
+- Correccion de cobro duplicado al reabrir ticket pagado.
 
-## Checklist piloto
-- Configurar IDs de terminal unicos por dispositivo.
-- Verificar reloj/fecha del equipo y zona horaria.
-- Mantener backup de DB y plan de rollback.
-- Activar monitorizacion basica de errores de gateway/pos.
-- Definir protocolo operativo ante lock conflict (quien libera, cuando, como).
+## Riesgo residual monitorizado
 
-## Recomendacion
-- Ejecutar despliegue controlado con observabilidad reforzada en primeras 72h.
-- Si no hay incidencias criticas, consolidar el tag `v1.0.0-rc2` como base operativa.
-- Usar checklist de salida: `docs/release-checklist.md`.
+- Incidencia rara e intermitente reportada en bar:
+  - alguna linea de comanda enviada desde PDA no llega a impresora en casos aislados.
+- Mitigacion en curso:
+  - trazas de send/preview/lineas
+  - serializacion de acciones criticas en PDA
+  - seguimiento en sesiones largas reales
 
-## Firma QA tecnica
-- Decision: `GO PRODUCCION CONTROLADA`
-- Fecha: `2026-02-13`
-- Base de validacion: CI `PDA E2E Smoke` + tests de `pos-service` en verde.
+## Recomendacion operativa
+
+- Mantener despliegue controlado durante semana de alta carga.
+- Registrar cada incidencia de comanda con:
+  - hora
+  - mesa
+  - ticketId
+  - linea esperada vs impresa
+- Si no aparecen nuevos casos en ventana de observacion, marcar candidato de release.
+
+## Veredicto actual
+
+`APTO PARA CONTINUAR PRE-RELEASE`, con vigilancia activa del flujo de comanda PDA.

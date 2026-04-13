@@ -1,223 +1,182 @@
-# API – TPV Desktop
+﻿# API principal (resumen operativo)
 
-Este documento describe los **endpoints principales** de la API consumida por el cliente **TPV Desktop**.
+Estado documentado a fecha: 2026-04-13.
 
-La API sigue un estilo **REST**, utiliza **JSON** como formato de intercambio y está protegida mediante **JWT** con control de acceso por roles.
+Base URL via gateway:
 
----
+- `http://localhost:8080`
 
-## Información general
+Version API:
 
-- Protocolo: HTTP / HTTPS
-- Formato: JSON
-- Autenticación: JWT
-- Versión API: `/api/v1`
+- `/api/v1`
 
-La URL base del backend es configurable desde el cliente TPV (pantalla **Settings**).
+Autenticacion:
 
-Ejemplo:
-http://localhost:8080/api/v1
+- `Authorization: Bearer <jwt>`
 
+Header de terminal (clientes TPV/PDA):
 
----
+- `X-Terminal-Id: <terminal-id>`
 
-## Autenticación
+Header de app (usado para guardas PDA):
+
+- `X-Client-App: PDA`
+
+## Auth service
 
 ### Login
-POST /api/v1/auth/login
 
+- `POST /api/v1/auth/login`
 
-Autentica al usuario y devuelve un token JWT.
+### Sesion actual
 
-**Request**
-json
-{
-  "username": "admin",
-  "password": "password"
-}
-Response
+- `GET /api/v1/auth/me`
 
-{
-  "accessToken": "jwt-token",
-  "expiresInSeconds": 3600,
-  "roles": ["ADMIN"]
-}
-El token debe enviarse en cada petición posterior:
+### Admin usuarios
 
-Authorization: Bearer <token>
-Cash Sessions (Caja)
-Obtener caja actual (OPEN)
-GET /api/v1/pos/cash-sessions/current
-Devuelve la caja actualmente abierta.
+- `GET /api/v1/auth/admin/users`
+- `POST /api/v1/auth/admin/users`
+- `PATCH /api/v1/auth/admin/users/{id}/role`
+- `PATCH /api/v1/auth/admin/users/{id}/password`
+- `PATCH /api/v1/auth/admin/users/{id}/active`
+- `PATCH /api/v1/auth/admin/users/{id}/deactivate`
+- `DELETE /api/v1/auth/admin/users/{id}`
 
-Uso
+## POS service - salones/mesas
 
-Comprobar estado de caja
+- `GET /api/v1/pos/salon/tables`
+- `POST /api/v1/pos/salon/tables/{tableNumber}/open-ticket`
+- `POST /api/v1/pos/salon/tables/{tableNumber}/lock`
+- `POST /api/v1/pos/salon/tables/{tableNumber}/heartbeat`
+- `POST /api/v1/pos/salon/tables/{tableNumber}/unlock`
+- `PUT /api/v1/pos/salon/tables/{tableNumber}/alias`
 
-Precondición para ventas y operaciones fiscales
+Admin salones:
 
-Abrir caja
-POST /api/v1/pos/cash-sessions/open
-Roles
+- `GET /api/v1/pos/admin/salons`
+- `POST /api/v1/pos/admin/salons`
+- `PUT /api/v1/pos/admin/salons/{id}`
+- `DELETE /api/v1/pos/admin/salons/{id}`
+- `GET /api/v1/pos/admin/salons/{id}/table-aliases`
+- `PUT /api/v1/pos/admin/salons/{id}/tables/{tableNumber}/alias`
 
-ADMIN
+## POS service - tickets y lineas
 
-Request
+- `POST /api/v1/pos/tickets`
+- `GET /api/v1/pos/tickets/open`
+- `GET /api/v1/pos/tickets/history/current-cash`
+- `GET /api/v1/pos/tickets/{id}`
+- `GET /api/v1/pos/tickets/{id}/summary`
+- `GET /api/v1/pos/tickets/{id}/payment-summary`
 
-{
-  "openingCashCents": 5000,
-  "note": "Cambio inicial"
-}
-Cerrar caja
-POST /api/v1/pos/cash-sessions/{id}/close
-Roles
+Lineas:
 
-ADMIN
+- `POST /api/v1/pos/tickets/{id}/lines`
+- `POST /api/v1/pos/tickets/{id}/lines/combo`
+- `PATCH /api/v1/pos/tickets/{id}/lines/{lineId}`
+- `PATCH /api/v1/pos/tickets/{id}/lines/{lineId}/price`
+- `PATCH /api/v1/pos/tickets/{id}/lines/{lineId}/note`
+- `PATCH /api/v1/pos/tickets/{id}/lines/{lineId}/consume-payment`
+- `DELETE /api/v1/pos/tickets/{id}/lines/{lineId}`
 
-Request
+Operaciones de ticket:
 
-{
-  "closingCashCents": 4820,
-  "note": "Cierre turno mañana"
-}
-Registra el cierre de la caja, el efectivo contado y la diferencia para auditoría.
+- `POST /api/v1/pos/tickets/{id}/cancel`
+- `POST /api/v1/pos/tickets/{id}/cancel-empty`
+- `POST /api/v1/pos/tickets/{id}/bill-requested`
+- `POST /api/v1/pos/tickets/{id}/move-table`
+- `POST /api/v1/pos/tickets/{id}/discount`
+- `POST /api/v1/pos/tickets/{id}/reopen-paid`
 
-Fiscal Summary
-GET /api/v1/pos/cash-sessions/{id}/fiscal-summary
-Devuelve un resumen fiscal informativo de la caja.
+## POS service - comandas
 
-Incluye
+- `GET /api/v1/pos/tickets/{id}/send-preview`
+- `POST /api/v1/pos/tickets/{id}/send`
 
-Tickets pagados
+## POS service - pagos
 
-Tickets cancelados
+- `POST /api/v1/pos/tickets/{ticketId}/payments`
+- `POST /api/v1/pos/tickets/{ticketId}/refunds`
 
-Ventas brutas, netas e IVA
+## POS service - caja/fiscal
 
-Pagos agrupados por método
+- `GET /api/v1/pos/cash-sessions/current`
+- `POST /api/v1/pos/cash-sessions/open`
+- `POST /api/v1/pos/cash-sessions/{id}/close`
+- `GET /api/v1/pos/cash-sessions/{id}/close-summary`
+- `GET /api/v1/pos/cash-sessions/{id}/incidents`
+- `POST /api/v1/pos/cash-sessions/{id}/incidents`
+- `GET /api/v1/pos/cash-sessions/{id}/open-tickets`
+- `POST /api/v1/pos/cash-sessions/{id}/resolve-open-tickets`
+- `GET /api/v1/pos/cash-sessions/{id}/fiscal-summary`
+- `GET /api/v1/pos/cash-sessions/{id}/fiscal-closure`
 
-Fiscal Closure (preview)
-GET /api/v1/pos/cash-sessions/{id}/fiscal-closure
-Devuelve los datos necesarios para el cierre de caja antes de confirmarlo.
+Ejercicios fiscales:
 
-Incluye
+- `GET /api/v1/pos/fiscal-exercises`
+- `GET /api/v1/pos/fiscal-exercises/current`
+- `POST /api/v1/pos/fiscal-exercises/open`
+- `POST /api/v1/pos/fiscal-exercises/{id}/close`
 
-Efectivo inicial
+## POS service - catalogo
 
-Ventas en efectivo
+Categorias:
 
-Efectivo esperado
+- `GET /api/v1/pos/categories`
+- `GET /api/v1/pos/categories/{id}`
+- `POST /api/v1/pos/categories`
+- `PUT /api/v1/pos/categories/{id}`
+- `DELETE /api/v1/pos/categories/{id}`
+- `PATCH /api/v1/pos/categories/{id}/activate`
+- `PATCH /api/v1/pos/categories/{id}/deactivate`
 
-Tickets
-Crear ticket
-POST /api/v1/pos/tickets
-Crea un nuevo ticket asociado a la caja abierta.
+Productos:
 
-Obtener ticket por ID
-GET /api/v1/pos/tickets/{id}
-Devuelve el ticket con sus líneas actuales.
+- `GET /api/v1/pos/products`
+- `GET /api/v1/pos/products/{id}`
+- `POST /api/v1/pos/products`
+- `PUT /api/v1/pos/products/{id}`
+- `DELETE /api/v1/pos/products/{id}`
+- `PATCH /api/v1/pos/products/{id}/activate`
+- `PATCH /api/v1/pos/products/{id}/deactivate`
 
-Listar tickets abiertos
-GET /api/v1/pos/tickets/open
-Devuelve todos los tickets en estado OPEN.
+Semilla catalogo admin:
 
-Añadir línea al ticket
-POST /api/v1/pos/tickets/{id}/lines
-Request
+- `POST /api/v1/pos/admin/seed-catalog`
 
-{
-  "productId": 3,
-  "qty": 2
-}
-Modificar cantidad de una línea
-PATCH /api/v1/pos/tickets/{id}/lines/{lineId}
-Request
+## POS service - clientes/facturas/negocio
 
-{
-  "qty": 3
-}
-Eliminar línea del ticket
-DELETE /api/v1/pos/tickets/{id}/lines/{lineId}
-Cobrar ticket
-POST /api/v1/pos/tickets/{id}/pay
-Registra el pago del ticket y lo marca como PAID.
+- `GET /api/v1/pos/customers`
+- `GET /api/v1/pos/customers/{id}`
+- `POST /api/v1/pos/customers`
+- `PUT /api/v1/pos/customers/{id}`
+- `DELETE /api/v1/pos/customers/{id}`
 
-Cancelar ticket
-POST /api/v1/pos/tickets/{id}/cancel
-Roles
+- `GET /api/v1/pos/tickets/{id}/invoice`
+- `POST /api/v1/pos/tickets/{id}/invoice`
+- `GET /api/v1/pos/invoices`
 
-ADMIN
+- `GET /api/v1/pos/business-profile`
+- `PUT /api/v1/pos/business-profile`
 
-Cancela un ticket no cobrado.
+## Health y auditoria
 
-Resumen completo de ticket
-GET /api/v1/pos/tickets/{id}/summary
-Devuelve:
+- `GET /api/v1/pos/health`
+- `GET /api/v1/pos/audit/events`
 
-Líneas del ticket
+## Guardias de seguridad especiales
 
-Pagos registrados
+Con `X-Client-App: PDA`:
 
-Totales
+- `POST /api/v1/pos/cash-sessions/open` -> `403`
+- `POST /api/v1/pos/cash-sessions/{id}/close` -> `403`
 
-Cantidad pendiente
+Motivo: caja solo se opera desde TPV Desktop.
 
-Resumen de pagos
-GET /api/v1/pos/tickets/{id}/payment-summary
-Devuelve:
+## Errores frecuentes
 
-Total del ticket
-
-Total pagado
-
-Pendiente
-
-Productos y categorías
-Categorías
-GET    /api/v1/pos/categories
-POST   /api/v1/pos/categories
-PUT    /api/v1/pos/categories/{id}
-DELETE /api/v1/pos/categories/{id}
-Productos
-GET    /api/v1/pos/products
-POST   /api/v1/pos/products
-PUT    /api/v1/pos/products/{id}
-DELETE /api/v1/pos/products/{id}
-Seguridad y roles
-Roles disponibles
-ADMIN
-
-USER
-
-Restricciones
-Apertura y cierre de caja: ADMIN
-
-Cierre fiscal: ADMIN
-
-Cancelación de tickets: ADMIN
-
-Ventas y consultas: USER / ADMIN
-
-Errores comunes
-401 Unauthorized
-Token inválido o expirado
-
-403 Forbidden
-Rol insuficiente para la acción solicitada
-
-404 Not Found
-Recurso inexistente
-
-409 Conflict
-Caja cerrada
-
-Ticket no editable
-
-Estado inválido
-
-Notas técnicas
-Todos los importes se manejan en céntimos (int) para evitar errores de precisión.
-
-La API está diseñada para ser reutilizada por otros clientes (web, móvil).
-
-El cliente TPV nunca accede directamente a la base de datos.
+- `401`: token invalido/caducado
+- `403`: sin permisos o bloqueado por politica
+- `404`: recurso no encontrado
+- `409`: conflicto de estado (lock, ticket, caja, etc.)
+- `5xx`: error servidor

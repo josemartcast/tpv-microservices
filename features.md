@@ -1,189 +1,128 @@
-# Funcionalidades – TPV Desktop
+﻿# Funcionalidades implementadas
 
-Este documento describe de forma estructurada las **funcionalidades implementadas** en el sistema TPV Desktop, explicando el comportamiento real del sistema desde el punto de vista funcional y técnico.
+Estado documentado a fecha: 2026-04-13.
 
-El objetivo del proyecto es ofrecer un **TPV completo y funcional**, desacoplado del backend y preparado para ampliaciones futuras.
+## 1. Usuarios, sesion y roles
 
----
+- Login JWT en Desktop y PDA.
+- Admin de usuarios desde TPV:
+  - crear
+  - cambiar rol
+  - reset password
+  - activar/desactivar
+  - eliminar
+- Roles operativos en backend:
+  - `ADMIN`
+  - `ENCARGADO`
+  - `CAJERO`
+  - `CAMARERO`
 
-## 1. Autenticación y roles
+## 2. Mapa de mesas y salones
 
-### Login
-- Acceso mediante usuario y contraseña.
-- Autenticación gestionada por el backend.
-- Recepción de token JWT.
+- Salones configurables (crear/renombrar/eliminar con validaciones).
+- Filtro por salon en TPV y PDA.
+- Alias de mesa por salon (visible en operativa, no en ticket cliente/factura).
+- Estado de mesa visible en mapa:
+  - libre
+  - ocupada
+  - bloqueada
+  - pendiente de envio
+  - precuenta pedida
 
-### Roles
-- **ADMIN**
-  - Apertura y cierre de caja
-  - Cierre fiscal
-  - Cancelación de tickets
-  - Acceso completo
-- **USER**
-  - Ventas
-  - Consulta de tickets e información fiscal
+## 3. Bloqueo multi terminal
 
-El cliente envía el token JWT en cada petición REST.
+- Lock por mesa y terminal.
+- Heartbeat periodico para mantener lock.
+- Recuperacion de lock en cortes breves.
+- Unlock en eventos de salida/cierre.
+- Flujo `cancel-empty` para liberar mesa vacia sin dejar ticket abierto.
 
----
+## 4. Tickets y lineas
 
-## 2. Gestión de caja (Cash Session)
+- Apertura/reuso de ticket por mesa.
+- Alta de productos y combos (copa + refresco).
+- Edicion de linea:
+  - cantidad
+  - precio
+  - nota
+  - eliminacion
+- Eliminacion de ticket vacio.
+- Descuentos.
+- Move-table.
 
-### Apertura de caja
-- Introducción de efectivo inicial.
-- La caja pasa a estado **OPEN**.
-- Se habilitan las ventas.
+## 5. Comandas
 
-### Estado de caja
-- El sistema valida que exista una caja abierta antes de permitir ventas.
-- Solo puede existir **una caja abierta a la vez**.
+- Preview de lineas pendientes.
+- Envio por destino (`BAR`, `COCINA`, `POSTRES`) o unificado.
+- Formato de comanda en negrita/columnado y con notas.
+- Reimpresion de ultima comanda desde TPV.
+- Reenviar comanda por impresoras reales configuradas (no forzado a PDF).
 
-### Cierre de caja
-- Se registra:
-  - efectivo esperado
-  - efectivo contado
-  - diferencia
-- La caja pasa a estado **CLOSED**.
-- Las ventas quedan bloqueadas hasta una nueva apertura.
+## 6. Cobro y caja
 
----
+- Cobro total y parcial.
+- Cobro parcial por lineas (consume lineas pagadas y deja pendiente lo no pagado).
+- Soporte de metodos:
+  - EFECTIVO
+  - TARJETA
+  - BIZUM
+- Reapertura de ticket pagado con protecciones para no duplicar totales en cierre.
+- Caja:
+  - apertura
+  - incidencias IN/OUT
+  - cierre con confirmacion y resumen impreso
 
-## 3. Ventas (Sales)
+## 7. Historial y facturas
 
-### Creación de ticket
-- Creación automática de ticket asociado a la caja abierta.
-- Cada ticket mantiene su estado:
-  - OPEN
-  - PAID
-  - CANCELLED
+- Historial de tickets de caja actual.
+- Modificacion de ticket pagado para roles autorizados.
+- Generacion de factura desde ticket.
+- Reimpresion de factura desde historial.
+- Formato fiscal con base imponible, desglose IVA y total.
 
-### Gestión de líneas
-- Añadir productos al ticket.
-- Modificar cantidades.
-- Eliminar líneas.
-- Recalculo automático de totales.
+## 8. Catalogo e impresoras
 
-### Cobro
-- Métodos soportados:
-  - Efectivo
-  - Tarjeta
-  - Bizum
-- Registro de pagos asociado al ticket.
-- Cambio de estado del ticket a **PAID**.
+- Categorias y productos administrables desde TPV.
+- IVA por producto (4/10/21).
+- Destino de impresion por categoria.
+- Gestion de impresoras del negocio:
+  - crear perfiles
+  - mapear a impresora del sistema
+  - habilitar/deshabilitar
 
----
+## 9. PDA web y PDA nativa
 
-## 4. Historial de tickets
+- Login contra backend real.
+- Mapa de mesas y filtros por salon.
+- Flujo completo de mesa:
+  - abrir mesa
+  - anadir/editar/borrar lineas
+  - nota por linea
+  - enviar comanda
+  - pedir precuenta
+  - cobrar
+  - mover mesa
+- Dialogo de envio de comanda al salir de mesa si hay pendientes.
+- UI responsive para portrait y landscape.
 
-Desde la pantalla **Tickets History** se puede:
+## 10. Seguridad operativa
 
-- Listar tickets existentes.
-- Consultar el detalle completo:
-  - líneas
-  - pagos
-  - totales
-- Reabrir un ticket en la pantalla de ventas (si aplica).
+- PDA no puede abrir ni cerrar caja (403 en gateway por `X-Client-App: PDA`).
+- Controles de permisos por endpoint en `pos-service`.
+- Mensajes de error operativos en Desktop y PDA.
 
-Esta funcionalidad permite:
-- auditoría
-- corrección de errores
-- revisión de ventas pasadas
+## 11. Backups y despliegue
 
----
+- Scripts de backup y restore MySQL.
+- Smoke de backup/restore automatizado.
+- Instalador Windows para portatil de bar con prerequisitos.
 
-## 5. Fiscal Summary
+## 12. Estado general
 
-Pantalla informativa del estado fiscal de la caja.
+El sistema esta operativo en entorno real y en fase de endurecimiento pre-release.
 
-### Información mostrada
-- Número de tickets pagados
-- Número de tickets cancelados
-- Ventas:
-  - bruto
-  - neto
-  - IVA
-- Pagos agrupados por método
+Pendientes tipicos de esta fase:
 
-### Características
-- No modifica datos.
-- Puede consultarse múltiples veces durante el turno.
-- Pensada para control y seguimiento.
-
----
-
-## 6. Fiscal Closure (Cierre fiscal)
-
-Proceso crítico de cierre del turno.
-
-### Preview de cierre
-- Efectivo inicial
-- Ventas en efectivo
-- Efectivo esperado
-
-### Proceso de cierre
-1. Introducción del efectivo contado.
-2. Cálculo automático de la diferencia.
-3. Confirmación del cierre.
-4. Persistencia del cierre para auditoría.
-
-### Resultado
-- Caja cerrada definitivamente.
-- Bloqueo de ventas.
-- Datos preparados para revisión fiscal.
-
----
-
-## 7. Settings
-
-Pantalla de configuración del cliente.
-
-### Funcionalidades
-- Configuración de la URL del backend (API Gateway).
-- Test de conexión.
-- Logout del usuario.
-
-### Persistencia
-- Los ajustes se guardan localmente.
-- Se mantienen entre ejecuciones del cliente.
-
----
-
-## 8. Seguridad y validaciones
-
-- Validación de estado de caja antes de vender.
-- Restricción de acciones críticas por rol.
-- Manejo de errores claros en el cliente.
-- Importes gestionados en céntimos para evitar errores de precisión.
-
----
-
-## 9. Experiencia de usuario (UX)
-
-- Navegación centralizada por vistas.
-- Feedback visual ante errores y acciones críticas.
-- Estados bloqueados cuando no se cumplen precondiciones.
-- Flujo natural de trabajo de un TPV real.
-
----
-
-## 10. Estado actual del sistema
-
-El TPV Desktop es **funcional de extremo a extremo**:
-
-- Desde apertura de caja
-- Hasta cierre fiscal
-
-El sistema está preparado para:
-- ampliaciones funcionales
-- nuevos clientes (web / móvil)
-- uso en entornos reales de hostelería o comercio
-
----
-
-## 11. Posibles mejoras futuras
-
-- Exportación fiscal (PDF / CSV).
-- Impresión de tickets.
-- Gestión de usuarios avanzada.
-- Multi-caja y multi-turno.
-- Informes por rango de fechas.
+- ajustes UX finos
+- seguimiento de incidencias raras en impresiones/comandas
+- empaquetado de version estable para despliegue final

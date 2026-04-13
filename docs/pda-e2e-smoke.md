@@ -1,63 +1,65 @@
-# PDA E2E Smoke
+﻿# PDA E2E Smoke
+
+Estado documentado a fecha: 2026-04-13.
+
+Script principal:
+
+- `scripts/pda-e2e-smoke.ps1`
+
+Workflow CI:
+
+- `.github/workflows/pda-e2e-smoke.yml`
 
 ## Objetivo
-Validar de extremo a extremo el flujo minimo de PDA contra backend real:
-- carga del frontend `/pda`
+
+Validar E2E de PDA contra backend real en los flujos criticos:
+
 - login
-- lock multi-terminal
-- conflicto de lock en paralelo (dos PDAs misma mesa)
-- apertura/reuso de ticket
+- carga de `/pda`
+- lock race
+- heartbeat
 - alta de linea
 - envio de comanda
 - cobro
-- liberacion de lock
-- replay idempotente de acciones en reconexion (`SEND` y `PAYMENT` con la misma `Idempotency-Key`)
-- carrera concurrente de `move-table` (dos tickets compitiendo por misma mesa destino)
-- carrera concurrente de cobro (dos pagos simultaneos por el mismo pendiente)
-
-## Script
-`scripts/pda-e2e-smoke.ps1`
+- unlock
+- replay idempotente (`SEND` y `PAYMENT`)
+- move-table race
+- payment race
 
 ## Requisitos
-1. Servicios levantados:
-- `gateway` en `:8080`
-- `auth-service` en `:8081`
-- `pos-service` en `:8082`
 
-2. Usuario admin disponible:
-- `admin / admin123`
+- Gateway en `8080`
+- Auth en `8081`
+- POS en `8082`
+- Usuario admin valido (`admin/admin123` por defecto de test)
 
 ## Ejecucion
+
 Desde raiz del repo:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\pda-e2e-smoke.ps1
 ```
 
-Opcional con parametros:
+Con parametros:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\pda-e2e-smoke.ps1 `
-  -GatewayBaseUrl "http://localhost:8080" `
+  -GatewayBaseUrl "http://127.0.0.1:8080" `
   -Username "admin" `
   -Password "admin123" `
-  -TerminalA "QA-A" `
-  -TerminalB "QA-B"
+  -TerminalA "CI-A" `
+  -TerminalB "CI-B"
 ```
 
 ## Criterio de exito
-El script termina con:
 
-`PDA E2E smoke PASSED`
+Salida final esperada:
 
-Si falla, corta en el primer assert con detalle de endpoint, status esperado y cuerpo de respuesta.
+- `PDA E2E smoke PASSED`
 
-Nota lock race:
-- En la prueba paralela de lock, el perdedor puede devolver `409` o `403` segun el timing interno del backend; ambos se consideran conflicto valido.
+## Notas operativas
 
-## CI
-Workflow incluido:
-
-`.github/workflows/pda-e2e-smoke.yml`
-
-Este pipeline levanta `auth-service`, `pos-service` y `gateway` contra MySQL efimero y ejecuta el smoke automaticamente en `push` y `pull_request`.
+- En lock race, segun timing interno, el perdedor puede devolver `403` o `409`; ambos son conflicto valido.
+- El script falla en el primer assert para facilitar diagnostico rapido.
+- Si CI falla por puertos no abiertos, revisar logs de arranque de `pos-service`/`gateway`.

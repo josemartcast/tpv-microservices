@@ -1,61 +1,81 @@
-# TPV QA Multi-Terminal Checklist
+﻿# QA multi terminal (Desktop + PDA)
 
-Automatizacion disponible:
-- Smoke E2E PDA: `scripts/pda-e2e-smoke.ps1` (ver `docs/pda-e2e-smoke.md`)
-- Informe QA final: `docs/qa-final-report.md`
+Estado documentado a fecha: 2026-04-13.
 
-## Goal
-Validate lock consistency and conflict handling when two terminals operate at the same time.
+Objetivo: validar consistencia de mesas/tickets cuando varios terminales actuan en paralelo.
 
-## Preconditions
-- Backend running in real mode (`gateway`, `auth-service`, `pos-service`) with shared MySQL.
-- Two TPV instances running with different terminal IDs (for example `T-A` and `T-B`).
-- Topbar shows `MODE REAL` in both windows.
+## Precondiciones
 
-## Smoke Checks
-1. Confirm terminal labels are different in topbar (`user | T-A` and `user | T-B`).
-2. Confirm both windows show `MODE REAL`.
-3. Confirm both windows can refresh the table map without errors.
+- `auth-service` en `8081`
+- `pos-service` en `8082`
+- `gateway` en `8080`
+- Dos clientes conectados contra backend real:
+  - TPV Desktop A (`T-A`)
+  - TPV Desktop B o PDA (`T-B`)
 
-## Test Cases
-1. Lock collision:
-   - `T-A` opens table `N`.
-   - `T-B` tries to open the same table `N`.
-   - Expected: `T-B` is blocked with lock conflict message.
+## Smoke inicial
 
-2. Heartbeat stability:
-   - Keep `T-A` inside table `N` for at least 2 minutes.
-   - Expected: lock remains active and no forced navigation occurs.
+1. Ambos terminales en `MODE REAL`.
+2. IDs de terminal diferentes.
+3. Mapa de mesas sincroniza sin error en ambos.
 
-3. Lock recovery after manual release:
-   - While `T-A` is inside table `N`, use Settings -> `Liberar mis bloqueos`.
-   - Wait one heartbeat cycle (~20s).
-   - Expected: lock is reacquired or user gets controlled fallback message.
+## Casos obligatorios
 
-4. Full payment unlock:
-   - `T-A` fully pays table `N`.
-   - Return to salon.
-   - Expected: table is free/available in both terminals.
+## 1) Lock collision
 
-5. Move table:
-   - `T-A` moves ticket from table `N` to table `M`.
-   - Expected: old table lock is released, new table lock is owned by `T-A`.
+- A abre mesa N.
+- B intenta abrir la misma mesa N.
+- Esperado: B bloqueado por conflicto de lock.
 
-6. Empty ticket back:
-   - Open a free table, add no products, press back.
-   - Expected: table remains free and unlocked.
+## 2) Heartbeat estable
 
-7. Auth edge case:
-   - Force token expiration (or logout/relogin mismatch) during lock actions.
-   - Expected: clear auth message and no UI crash.
+- A permanece en mesa N > 2 min.
+- Esperado: lock vivo, sin expulsiones inesperadas.
 
-## Pass Criteria
-- No simultaneous edit on the same table.
-- No zombie locks after payment/cancel/back/move.
-- Same table state seen from both terminals after refresh.
+## 3) Unlock por salida
 
-## Regression Notes
-- If behavior is inconsistent, check first:
-  - both instances are `MODE REAL`;
-  - terminal IDs are unique;
-  - backend audit events include `TABLE_LOCK` conflicts (`status=FAILED`, `message` contains locked terminal).
+- A sale de mesa N sin ticket en uso.
+- Esperado: mesa queda libre.
+
+## 4) cancel-empty
+
+- A abre mesa, no anade lineas, vuelve atras.
+- Esperado: se cancela ticket vacio y mesa libre.
+
+## 5) Cobro y liberacion
+
+- A cobra ticket completo.
+- Esperado: mesa libre en ambos mapas.
+
+## 6) Move-table race
+
+- Dos tickets compiten por la misma mesa destino.
+- Esperado: un solo ganador, sin inconsistencias.
+
+## 7) Payment race
+
+- Dos cobros simultaneos sobre mismo pendiente.
+- Esperado: sin doble cobro persistido.
+
+## 8) Reapertura ticket pagado
+
+- Reabrir ticket pagado con rol permitido.
+- Volver a cobrar.
+- Esperado: no se duplica el total de cierre de caja por pagos anteriores.
+
+## 9) Estado precuenta
+
+- Solicitar/Imprimir precuenta.
+- Esperado: estado `PRECUENTA_PEDIDA` visible en mapa Desktop y PDA.
+
+## 10) Comanda PDA
+
+- PDA envia varias lineas (incluyendo similares, ejemplo COPA y COPA SIN).
+- Esperado: todas las lineas aparecen en ticket y en impresion de comanda.
+
+## Criterio de pase
+
+- No hay doble edicion efectiva sobre misma mesa.
+- No hay locks zombies tras pago/salida/move.
+- No hay doble cobro en carreras.
+- Mesmo estado de mesa en todos los terminales tras refresco.

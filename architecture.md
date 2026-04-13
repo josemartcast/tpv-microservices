@@ -1,113 +1,110 @@
-# Arquitectura – TPV Desktop
+﻿# Arquitectura del sistema TPV
 
-Este proyecto está compuesto por un **backend de microservicios (Spring Boot)** y un **cliente de escritorio (JavaFX)** que consume la API REST mediante JWT.
+Estado documentado a fecha: 2026-04-13.
 
----
+## Vista general
 
-## Visión general
+El sistema se organiza en cinco piezas principales:
 
-- **Cliente (tpv-desktop)**: JavaFX (FXML + Controllers)
-- **Backend (microservicios)**: Spring Boot
-- **Seguridad**: JWT + roles (ADMIN / USER)
-- **Comunicación**: HTTP REST (JSON)
-- **Persistencia**: Base de datos relacional (según entorno)
+1. `auth-service` (Spring Boot)
+2. `pos-service` (Spring Boot)
+3. `gateway` (Spring Cloud Gateway)
+4. `tpv-desktop` (JavaFX)
+5. `pda-android` y `gateway:/pda` (cliente movil nativo y cliente web)
 
----
+## Flujo de red
 
-## Componentes
+- Desktop y PDA consumen siempre el `gateway`.
+- `gateway` enruta a `auth-service` y `pos-service`.
+- `gateway` sirve la PDA web en `/pda`.
+- Base de datos principal: MySQL (desarrollo en local, instalacion bar en servicio nativo `TPVMySQL`).
 
-### Cliente (JavaFX)
+## Servicios backend
+
+### auth-service
+
 Responsabilidades:
-- UI (pantallas + navegación)
-- Gestión de estado de sesión (token JWT)
-- Consumo de API (ApiClient + DTOs)
-- Validaciones básicas y UX (mensajes, bloqueos)
 
-Estructura típica:
-- `com.tpv.desktop.ui.*` → pantallas (sales, cash, history, fiscal, settings)
-- `com.tpv.desktop.api.*` → ApiClient, DTOs y APIs específicas (CashApi, FiscalApi…)
-- `com.tpv.desktop.core.*` → navegación (Nav), estado (AppState), settings, utilidades
+- Login (`/api/v1/auth/login`)
+- Perfil de sesion (`/api/v1/auth/me`)
+- Admin de usuarios (`/api/v1/auth/admin/users/**`)
+- Emision y validacion JWT
 
----
+Roles soportados:
 
-### Backend (Microservicios)
+- `ADMIN`
+- `ENCARGADO`
+- `CAJERO`
+- `CAMARERO`
+
+### pos-service
+
 Responsabilidades:
-- Autenticación y autorización
-- Reglas de negocio (tickets, pagos, caja)
-- Auditoría (expected cash, closing cash, diferencias)
-- Exposición de endpoints REST
 
-Servicios principales (nombres orientativos):
-- **gateway**: entrada única, routing y filtros
-- **auth-service**: login, emisión de JWT
-- **pos-service**: caja, tickets, pagos, fiscal
+- Salones, mesas y bloqueo de mesa
+- Tickets, lineas, notas, descuentos y movimientos
+- Comandas y preview de envio
+- Cobros, caja e incidencias
+- Historial, facturas y negocio fiscal
+- Catalogo (categorias/productos) y destino de impresion
+- Perfil del negocio
 
----
+## Gateway y politicas
 
-## Flujo de autenticación (JWT)
+`gateway` aplica capa de entrada unica y reglas de seguridad transversales.
 
-1. Usuario hace login en el cliente.
-2. `auth-service` devuelve:
-   - `accessToken`
-   - roles
-3. El cliente guarda el token en `AuthStore`.
-4. Cada petición REST añade:
-   - `Authorization: Bearer <token>`
-5. El backend valida el JWT y aplica roles.
+Caso importante en produccion:
 
----
+- Filtro `PdaCashGuardFilter` bloquea apertura/cierre de caja desde PDA (header `X-Client-App: PDA`) devolviendo `403`.
 
-## Flujos de negocio principales
+## Clientes
 
-### Apertura de caja → ventas → cierre
+### TPV Desktop (JavaFX)
 
-1. **Abrir caja**
-   - Se crea una Cash Session (OPEN)
-2. **Ventas**
-   - Se crea ticket
-   - Se añaden líneas
-   - Se registran pagos
-   - Ticket pasa a PAID
-3. **Fiscal Summary**
-   - Consulta de resumen del turno (informativo)
-4. **Fiscal Closure**
-   - Preview de esperado
-   - Introducción de efectivo contado
-   - Cierre de caja (CLOSED)
+- Operativa completa de sala/caja/historial/facturacion/admin.
+- Integracion de impresoras por destinos (`BAR`, `COCINA`, `POSTRES`, `GENERAL`).
+- Cola local de impresion con retry y diagnostico.
 
----
+### PDA web
 
-## Endpoints clave (via gateway)
+- UI en `gateway/src/main/resources/static/pda`.
+- Flujo rapido de mesas y comandas desde navegador movil.
 
-Cash session:
-- `GET  /api/v1/pos/cash-sessions/current`
-- `POST /api/v1/pos/cash-sessions/open`
-- `POST /api/v1/pos/cash-sessions/{id}/close`
-- `GET  /api/v1/pos/cash-sessions/{id}/fiscal-summary`
-- `GET  /api/v1/pos/cash-sessions/{id}/fiscal-closure`
+### PDA Android nativa
 
-Tickets:
-- `POST /api/v1/pos/tickets`
-- `GET  /api/v1/pos/tickets/open`
-- `GET  /api/v1/pos/tickets/{id}`
-- `GET  /api/v1/pos/tickets/{id}/summary`
-- `POST /api/v1/pos/tickets/{id}/lines`
-- `PATCH/DELETE /api/v1/pos/tickets/{id}/lines/{lineId}`
+- Kotlin + Jetpack Compose.
+- Login real, lock/heartbeat, ticket, notas, comanda, cobro, move-table, combinado de copas.
+- Manejo de reconexion y mensajes de error amigables.
 
----
+## Estado compartido y consistencia
 
-## Decisiones técnicas destacables
+Patrones aplicados:
 
-- Cliente desacoplado del backend: el backend puede reutilizarse para web/móvil.
-- DTOs en el cliente alineados con el contrato REST.
-- Manejo de configuración (URL API) en Settings con persistencia local.
-- Separación por módulos/pantallas para escalar el proyecto sin “mega-controllers”.
+- Lock de mesa por terminal + heartbeat.
+- Endpoints idempotentes para escenarios de red inestable.
+- `cancel-empty` para liberar mesa sin basura operativa.
+- Control de concurrencia en pago/move-table/send.
 
----
+## Impresion
 
-## Próximas extensiones posibles
+Arquitectura de impresion en Desktop:
 
-- Impresión/exportación de tickets
-- Listado de tickets pagados por rango de fechas
-- Usuarios y permisos más granulares
-- Export fiscal (CSV/PDF)
+- `DesktopComandaAutoPrintService` genera payloads por destino.
+- `LocalPrintQueueService` enruta a impresoras mapeadas por `PrinterSettingsStore`.
+- Fallback de PDF para flujos de comprobante donde aplica.
+- Reenviar comanda usa snapshot por destino y respeta impresoras reales configuradas.
+
+## Operacion en bar
+
+- Instalacion empaquetada para Windows con scripts de prerequisitos, arranque y parada.
+- Backup/restore desde scripts y desde UI.
+- Acceso remoto PDA recomendado por Tailscale (sin abrir puertos de router).
+
+## CI y calidad
+
+Workflows activos:
+
+- `pda-e2e-smoke.yml`
+- `db-backup-restore-smoke.yml`
+
+Objetivo: asegurar estabilidad de flujo critico antes de release candidate.

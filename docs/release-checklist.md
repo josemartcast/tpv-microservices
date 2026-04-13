@@ -1,65 +1,88 @@
-# Release Checklist - Produccion TPV/PDA
+﻿# Release checklist (pre RC)
 
-Fecha base: 2026-02-13
-Objetivo: pasar de piloto controlado a operacion estable con riesgo acotado.
+Estado documentado a fecha: 2026-04-13.
 
-## 1) Pre-release tecnico
-Estado: COMPLETADO (2026-02-27)
-- Confirmar `PDA E2E Smoke` en verde en el ultimo commit de `main`.
-- Confirmar `DB Backup Restore Smoke` en verde en el ultimo commit de `main`.
-- Confirmar version/tag de release definida (ejemplo: `v1.0.0`).
-- Congelar cambios no criticos durante ventana de despliegue.
-- Verificar migraciones DB en entorno de staging.
-- Verificar backups recientes y restauracion de prueba.
-- Ejecutar procedimiento documentado en `docs/backup-restore.md`.
+Objetivo: validar salida a release candidate con riesgo operativo controlado.
 
-## 2) Seguridad y acceso
-- JWT secret no default en produccion.
-- Credenciales fuera de repo (variables seguras o vault).
-- Terminal IDs unicos por dispositivo.
-- Revisar roles y permisos (ADMIN/CAJERO/CAMARERO).
-- Revisar expiracion y renovacion de token.
+## 1. Build y CI
 
-## 3) Operativa de servicios
-- Healthcheck de `auth-service`, `pos-service`, `gateway`.
-- Logs activos y rotacion configurada.
-- NTP/hora correcta en portatil TPV y dispositivos PDA.
-- Prueba de arranque en frio (reinicio completo y recuperacion).
-- Acceso PDA remoto validado via Tailscale (ver `docs/pda-tailscale-setup.md`).
+- [ ] `pda-e2e-smoke.yml` en verde en `main`.
+- [ ] `db-backup-restore-smoke.yml` en verde en `main`.
+- [ ] Sin errores de compilacion local en:
+  - `auth-service`
+  - `pos-service`
+  - `gateway`
+  - `tpv-desktop`
+  - `pda-android`
 
-## 4) Impresion y perifericos
-- Prueba de comanda BAR/COCINA en impresora termica real.
-- Prueba de pre-cuenta PDF (apertura y legibilidad).
-- Verificar reconexion de impresora tras desconexion fisica.
+## 2. Seguridad y permisos
 
-## 5) Flujo funcional critico
-- Apertura mesa, add lines, send comanda, cobro parcial y total.
-- Cierre de ticket libera mesa correctamente.
-- Move-table mantiene consistencia (origen/destino).
-- Conflicto multi-terminal bloquea segunda edicion.
-- Reconexion PDA mantiene idempotencia (sin duplicados).
+- [ ] Login JWT funcionando en Desktop/PDA.
+- [ ] Matriz de roles validada (ADMIN, ENCARGADO, CAJERO, CAMARERO).
+- [ ] Bloqueo de caja desde PDA validado (`403` con `X-Client-App: PDA`).
+- [ ] Terminal IDs unicos por dispositivo.
 
-## 6) Observabilidad y soporte
-- Definir tablero minimo: errores 4xx/5xx, latencia, conflictos lock.
-- Definir alertas: caida de gateway, picos de 5xx, fallos de impresion.
-- Definir runbook de incidencias (quien actua, SLA, escalado).
-- Guardar artefactos CI y logs de release.
+## 3. Operativa core TPV
 
-## 7) Rollback
-- Criterio de rollback claro:
-- error critico de cobro
-- inconsistencia de mesas
-- caida sostenida > X min
-- Procedimiento:
-- revert a tag estable
-- restaurar DB si aplica
-- validacion smoke post-rollback
+- [ ] Apertura de caja.
+- [ ] Apertura de mesa y lock multi terminal.
+- [ ] Alta/edicion/borrado de lineas.
+- [ ] Envio de comandas por destino.
+- [ ] Cobro total y parcial.
+- [ ] Cobro parcial por lineas.
+- [ ] Cierre de caja con resumen impreso.
 
-## 8) Go/No-Go final
-- `GO` si todos los puntos 1-7 estan validados.
-- `NO-GO` si hay un riesgo critico abierto en cobro, bloqueo de mesas o impresion.
+## 4. Facturacion e historial
 
-## 9) Post-release (24-72h)
-- Monitorizacion reforzada.
-- Recoleccion de incidencias reales.
-- Mini retro tecnica y ajuste de backlog.
+- [ ] Generar factura desde ticket.
+- [ ] Reimprimir factura desde historial.
+- [ ] Reabrir ticket pagado (rol permitido) sin duplicar cobros en cierre.
+
+## 5. Impresion
+
+- [ ] Comandas BAR/COCINA/POSTRES en impresora real.
+- [ ] Precuenta en impresora general.
+- [ ] Ticket cliente al cobrar.
+- [ ] Reenviar comanda usa impresora real (no Print to PDF forzado).
+- [ ] Ticket largo (mas de 22 lineas) imprime completo en continuo y corta al final.
+
+## 6. PDA (web + nativa)
+
+- [ ] Abrir mesa, anadir linea, editar, nota, enviar, cobrar, mover mesa.
+- [ ] Modal al salir de mesa con pendientes de comanda.
+- [ ] Liberacion de mesa vacia (`cancel-empty`).
+- [ ] Estado `PRECUENTA_PEDIDA` visible en mapa.
+- [ ] Flujo combinado COPAS + REFRESCOS correcto.
+
+## 7. Datos y backup
+
+- [ ] Backup previo a despliegue realizado.
+- [ ] Restore de prueba validado.
+- [ ] Carpeta de backup fuera de Git.
+
+## 8. Instalacion portatil bar
+
+- [ ] Instalador EXE ejecuta como administrador.
+- [ ] MySQL nativo `TPVMySQL` levantado.
+- [ ] `start-all.cmd` levanta backend + UI.
+- [ ] Tailscale operativo en portatil y PDA.
+
+## 9. Observabilidad minima
+
+- [ ] Sin crecimiento anomalo de RAM tras sesion larga de prueba.
+- [ ] Logs de errores revisados (gateway/pos/desktop).
+- [ ] Incidencias raras de comanda monitorizadas con trazas activas.
+
+## 10. Go / No-Go
+
+- `GO` si no hay bloqueantes en cobro, locks, impresion o consistencia de tickets.
+- `NO-GO` si persiste cualquier incidencia critica de comanda/cobro.
+
+## 11. Tag release candidate
+
+Solo cuando puntos 1-10 esten cerrados:
+
+```powershell
+git tag v1.0.0-rcX
+git push origin v1.0.0-rcX
+```
