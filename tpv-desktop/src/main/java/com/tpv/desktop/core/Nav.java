@@ -16,7 +16,7 @@ public final class Nav {
 
     public static void init(Stage primaryStage) {
         stage = primaryStage;
-        stage.setTitle("TPV Desktop");
+        stage.setTitle("BARIX TPV");
     }
 
     public static void goToLogin() {

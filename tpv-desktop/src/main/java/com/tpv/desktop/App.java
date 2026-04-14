@@ -4,12 +4,14 @@ import com.tpv.desktop.tpv.app.Navigator;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.core.AuthStore;
 import javafx.application.Application;
+import javafx.scene.image.Image;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 public class App extends Application {
   @Override
   public void start(Stage stage) {
+    applyWindowIcon(stage);
     AppContext context = AppContext.get();
     context.appState().touchModeProperty().set(resolveTouchMode());
     context.appState().kioskModeProperty().set(resolveKioskMode());
@@ -56,5 +58,15 @@ public class App extends Application {
     }
     String v = raw.trim().toLowerCase();
     return "1".equals(v) || "true".equals(v) || "yes".equals(v) || "on".equals(v);
+  }
+
+  private void applyWindowIcon(Stage stage) {
+    try (var stream = App.class.getResourceAsStream("/images/barix-tpv.png")) {
+      if (stream != null) {
+        stage.getIcons().add(new Image(stream));
+      }
+    } catch (Exception ignored) {
+      // Non-blocking: if icon cannot be loaded, app still starts.
+    }
   }
 }

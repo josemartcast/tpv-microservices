@@ -5,7 +5,7 @@
 
 <DialogPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.tpv.desktop.tpv.ui.controllers.SendOrderDialogController"
-            prefWidth="680" prefHeight="460" styleClass="send-dialog">
+            prefWidth="680" styleClass="send-dialog">
 
   <header>
     <HBox alignment="CENTER_LEFT" styleClass="send-dialog-head">
