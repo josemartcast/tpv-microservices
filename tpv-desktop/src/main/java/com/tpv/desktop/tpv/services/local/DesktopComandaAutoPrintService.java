@@ -228,6 +228,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             );
         }
         enqueueSnapshotForPrint(snapshot, ctx);
+        markComandaPrintedNow(ticketId);
     }
 
     private void processPrebillRequest(long ticketId, TableCtx ctx) {
@@ -368,6 +369,17 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             lastFallbackPrintedAtByTicket.put(ticketId, maxPrinted);
         } catch (Exception ignored) {
             // best-effort
+        }
+    }
+
+    private void markComandaPrintedNow(long ticketId) {
+        if (ticketId <= 0) {
+            return;
+        }
+        Instant now = Instant.now();
+        Instant previous = lastFallbackPrintedAtByTicket.get(ticketId);
+        if (previous == null || now.isAfter(previous)) {
+            lastFallbackPrintedAtByTicket.put(ticketId, now);
         }
     }
 
