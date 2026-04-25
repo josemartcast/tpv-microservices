@@ -1,5 +1,6 @@
 package com.tpv.desktop.ui.settings;
 
+import com.tpv.desktop.api.ApiClient;
 import com.tpv.desktop.api.ApiClient.ApiException;
 import com.tpv.desktop.api.pos.BusinessProfileApi;
 import com.tpv.desktop.api.pos.BusinessProfileResponse;
@@ -443,6 +444,7 @@ public class SettingsController {
   @FXML
   public void onLogout() {
     AuthStore.clear();
+    ApiClient.clearRememberedCredentials();
     Nav.goToLogin();
   }
 
