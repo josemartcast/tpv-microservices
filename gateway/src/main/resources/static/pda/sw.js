@@ -1,4 +1,4 @@
-const CACHE_NAME = "tpv-pda-v6";
+const CACHE_NAME = "tpv-pda-v15";
 const ASSETS = [
   "./index.html",
   "./styles.css",
@@ -7,12 +7,14 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
 });
 
 self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(

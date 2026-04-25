@@ -93,6 +93,7 @@
     ticketTotal: byId("ticketTotal"),
     editLineBtn: byId("editLineBtn"),
     deleteLineBtn: byId("deleteLineBtn"),
+    addNoteBtn: byId("addNoteBtn"),
     qtyInput: byId("qtyInput"),
     qtyPadButtons: Array.from(document.querySelectorAll(".num-pad-key")),
     categoryTabs: byId("categoryTabs"),
@@ -207,6 +208,7 @@
     els.prebillBtn.addEventListener("click", onRequestPrebill);
     els.editLineBtn.addEventListener("click", onEditSelectedLine);
     els.deleteLineBtn.addEventListener("click", onDeleteSelectedLine);
+    els.addNoteBtn.addEventListener("click", onAddNoteSelectedLine);
     els.qtyPadButtons.forEach(function (btn) {
       btn.addEventListener("click", function () {
         onQtyPadKey(btn.dataset.key || "");
@@ -763,7 +765,7 @@
     const tableNumber = state.currentTableNumber;
     const currentTicket = state.currentTicket;
     if (hasPendingSendLines()) {
-      const sendNow = window.confirm("Hay lineas pendientes de enviar.\n\nQuieres enviar la comanda ahora antes de salir de la mesa?");
+      const sendNow = window.confirm("Hay lineas pendientes de enviar.\n\nEnviar comanda?\nAceptar = SI | Cancelar = NO");
       if (sendNow) {
         await sendComanda("ALL");
         await refreshSendPreview();
@@ -827,6 +829,13 @@
 
   function renderCategories() {
     els.categoryTabs.replaceChildren();
+    if (!state.categories.length) {
+      const empty = document.createElement("p");
+      empty.className = "catalog-empty";
+      empty.textContent = "Sin categorias disponibles";
+      els.categoryTabs.appendChild(empty);
+      return;
+    }
     state.categories.forEach(function (cat) {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -856,8 +865,21 @@
 
   function renderProducts() {
     els.productsGrid.replaceChildren();
-    if (state.activeCategoryId === null) { return; }
+    if (state.activeCategoryId === null) {
+      const emptyCategory = document.createElement("p");
+      emptyCategory.className = "catalog-empty";
+      emptyCategory.textContent = "Selecciona una categoria";
+      els.productsGrid.appendChild(emptyCategory);
+      return;
+    }
     const products = state.productsByCategory.get(state.activeCategoryId) || [];
+    if (!products.length) {
+      const emptyProducts = document.createElement("p");
+      emptyProducts.className = "catalog-empty";
+      emptyProducts.textContent = "No hay productos en esta categoria";
+      els.productsGrid.appendChild(emptyProducts);
+      return;
+    }
     products.forEach(function (product, idx) {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -1068,6 +1090,9 @@
       li.textContent = "Sin lineas";
       els.ticketLines.appendChild(li);
       els.ticketTotal.textContent = centsToEur(0);
+      window.requestAnimationFrame(function () {
+        els.ticketLines.scrollTop = els.ticketLines.scrollHeight;
+      });
       return;
     }
     const stillExists = ticket.lines.some(function (line) { return Number(line.id) === Number(state.selectedLineId); });
@@ -1090,10 +1115,14 @@
         "<div class='ticket-line-meta'>" +
         "<span class='pill pill-dest'>" + escapeHtml(line.destination || "-") + "</span>" +
         (line.sent ? "" : "<span class='pill pill-pending'>pendiente</span>") +
-        "</div>";
+        "</div>" +
+        (line.note ? ("<div class='ticket-line-note'>" + escapeHtml(line.note) + "</div>") : "");
       els.ticketLines.appendChild(li);
     });
     els.ticketTotal.textContent = centsToEur(ticket.totalCents || 0);
+    window.requestAnimationFrame(function () {
+      els.ticketLines.scrollTop = els.ticketLines.scrollHeight;
+    });
   }
 
   async function refreshSendPreview() {
@@ -1135,14 +1164,14 @@
   }
 
   async function sendComanda(destination) {
-    if (!state.currentTicket) { toast("No hay ticket activo"); return; }
+    if (!state.currentTicket) { toast("No hay ticket activo"); return false; }
     if (!canRunCriticalAction()) {
       toast("Sin lock valido. Reabre mesa para enviar.");
-      return;
+      return false;
     }
     if (state.orderActionInFlight) {
       toast("Espera un instante, procesando accion anterior");
-      return;
+      return false;
     }
     const idempotencyKey = buildIdempotencyKey("pda-send");
     state.orderActionInFlight = true;
@@ -1157,6 +1186,7 @@
       renderTicket();
       await refreshSendPreview();
       toast("Comanda enviada " + sendRes.destination + " (" + sendRes.sentCount + ")");
+      return true;
     } catch (err) {
       if (shouldQueueAction(err)) {
         enqueueAction({
@@ -1167,10 +1197,11 @@
           idempotencyKey: idempotencyKey
         });
         toast("Sin conexion: envio en cola");
-        return;
+        return true;
       }
       pushError(err);
       toast("Error enviando comanda: " + err.message);
+      return false;
     } finally {
       state.orderActionInFlight = false;
     }
@@ -1290,6 +1321,37 @@
     } catch (err) {
       pushError(err);
       toast("No se pudo editar linea: " + err.message);
+    }
+  }
+
+  async function onAddNoteSelectedLine() {
+    const line = getSelectedLine();
+    if (!line) {
+      toast("Selecciona una linea para anadir nota");
+      return;
+    }
+    if (!canRunCriticalAction()) {
+      toast("Sin lock valido. Reabre mesa para continuar.");
+      return;
+    }
+
+    const currentNote = typeof line.note === "string" ? line.note : "";
+    const note = window.prompt("Nota para la linea (max 255)", currentNote);
+    if (note === null) {
+      return;
+    }
+
+    try {
+      state.currentTicket = await apiJson("/api/v1/pos/tickets/" + state.currentTicket.id + "/lines/" + line.id + "/note", {
+        method: "PATCH",
+        body: JSON.stringify({ note: String(note).trim() })
+      });
+      cacheTicket(state.currentTicket);
+      renderTicket();
+      toast("Nota actualizada");
+    } catch (err) {
+      pushError(err);
+      toast("No se pudo actualizar nota: " + err.message);
     }
   }
 
@@ -1468,7 +1530,9 @@
         body: JSON.stringify({ requested: true })
       });
       cacheTicket(state.currentTicket);
+      markCurrentTableAsBillRequested();
       renderTicket();
+      await refreshTablesSafe();
       toast("Pre-cuenta solicitada. Se imprimira en el TPV.");
     } catch (err) {
       if (shouldQueueAction(err)) {
@@ -1483,6 +1547,24 @@
       pushError(err);
       toast("No se pudo solicitar pre-cuenta: " + err.message);
     }
+  }
+
+  function markCurrentTableAsBillRequested() {
+    if (!state.currentTableNumber) {
+      return;
+    }
+    const table = state.tables.find(function (t) {
+      return Number(t.tableNumber) === Number(state.currentTableNumber);
+    });
+    if (!table) {
+      return;
+    }
+    table.status = "PRECUENTA_PEDIDA";
+    if (state.currentTicket && state.currentTicket.id) {
+      table.ticketId = state.currentTicket.id;
+    }
+    state.cache.tables = state.tables.slice();
+    saveCache();
   }
 
   function choosePaymentMethod() {
@@ -2207,7 +2289,7 @@
     if (isLockedByMe(table)) { return "table-locked-me"; }
     if (table.status === "FREE") { return "table-free"; }
     if (table.status === "PENDING_SEND") { return "table-pending"; }
-    if (table.status === "BILL_REQUESTED") { return "table-bill"; }
+    if (isPrebillRequestedStatus(table.status)) { return "table-bill"; }
     return "table-occupied";
   }
 
@@ -2216,7 +2298,7 @@
     if (isLockedByMe(table)) { return "status-lock"; }
     if (table.status === "FREE") { return "status-free"; }
     if (table.status === "PENDING_SEND") { return "status-pending"; }
-    if (table.status === "BILL_REQUESTED") { return "status-bill"; }
+    if (isPrebillRequestedStatus(table.status)) { return "status-bill"; }
     return "status-occupied";
   }
 
@@ -2225,8 +2307,13 @@
     if (isLockedByMe(table)) { return "Bloqueada (yo)"; }
     if (table.status === "FREE") { return "Libre"; }
     if (table.status === "PENDING_SEND") { return "Pendiente enviar"; }
-    if (table.status === "BILL_REQUESTED") { return "Cuenta pedida"; }
+    if (isPrebillRequestedStatus(table.status)) { return "Precuenta pedida"; }
     return "Ocupada";
+  }
+
+  function isPrebillRequestedStatus(status) {
+    const value = String(status || "").toUpperCase();
+    return value === "BILL_REQUESTED" || value === "PRECUENTA_PEDIDA" || value === "PREBILL_REQUESTED";
   }
 
   function isLockedByMe(table) {
