@@ -1,39 +1,29 @@
-﻿# API principal (resumen operativo)
+﻿# API principal (guia operativa)
 
-Estado documentado a fecha: 2026-04-13.
+Esta guia resume la API para desarrollo diario.
+No pretende sustituir el codigo; para comportamiento exacto manda siempre el controller/service real.
 
-Base URL via gateway:
+## 1) Base y convenciones
 
-- `http://localhost:8080`
+- Base URL (via gateway): `http://localhost:8080`
+- Version: `/api/v1`
+- Auth: `Authorization: Bearer <jwt>`
+- Contexto terminal: `X-Terminal-Id: <terminal-id>`
+- Contexto PDA: `X-Client-App: PDA`
 
-Version API:
+## 2) Flujo minimo de autenticacion
 
-- `/api/v1`
+1. `POST /api/v1/auth/login`
+2. guardar `accessToken`
+3. usar token en llamadas siguientes
+4. validar sesion con `GET /api/v1/auth/me`
 
-Autenticacion:
+## 3) Endpoints mas usados por dominio
 
-- `Authorization: Bearer <jwt>`
-
-Header de terminal (clientes TPV/PDA):
-
-- `X-Terminal-Id: <terminal-id>`
-
-Header de app (usado para guardas PDA):
-
-- `X-Client-App: PDA`
-
-## Auth service
-
-### Login
+### Auth y usuarios
 
 - `POST /api/v1/auth/login`
-
-### Sesion actual
-
 - `GET /api/v1/auth/me`
-
-### Admin usuarios
-
 - `GET /api/v1/auth/admin/users`
 - `POST /api/v1/auth/admin/users`
 - `PATCH /api/v1/auth/admin/users/{id}/role`
@@ -42,7 +32,7 @@ Header de app (usado para guardas PDA):
 - `PATCH /api/v1/auth/admin/users/{id}/deactivate`
 - `DELETE /api/v1/auth/admin/users/{id}`
 
-## POS service - salones/mesas
+### Salon y mesas
 
 - `GET /api/v1/pos/salon/tables`
 - `POST /api/v1/pos/salon/tables/{tableNumber}/open-ticket`
@@ -51,132 +41,75 @@ Header de app (usado para guardas PDA):
 - `POST /api/v1/pos/salon/tables/{tableNumber}/unlock`
 - `PUT /api/v1/pos/salon/tables/{tableNumber}/alias`
 
-Admin salones:
-
-- `GET /api/v1/pos/admin/salons`
-- `POST /api/v1/pos/admin/salons`
-- `PUT /api/v1/pos/admin/salons/{id}`
-- `DELETE /api/v1/pos/admin/salons/{id}`
-- `GET /api/v1/pos/admin/salons/{id}/table-aliases`
-- `PUT /api/v1/pos/admin/salons/{id}/tables/{tableNumber}/alias`
-
-## POS service - tickets y lineas
+### Tickets, lineas y comandas
 
 - `POST /api/v1/pos/tickets`
 - `GET /api/v1/pos/tickets/open`
-- `GET /api/v1/pos/tickets/history/current-cash`
 - `GET /api/v1/pos/tickets/{id}`
 - `GET /api/v1/pos/tickets/{id}/summary`
 - `GET /api/v1/pos/tickets/{id}/payment-summary`
-
-Lineas:
-
 - `POST /api/v1/pos/tickets/{id}/lines`
-- `POST /api/v1/pos/tickets/{id}/lines/combo`
 - `PATCH /api/v1/pos/tickets/{id}/lines/{lineId}`
 - `PATCH /api/v1/pos/tickets/{id}/lines/{lineId}/price`
 - `PATCH /api/v1/pos/tickets/{id}/lines/{lineId}/note`
-- `PATCH /api/v1/pos/tickets/{id}/lines/{lineId}/consume-payment`
 - `DELETE /api/v1/pos/tickets/{id}/lines/{lineId}`
-
-Operaciones de ticket:
-
-- `POST /api/v1/pos/tickets/{id}/cancel`
-- `POST /api/v1/pos/tickets/{id}/cancel-empty`
-- `POST /api/v1/pos/tickets/{id}/bill-requested`
-- `POST /api/v1/pos/tickets/{id}/move-table`
-- `POST /api/v1/pos/tickets/{id}/discount`
-- `POST /api/v1/pos/tickets/{id}/reopen-paid`
-
-## POS service - comandas
-
 - `GET /api/v1/pos/tickets/{id}/send-preview`
 - `POST /api/v1/pos/tickets/{id}/send`
 
-## POS service - pagos
+### Cobros, caja y fiscal
 
 - `POST /api/v1/pos/tickets/{ticketId}/payments`
 - `POST /api/v1/pos/tickets/{ticketId}/refunds`
-
-## POS service - caja/fiscal
-
 - `GET /api/v1/pos/cash-sessions/current`
 - `POST /api/v1/pos/cash-sessions/open`
 - `POST /api/v1/pos/cash-sessions/{id}/close`
 - `GET /api/v1/pos/cash-sessions/{id}/close-summary`
-- `GET /api/v1/pos/cash-sessions/{id}/incidents`
-- `POST /api/v1/pos/cash-sessions/{id}/incidents`
-- `GET /api/v1/pos/cash-sessions/{id}/open-tickets`
-- `POST /api/v1/pos/cash-sessions/{id}/resolve-open-tickets`
 - `GET /api/v1/pos/cash-sessions/{id}/fiscal-summary`
 - `GET /api/v1/pos/cash-sessions/{id}/fiscal-closure`
 
-Ejercicios fiscales:
-
-- `GET /api/v1/pos/fiscal-exercises`
-- `GET /api/v1/pos/fiscal-exercises/current`
-- `POST /api/v1/pos/fiscal-exercises/open`
-- `POST /api/v1/pos/fiscal-exercises/{id}/close`
-
-## POS service - catalogo
-
-Categorias:
+### Catalogo y negocio
 
 - `GET /api/v1/pos/categories`
-- `GET /api/v1/pos/categories/{id}`
 - `POST /api/v1/pos/categories`
-- `PUT /api/v1/pos/categories/{id}`
-- `DELETE /api/v1/pos/categories/{id}`
-- `PATCH /api/v1/pos/categories/{id}/activate`
-- `PATCH /api/v1/pos/categories/{id}/deactivate`
-
-Productos:
-
 - `GET /api/v1/pos/products`
-- `GET /api/v1/pos/products/{id}`
 - `POST /api/v1/pos/products`
-- `PUT /api/v1/pos/products/{id}`
-- `DELETE /api/v1/pos/products/{id}`
-- `PATCH /api/v1/pos/products/{id}/activate`
-- `PATCH /api/v1/pos/products/{id}/deactivate`
-
-Semilla catalogo admin:
-
 - `POST /api/v1/pos/admin/seed-catalog`
-
-## POS service - clientes/facturas/negocio
-
-- `GET /api/v1/pos/customers`
-- `GET /api/v1/pos/customers/{id}`
-- `POST /api/v1/pos/customers`
-- `PUT /api/v1/pos/customers/{id}`
-- `DELETE /api/v1/pos/customers/{id}`
-
-- `GET /api/v1/pos/tickets/{id}/invoice`
-- `POST /api/v1/pos/tickets/{id}/invoice`
-- `GET /api/v1/pos/invoices`
-
 - `GET /api/v1/pos/business-profile`
 - `PUT /api/v1/pos/business-profile`
 
-## Health y auditoria
+### Facturacion, auditoria y salud
 
-- `GET /api/v1/pos/health`
+- `POST /api/v1/pos/tickets/{id}/invoice`
+- `GET /api/v1/pos/tickets/{id}/invoice`
+- `GET /api/v1/pos/invoices`
 - `GET /api/v1/pos/audit/events`
+- `GET /api/v1/pos/health`
 
-## Guardias de seguridad especiales
+## 4) Restriccion especial de seguridad (PDA)
 
-Con `X-Client-App: PDA`:
+Si mandas `X-Client-App: PDA`:
 
 - `POST /api/v1/pos/cash-sessions/open` -> `403`
 - `POST /api/v1/pos/cash-sessions/{id}/close` -> `403`
 
-Motivo: caja solo se opera desde TPV Desktop.
+Motivo: apertura/cierre de caja solo desde Desktop.
 
-## Errores frecuentes
+## 5) Errores frecuentes
 
-- `401`: token invalido/caducado
-- `403`: sin permisos o bloqueado por politica
-- `404`: recurso no encontrado
-- `409`: conflicto de estado (lock, ticket, caja, etc.)
-- `5xx`: error servidor
+- `400`: payload invalido.
+- `401`: token ausente/invalido/caducado.
+- `403`: rol sin permisos o politica bloqueante.
+- `404`: recurso no encontrado.
+- `409`: conflicto de estado/concurrencia.
+- `5xx`: error interno.
+
+## 6) Recomendacion para trabajar rapido
+
+Cuando toques una funcionalidad:
+
+1. localiza el endpoint en controller.
+2. revisa validaciones y reglas en service.
+3. revisa tests del modulo.
+
+`rg "@RequestMapping|@GetMapping|@PostMapping|@PutMapping|@PatchMapping|@DeleteMapping" services/*/src/main/java`
+

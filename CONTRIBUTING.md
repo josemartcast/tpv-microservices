@@ -1,23 +1,22 @@
-# Contributing Guide
+﻿# Contributing Guide
 
-Este repositorio usa un flujo simple: `main` estable y `dev` para trabajo diario.
+Guia para colaborar sin romper el flujo del equipo.
 
-## Branching model
+## 1) Modelo de ramas
 
-- `main`: rama estable, lista para bar/produccion.
-- `dev`: integracion continua de cambios.
+- `main`: estable (release).
+- `dev`: integracion diaria.
 - `feature/<tema>`: nueva funcionalidad.
 - `fix/<tema>`: bug normal.
-- `hotfix/<tema>`: bug urgente en produccion.
-- `release/<version>` (opcional): congelacion previa a merge en `main`.
+- `hotfix/<tema>`: bug urgente sobre `main`.
 
 Ejemplos:
 
-- `feature/pda-precuenta-estado`
-- `fix/comanda-missing-line`
-- `hotfix/print-fallback`
+- `feature/pda-send-preview`
+- `fix/ticket-lock-timeout`
+- `hotfix/cash-close-conflict`
 
-## Daily workflow
+## 2) Flujo diario recomendado
 
 ```bash
 git checkout dev
@@ -28,43 +27,55 @@ git commit -m "feat: ..."
 git push
 ```
 
-## Release workflow
+Abrir PR contra `dev`.
 
-1. Asegurar `dev` en verde (CI + smoke).
-2. Merge `dev -> main`.
-3. Tag de version.
+## 3) Antes de abrir PR
 
-```bash
-git checkout main
-git pull
-git merge --no-ff dev
-git push
-git tag v1.0.0
-git push origin v1.0.0
+1. Compilar modulos tocados.
+2. Ejecutar tests relevantes.
+3. Revisar que no subes artefactos (`target`, `build`, `dist`, logs, backups).
+4. Actualizar documentacion si cambias flujo operativo o endpoints.
+
+## 4) Comandos base de validacion
+
+Backend:
+
+```powershell
+cd services/auth-service
+.\mvnw.cmd test
 ```
 
-## Hotfix workflow
-
-```bash
-git checkout main
-git pull
-git checkout -b hotfix/<tema>
-# fix
-git add .
-git commit -m "fix: ..."
-git push -u origin hotfix/<tema>
+```powershell
+cd services/pos-service
+.\mvnw.cmd test
 ```
 
-Despues del merge del hotfix en `main`, sincronizar tambien en `dev`.
+```powershell
+cd gateway
+.\mvnw.cmd test
+```
 
-## Commit style
+Desktop:
 
-Usar prefijos cortos:
+```powershell
+cd tpv-desktop
+.\mvnw.cmd test
+```
+
+Android (si aplica):
+
+```powershell
+cd pda-android
+.\gradlew.bat testDebugUnitTest
+```
+
+## 5) Estilo de commits
+
+Prefijos recomendados:
 
 - `feat:`
 - `fix:`
 - `refactor:`
-- `perf:`
 - `test:`
 - `docs:`
 - `build:`
@@ -72,27 +83,23 @@ Usar prefijos cortos:
 
 Ejemplos:
 
-- `feat: add prebill state in table map`
-- `fix: avoid duplicated partial payment totals`
-- `build: harden desktop login defaults`
+- `feat: add table alias endpoint for salon`
+- `fix: prevent duplicate payment in race scenario`
+- `docs: update onboarding for junior developers`
 
-## Pull request checklist
+## 6) Checklist de PR (practico)
 
-- Compila local en los modulos tocados.
-- Tests locales basicos en verde.
-- No incluir logs/runtime (`.runlogs`, `.run-logs`, `dist` temporales).
-- Si toca TPV/PDA: validar flujo minimo (mesa, comanda, cobro).
-- Si toca impresion: probar ticket + precuenta + factura.
-- Si toca seguridad: validar roles y endpoints bloqueados.
+- [ ] Cambio pequeno y entendible.
+- [ ] No rompe flujo caja -> ticket -> cobro.
+- [ ] No rompe permisos por rol.
+- [ ] Maneja conflictos (`409`) de forma explicita si aplica.
+- [ ] Tiene tests o justificacion de por que no aplica test.
+- [ ] Documentacion alineada.
 
-## Version tags
+## 7) Reglas de oro
 
-- RC: `v1.0.0-rc1`
-- Final: `v1.0.0`
-- Patch: `v1.0.1`
+1. Prefiere PRs pequenas.
+2. No mezcles refactor grande con bugfix urgente.
+3. Si tocas seguridad o caja, pide segunda revision.
+4. Si cambias contrato API, avisa a Desktop/PDA.
 
-## Notes for this project
-
-- Mantener `main` libre de cambios experimentales.
-- Preferir PRs pequenas y revisables.
-- Documentar cambios operativos en `docs/` cuando afecten instalacion o uso en bar.

@@ -1,228 +1,143 @@
-# Guía de uso – TPV Desktop
+﻿# Runbook operativo TPV (Desktop + PDA)
 
-Este documento describe el uso del TPV desde el punto de vista de un **usuario real** (cajero / administrador), siguiendo el flujo natural de trabajo de un negocio.
+Objetivo: tener una guia corta para operar el sistema en dia a dia y responder incidencias comunes.
 
----
+## 1) Operacion diaria recomendada
 
-## 1. Login
+1. Verificar que backend responde (`http://localhost:8080/pda`).
+2. Login de supervisor.
+3. Abrir caja.
+4. Operar ventas normales.
+5. Revisar incidencias de caja si hay diferencias.
+6. Cerrar caja al final del turno.
+7. Ejecutar backup.
 
-1. Iniciar la aplicación.
-2. Introducir usuario y contraseña.
-3. Acceder al sistema.
+## 2) Arranque de entorno local (soporte/desarrollo)
 
-Roles:
-- **ADMIN**: acceso completo (caja, cierre fiscal, cancelaciones).
-- **USER**: acceso limitado (ventas, consultas).
+Base de datos:
 
----
-
-## 2. Apertura de caja
-
-Antes de realizar cualquier venta es obligatorio **abrir la caja**.
-
-1. Ir a la pantalla **Caja**.
-2. Introducir el efectivo inicial (por ejemplo, cambio).
-3. Confirmar apertura.
-
-Estado:
-- Caja pasa a **OPEN**.
-- El TPV permite ventas.
-
----
-
-## 3. Ventas (Sales)
-
-### Crear ticket
-1. Acceder a **Sales**.
-2. Crear un nuevo ticket automáticamente.
-3. Añadir productos al ticket.
-
-### Modificar ticket
-- Ajustar cantidades.
-- Eliminar líneas.
-- El total se recalcula automáticamente.
-
-### Cobro
-1. Seleccionar método de pago:
-   - Efectivo
-   - Tarjeta
-   - Bizum
-2. Confirmar cobro.
-3. El ticket pasa a estado **PAID**.
-
-⚠️ Si no hay caja abierta, las ventas quedan bloqueadas.
-
----
-
-## 4. Historial de tickets
-
-Desde **Tickets History** se puede:
-
-- Ver tickets creados.
-- Consultar detalle completo:
-  - líneas
-  - pagos
-  - totales
-- Reabrir un ticket en Sales (si está permitido).
-
----
-
-## 5. Fiscal Summary
-
-Pantalla informativa del turno actual.
-
-Muestra:
-- Tickets pagados y cancelados.
-- Ventas brutas, netas e IVA.
-- Pagos agrupados por método.
-
-No modifica datos, solo consulta.
-
----
-
-## 6. Fiscal Closure (Cierre de caja)
-
-Proceso crítico al finalizar el turno.
-
-1. Acceder a **Fiscal Closure**.
-2. Revisar:
-   - efectivo inicial
-   - ventas en efectivo
-   - efectivo esperado
-3. Introducir el efectivo contado físicamente.
-4. Revisar la diferencia.
-5. Confirmar cierre de caja.
-
-Resultado:
-- La caja pasa a **CLOSED**.
-- Se guarda el cierre para auditoría.
-- Las ventas quedan bloqueadas hasta abrir una nueva caja.
-
----
-
-## 7. Settings
-
-Desde **Settings** se puede:
-
-- Configurar la URL del backend (API Gateway).
-- Probar la conexión.
-- Cerrar sesión (logout).
-
-Los ajustes se guardan localmente para futuras ejecuciones.
-
----
-
-## 8. Flujo recomendado diario
-
-1. Login
-2. Abrir caja
-3. Realizar ventas
-4. Consultar fiscal summary (opcional)
-5. Cerrar caja
-6. Logout
-
----
-
-## 9. Mensajes comunes
-
-- **“No hay caja abierta”**  
-  → Debe abrirse una caja antes de vender.
-
-- **“Solo ADMIN puede cerrar caja”**  
-  → Acción restringida por rol.
-
----
-
-
----
-
-## 10. Carga rapida de catalogo base (entorno local)
-
-Si el catalogo esta vacio, puedes cargar datos base idempotentes con Docker:
-
-```bash
-docker exec -i tpv-mysql mysql -utpv_user -ptpv_pass < docker/mysql/seed_catalog.sql
+```powershell
+cd docker
+docker compose up -d mysql
 ```
 
-El script crea categorias y productos base sin duplicar nombres existentes.
+Servicios backend (3 terminales):
 
-## 11. Idempotencia en operaciones criticas (Sprint 1)
-
-Para evitar duplicados por doble click o reintentos de red, estas operaciones soportan cabecera `Idempotency-Key`:
-
-- `POST /api/v1/pos/tickets/{ticketId}/payments`
-- `POST /api/v1/pos/tickets/{ticketId}/send`
-- `POST /api/v1/pos/cash-sessions/{id}/close`
-
-Regla: si repites la misma operacion con la misma key y mismo recurso, el backend devuelve el mismo resultado sin duplicar efectos.
-
-Ejemplo:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/pos/tickets/8/payments \
-  -H "Authorization: Bearer <token>" \
-  -H "X-Terminal-Id: TERMINAL-1" \
-  -H "Idempotency-Key: 2b3be3f8-3b8f-4ad9-9fb3-c9d8f389d9f1" \
-  -H "Content-Type: application/json" \
-  -d '{"method":"CARD","amountCents":1200}'
+```powershell
+cd services/auth-service
+.\mvnw.cmd -q -DskipTests spring-boot:run
 ```
 
-## 12. Auditoria operativa (Sprint 2)
-
-Endpoint de consulta (solo ADMIN):
-
-- `GET /api/v1/pos/audit/events`
-
-Filtros soportados:
-
-- `from` / `to` (ISO-8601)
-- `action` (ej: `PAYMENT_ADD`, `COMANDA_SEND`, `CASH_CLOSE`)
-- `status` (`SUCCESS` / `FAILED`)
-- `actor`
-- `resourceType` (ej: `TICKET`, `CASH_SESSION`, `TABLE`, `CATALOG`)
-- `resourceId`
-- `limit` (max 1000)
-
-Ejemplo:
-
-```bash
-curl -X GET "http://localhost:8080/api/v1/pos/audit/events?action=PAYMENT_ADD&status=FAILED&limit=50" \
-  -H "Authorization: Bearer <token_admin>" \
-  -H "X-Terminal-Id: TERMINAL-1"
+```powershell
+cd services/pos-service
+.\mvnw.cmd -q -DskipTests spring-boot:run
 ```
 
-Operaciones auditadas actualmente:
+```powershell
+cd gateway
+.\mvnw.cmd -q -DskipTests spring-boot:run
+```
 
-- Carga de catalogo (`CATALOG_SEED`)
-- Creacion/cancelacion/modificacion de ticket (`TICKET_*`)
-- Cobros (`PAYMENT_ADD`)
-- Envio de comanda (`COMANDA_SEND`)
-- Caja (`CASH_OPEN`, `CASH_CLOSE`)
-- Bloqueos de mesa (`TABLE_LOCK`, `TABLE_HEARTBEAT`, `TABLE_UNLOCK`)
-- Apertura de ticket desde salon (`SALON_OPEN_TICKET`)
+Desktop:
 
-## 13. UX Beta operativa (Sprint 3)
+```powershell
+cd tpv-desktop
+.\mvnw.cmd -q -Dtpv.mode=real -Dtpv.auto.login=false javafx:run
+```
 
-Mejoras de flujo en pantalla Sales:
+## 3) Comprobaciones de salud rapidas
 
-- Botonera tactil ampliada (acciones principales y cobro visibles)
-- Buscador de productos en caliente
-- Cobro personalizado (importe parcial + metodo)
-- Feedback visual por estado (`info`, `success`, `warn`, `error`)
+- `GET /api/v1/pos/health`
+- abrir `http://localhost:8080/pda`
+- login `admin/admin123` (si es entorno bootstrap)
 
-Atajos de teclado en Sales:
+Si falla login pero servicios estan arriba, revisar JWT secret compartido en:
 
-- `F2`: nuevo ticket
-- `F5`: refrescar ticket
-- `F6`: cobro personalizado
-- `F9`: enviar comanda
-- `F10`: cobrar efectivo
-- `F11`: cobrar tarjeta
-- `F12`: cobrar bizum
-- `Esc`: cancelar ticket actual
-- `Supr`: borrar linea seleccionada (si no enviada)
+- `services/auth-service/src/main/resources/application.yml`
+- `services/pos-service/src/main/resources/application.yml`
+- `gateway/src/main/resources/application.yml`
 
-Comportamiento de cobro:
+## 4) Incidencias frecuentes y respuesta
 
-- Si el pago no liquida el total, el ticket permanece abierto.
-- Si liquida el total, el ticket pasa a pagado y se libera bloqueo de mesa.
+### 4.1 Error 401 en varias pantallas
+
+Causa tipica:
+
+- token caducado o invalido.
+
+Accion:
+
+1. relogin.
+2. verificar hora del equipo.
+3. revisar configuracion JWT entre servicios.
+
+### 4.2 Error 409 al bloquear mesa o cobrar
+
+Causa tipica:
+
+- concurrencia (otro terminal ya hizo la accion).
+
+Accion:
+
+1. refrescar estado de mesa/ticket.
+2. confirmar que terminal tiene lock.
+3. reintentar solo si estado sigue pendiente.
+
+### 4.3 PDA no puede abrir/cerrar caja
+
+Comportamiento esperado por seguridad.
+
+- Gateway devuelve `403` cuando `X-Client-App: PDA`.
+
+### 4.4 Comanda no sale en impresora
+
+1. revisar mapping de impresora en Desktop.
+2. revisar estado de impresora del sistema.
+3. revisar logs locales Desktop.
+4. probar reenvio de comanda.
+
+## 5) Backup y restore
+
+Backup (recomendado diario):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\db-backup.ps1 -Compress
+```
+
+Restore de prueba:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\db-restore.ps1 `
+  -BackupDir .\.backups\YYYYMMDD-HHMMSS `
+  -TargetAuthDb tpv_auth_restore_test `
+  -TargetPosDb tpv_pos_restore_test
+```
+
+Restore sobre DB operativa:
+
+- solo con autorizacion explicita
+- requiere `-AllowProductionRestore`
+
+## 6) QA rapido antes de release
+
+PDA smoke:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\pda-e2e-smoke.ps1
+```
+
+Backup/restore smoke:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\db-backup-restore-smoke.ps1 -Mode auto -RootPassword root
+```
+
+## 7) Escalado
+
+Escalar a responsable tecnico cuando haya:
+
+- inconsistencias de cobro/caja
+- perdida de datos o restore fallido
+- fallos repetidos de concurrencia no explicables por uso normal
+- incidencias de seguridad o permisos cruzados
+

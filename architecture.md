@@ -1,110 +1,120 @@
 ﻿# Arquitectura del sistema TPV
 
-Estado documentado a fecha: 2026-04-13.
+Objetivo: explicar como se conectan los modulos y donde tocar codigo segun el tipo de cambio.
 
-## Vista general
+## 1) Vista general
 
-El sistema se organiza en cinco piezas principales:
+```text
+TPV Desktop / PDA Web / PDA Android
+                |
+                v
+          Gateway (:8080)
+           |           |
+           v           v
+     Auth Service   POS Service
+       (:8081)       (:8082)
+            \       /
+              MySQL
+     (tpv_auth + tpv_pos)
+```
 
-1. `auth-service` (Spring Boot)
-2. `pos-service` (Spring Boot)
-3. `gateway` (Spring Cloud Gateway)
-4. `tpv-desktop` (JavaFX)
-5. `pda-android` y `gateway:/pda` (cliente movil nativo y cliente web)
+## 2) Responsabilidad de cada modulo
 
-## Flujo de red
+### `services/auth-service`
 
-- Desktop y PDA consumen siempre el `gateway`.
-- `gateway` enruta a `auth-service` y `pos-service`.
-- `gateway` sirve la PDA web en `/pda`.
-- Base de datos principal: MySQL (desarrollo en local, instalacion bar en servicio nativo `TPVMySQL`).
+- Login (`/api/v1/auth/login`).
+- Perfil de sesion (`/api/v1/auth/me`).
+- Gestion admin de usuarios y roles.
+- Emision/validacion de JWT.
 
-## Servicios backend
-
-### auth-service
-
-Responsabilidades:
-
-- Login (`/api/v1/auth/login`)
-- Perfil de sesion (`/api/v1/auth/me`)
-- Admin de usuarios (`/api/v1/auth/admin/users/**`)
-- Emision y validacion JWT
-
-Roles soportados:
+Roles existentes en codigo:
 
 - `ADMIN`
 - `ENCARGADO`
 - `CAJERO`
 - `CAMARERO`
+- `USER` (legacy; se migra automaticamente a `CAMARERO` en bootstrap)
 
-### pos-service
+### `services/pos-service`
 
-Responsabilidades:
+- Dominio operativo del TPV:
+  - mesas/salones/locks
+  - tickets/lineas/comandas
+  - cobros/reembolsos
+  - caja y cierre
+  - facturacion
+  - catalogo
+  - auditoria
 
-- Salones, mesas y bloqueo de mesa
-- Tickets, lineas, notas, descuentos y movimientos
-- Comandas y preview de envio
-- Cobros, caja e incidencias
-- Historial, facturas y negocio fiscal
-- Catalogo (categorias/productos) y destino de impresion
-- Perfil del negocio
+### `gateway`
 
-## Gateway y politicas
+- Punto unico de entrada para clientes.
+- Routing a auth y pos.
+- Hosting de PDA web en `/pda`.
+- Politica especial `PdaCashGuardFilter`: bloquea apertura/cierre de caja desde PDA (`X-Client-App: PDA`).
 
-`gateway` aplica capa de entrada unica y reglas de seguridad transversales.
+### `tpv-desktop`
 
-Caso importante en produccion:
+- Cliente JavaFX con flujo completo de negocio.
+- Consume APIs via gateway.
+- Gestiona impresion local y ajustes de impresora.
 
-- Filtro `PdaCashGuardFilter` bloquea apertura/cierre de caja desde PDA (header `X-Client-App: PDA`) devolviendo `403`.
+### `pda-android` + PDA web
 
-## Clientes
+- Flujo rapido de sala: abrir mesa, editar ticket, enviar comanda, cobrar, mover mesa.
+- Siempre consumen gateway.
 
-### TPV Desktop (JavaFX)
+## 3) Datos y persistencia
 
-- Operativa completa de sala/caja/historial/facturacion/admin.
-- Integracion de impresoras por destinos (`BAR`, `COCINA`, `POSTRES`, `GENERAL`).
-- Cola local de impresion con retry y diagnostico.
+- `tpv_auth`: usuarios/roles/sesion.
+- `tpv_pos`: dominio de negocio (tickets, pagos, caja, etc).
 
-### PDA web
+En local puedes usar Docker (`docker/docker-compose.yml`).
 
-- UI en `gateway/src/main/resources/static/pda`.
-- Flujo rapido de mesas y comandas desde navegador movil.
+## 4) Seguridad y contexto de request
 
-### PDA Android nativa
+Headers que importan:
 
-- Kotlin + Jetpack Compose.
-- Login real, lock/heartbeat, ticket, notas, comanda, cobro, move-table, combinado de copas.
-- Manejo de reconexion y mensajes de error amigables.
+- `Authorization: Bearer <jwt>`
+- `X-Terminal-Id: <terminal-id>`
+- `X-Client-App: PDA` (solo clientes PDA)
 
-## Estado compartido y consistencia
+Impacto:
 
-Patrones aplicados:
+- permisos por rol en backend
+- trazabilidad por terminal
+- reglas especiales por tipo de cliente (ejemplo: caja desde PDA bloqueada)
 
-- Lock de mesa por terminal + heartbeat.
-- Endpoints idempotentes para escenarios de red inestable.
-- `cancel-empty` para liberar mesa sin basura operativa.
-- Control de concurrencia en pago/move-table/send.
+## 5) Consistencia y concurrencia
 
-## Impresion
+Patrones principales:
 
-Arquitectura de impresion en Desktop:
+- Lock de mesa + heartbeat para evitar doble edicion en varios terminales.
+- Idempotencia en operaciones criticas (comanda/cobro/cierre) para tolerar reintentos.
+- Reglas de conflicto (`409`) cuando dos actores compiten por el mismo recurso.
 
-- `DesktopComandaAutoPrintService` genera payloads por destino.
-- `LocalPrintQueueService` enruta a impresoras mapeadas por `PrinterSettingsStore`.
-- Fallback de PDF para flujos de comprobante donde aplica.
-- Reenviar comanda usa snapshot por destino y respeta impresoras reales configuradas.
+## 6) Mapa rapido para depurar
 
-## Operacion en bar
+Si falla login/permisos:
 
-- Instalacion empaquetada para Windows con scripts de prerequisitos, arranque y parada.
-- Backup/restore desde scripts y desde UI.
-- Acceso remoto PDA recomendado por Tailscale (sin abrir puertos de router).
+- revisar `auth-service` y config JWT compartida.
 
-## CI y calidad
+Si falla una operacion de ticket/cobro:
 
-Workflows activos:
+- revisar `pos-service` en `controller -> service -> repository`.
 
-- `pda-e2e-smoke.yml`
-- `db-backup-restore-smoke.yml`
+Si falla solo en PDA pero backend funciona:
 
-Objetivo: asegurar estabilidad de flujo critico antes de release candidate.
+- revisar gateway y headers `X-Client-App` / `X-Terminal-Id`.
+
+Si falla impresion:
+
+- revisar `tpv-desktop` (servicios de cola de impresion y settings locales).
+
+## 7) Donde extender sin romper mucho
+
+- Nueva regla de negocio: `pos-service/service`.
+- Nuevo endpoint: `controller` + `dto` + `service`.
+- Nueva pantalla desktop: `tpv-desktop/ui` + viewmodel/controller.
+- Nueva accion PDA: `pda-android/ui` + `data/api`.
+
