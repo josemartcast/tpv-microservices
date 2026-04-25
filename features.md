@@ -1,128 +1,93 @@
 ﻿# Funcionalidades implementadas
 
-Estado documentado a fecha: 2026-04-13.
+Documento de alcance funcional actual, con foco en lo que un junior necesita para orientarse.
 
-## 1. Usuarios, sesion y roles
+## 1) Autenticacion y roles
 
-- Login JWT en Desktop y PDA.
-- Admin de usuarios desde TPV:
-  - crear
-  - cambiar rol
-  - reset password
-  - activar/desactivar
-  - eliminar
-- Roles operativos en backend:
-  - `ADMIN`
-  - `ENCARGADO`
-  - `CAJERO`
-  - `CAMARERO`
+- Login JWT para Desktop y PDA.
+- Gestion admin de usuarios (alta, cambio de rol, reset password, activacion/desactivacion, borrado).
+- Roles operativos: `ADMIN`, `ENCARGADO`, `CAJERO`, `CAMARERO`.
+- Rol `USER` se considera legado y se migra a `CAMARERO` al arrancar auth-service.
 
-## 2. Mapa de mesas y salones
+## 2) Operativa de sala
 
-- Salones configurables (crear/renombrar/eliminar con validaciones).
-- Filtro por salon en TPV y PDA.
-- Alias de mesa por salon (visible en operativa, no en ticket cliente/factura).
-- Estado de mesa visible en mapa:
-  - libre
-  - ocupada
-  - bloqueada
-  - pendiente de envio
-  - precuenta pedida
+- Vista de mesas por salon.
+- Apertura de ticket por mesa.
+- Lock por terminal + heartbeat.
+- Estados de mesa (libre/ocupada/bloqueada/pendiente de envio/precuenta pedida).
+- Alias de mesa por salon.
 
-## 3. Bloqueo multi terminal
+## 3) Gestion de tickets
 
-- Lock por mesa y terminal.
-- Heartbeat periodico para mantener lock.
-- Recuperacion de lock en cortes breves.
-- Unlock en eventos de salida/cierre.
-- Flujo `cancel-empty` para liberar mesa vacia sin dejar ticket abierto.
-
-## 4. Tickets y lineas
-
-- Apertura/reuso de ticket por mesa.
-- Alta de productos y combos (copa + refresco).
-- Edicion de linea:
-  - cantidad
-  - precio
-  - nota
-  - eliminacion
-- Eliminacion de ticket vacio.
-- Descuentos.
+- Alta de lineas simples y combo.
+- Edicion de cantidad/precio/nota.
+- Eliminacion de lineas.
+- Descuento.
+- Cancelacion de ticket (`cancel` y `cancel-empty`).
 - Move-table.
+- Reapertura de ticket pagado (segun rol).
 
-## 5. Comandas
+## 4) Comandas e impresion
 
-- Preview de lineas pendientes.
-- Envio por destino (`BAR`, `COCINA`, `POSTRES`) o unificado.
-- Formato de comanda en negrita/columnado y con notas.
-- Reimpresion de ultima comanda desde TPV.
-- Reenviar comanda por impresoras reales configuradas (no forzado a PDF).
+- Preview de pendientes.
+- Envio por destino (`BAR`, `COCINA`, `POSTRES`) o global.
+- Reenvio de comanda.
+- Integracion de cola de impresion en Desktop con configuracion por destino.
 
-## 6. Cobro y caja
+## 5) Cobro y caja
 
 - Cobro total y parcial.
-- Cobro parcial por lineas (consume lineas pagadas y deja pendiente lo no pagado).
-- Soporte de metodos:
-  - EFECTIVO
-  - TARJETA
-  - BIZUM
-- Reapertura de ticket pagado con protecciones para no duplicar totales en cierre.
-- Caja:
-  - apertura
-  - incidencias IN/OUT
-  - cierre con confirmacion y resumen impreso
+- Cobro por lineas (consume-payment).
+- Metodos principales: efectivo, tarjeta, bizum.
+- Apertura/cierre de caja.
+- Incidencias de caja (IN/OUT).
+- Resumen de cierre y resumen fiscal.
 
-## 7. Historial y facturas
+## 6) Fiscal, historial y factura
 
-- Historial de tickets de caja actual.
-- Modificacion de ticket pagado para roles autorizados.
-- Generacion de factura desde ticket.
-- Reimpresion de factura desde historial.
-- Formato fiscal con base imponible, desglose IVA y total.
+- Historial de tickets.
+- Generacion y consulta de factura por ticket.
+- Listado de facturas.
+- Apertura/cierre de ejercicio fiscal.
 
-## 8. Catalogo e impresoras
+## 7) Catalogo y negocio
 
-- Categorias y productos administrables desde TPV.
-- IVA por producto (4/10/21).
-- Destino de impresion por categoria.
-- Gestion de impresoras del negocio:
-  - crear perfiles
-  - mapear a impresora del sistema
-  - habilitar/deshabilitar
+- CRUD de categorias y productos.
+- Activar/desactivar categorias y productos.
+- Seed de catalogo admin.
+- Perfil de negocio editable.
 
-## 9. PDA web y PDA nativa
+## 8) Clientes soportados
 
-- Login contra backend real.
-- Mapa de mesas y filtros por salon.
-- Flujo completo de mesa:
-  - abrir mesa
-  - anadir/editar/borrar lineas
-  - nota por linea
-  - enviar comanda
-  - pedir precuenta
-  - cobrar
-  - mover mesa
-- Dialogo de envio de comanda al salir de mesa si hay pendientes.
-- UI responsive para portrait y landscape.
+### TPV Desktop
 
-## 10. Seguridad operativa
+- Flujo completo (caja, sala, historial, administracion, ajustes).
 
-- PDA no puede abrir ni cerrar caja (403 en gateway por `X-Client-App: PDA`).
-- Controles de permisos por endpoint en `pos-service`.
-- Mensajes de error operativos en Desktop y PDA.
+### PDA web
 
-## 11. Backups y despliegue
+- Disponible desde `gateway` en `/pda`.
+- Flujo de camarero optimizado para navegador movil.
 
-- Scripts de backup y restore MySQL.
-- Smoke de backup/restore automatizado.
-- Instalador Windows para portatil de bar con prerequisitos.
+### PDA Android
 
-## 12. Estado general
+- Kotlin/Compose.
+- Flujo operativo de sala conectado al backend real.
 
-El sistema esta operativo en entorno real y en fase de endurecimiento pre-release.
+## 9) Seguridad operativa
 
-Pendientes tipicos de esta fase:
+- JWT obligatorio en API.
+- Autorizacion por rol.
+- Guardia anti-caja desde PDA en gateway (`403`).
+- Control de concurrencia en locks, move-table y pagos.
 
-- ajustes UX finos
-- seguimiento de incidencias raras en impresiones/comandas
-- empaquetado de version estable para despliegue final
+## 10) QA automatizado disponible
+
+- Smoke E2E PDA: `scripts/pda-e2e-smoke.ps1`.
+- Smoke backup/restore: `scripts/db-backup-restore-smoke.ps1`.
+
+## 11) Limites conocidos (importante para soporte)
+
+- Si hay procesos concurrentes sobre la misma mesa/ticket, pueden aparecer `409` esperados.
+- En red inestable conviene usar operaciones idempotentes para reintentos seguros.
+- Caja desde PDA esta bloqueada por diseno.
+

@@ -1,47 +1,44 @@
 ﻿# TPV Microservices (Desktop + PDA)
 
-[![PDA E2E Smoke](https://github.com/josemartcast/tpv-microservices/actions/workflows/pda-e2e-smoke.yml/badge.svg)](https://github.com/josemartcast/tpv-microservices/actions/workflows/pda-e2e-smoke.yml)
-[![DB Backup Restore Smoke](https://github.com/josemartcast/tpv-microservices/actions/workflows/db-backup-restore-smoke.yml/badge.svg)](https://github.com/josemartcast/tpv-microservices/actions/workflows/db-backup-restore-smoke.yml)
+Repositorio principal de TPV para bar/restaurante.
 
-Repositorio principal del TPV para bar/restaurante.
+Este proyecto combina backend Java, cliente Desktop JavaFX y clientes PDA (web + Android).
+El objetivo de esta documentacion es que alguien nuevo pueda levantar el sistema, entender el flujo y empezar a aportar sin perderse.
 
-Estado documentado a fecha: **2026-04-13**.
+## 1) Que incluye el repo
 
-## Que incluye el proyecto
+- `services/auth-service`: login, JWT, usuarios y roles.
+- `services/pos-service`: logica TPV (mesas, tickets, comandas, cobros, caja, fiscal, catalogo).
+- `gateway`: entrada unica para clientes y hosting de PDA web en `/pda`.
+- `tpv-desktop`: cliente JavaFX para caja/sala/admin.
+- `pda-android`: app Android nativa para camareros.
+- `docker/`: MySQL para desarrollo.
+- `scripts/`: automatizaciones de build, backup/restore y QA smoke.
 
-- `services/auth-service`: autenticacion JWT y administracion de usuarios/roles.
-- `services/pos-service`: negocio TPV (mesas, tickets, caja, comandas, cobros, facturas, catalogo, salones, alias, impresoras, fiscal).
-- `gateway`: entrada unica, proxy a servicios y hosting de PDA web en `/pda`.
-- `tpv-desktop`: cliente JavaFX principal (operativa de caja y sala).
-- `pda-android`: app nativa Android para camareros.
-- `scripts/`: instalacion Windows, backup/restore, QA smoke.
+## 2) Arquitectura en una frase
 
-## Funcionalidad actual (resumen)
+Clientes (Desktop/PDA) -> Gateway (`:8080`) -> Auth (`:8081`) y POS (`:8082`) -> MySQL (`tpv_auth`, `tpv_pos`).
 
-- Mapa de mesas por salon con estados: libre, ocupada, bloqueada, pendiente envio, precuenta pedida.
-- Locking multi terminal con heartbeat y recovery.
-- Comandas por destino (BAR/COCINA/POSTRES) con autoimpresion y reimpresion.
-- Cobro total, parcial y parcial por lineas.
-- Reapertura de ticket pagado (roles autorizados) sin duplicar cobros ya registrados.
-- Caja: apertura, incidencias, cierre con resumen impreso.
-- Facturacion y reimpresion de facturas desde historial.
-- Gestion de categorias/productos con IVA y destino de impresion.
-- Gestion de usuarios y roles (ADMIN, ENCARGADO, CAJERO, CAMARERO).
-- Gestion de salones y alias de mesa (alias visible en operativa, no en comprobante cliente).
-- Backup/restore MySQL integrado en scripts y en UI TPV.
-- PDA web y PDA nativa con flujo operativo completo.
+Mas detalle en `architecture.md`.
 
-## Seguridad actual
+## 3) Requisitos de desarrollo
 
-- JWT obligatorio en API.
-- Matriz de permisos por rol en `auth-service` y `pos-service`.
-- Guardia anti caja desde PDA en gateway:
-  - `POST /api/v1/pos/cash-sessions/open` -> `403` con `X-Client-App: PDA`
-  - `POST /api/v1/pos/cash-sessions/{id}/close` -> `403` con `X-Client-App: PDA`
+- Windows + PowerShell (scripts principales estan pensados para Windows).
+- JDK 21.
+- Docker Desktop (para MySQL local).
+- Git.
+- Android Studio si vas a tocar `pda-android`.
 
-## Arranque rapido desarrollo (Windows)
+## 4) Arranque rapido (primera vez)
 
-1. Levantar servicios backend:
+### 4.1 Levantar base de datos
+
+```powershell
+cd docker
+docker compose up -d mysql
+```
+
+### 4.2 Levantar backend (3 terminales)
 
 ```powershell
 cd services/auth-service
@@ -58,51 +55,86 @@ cd gateway
 .\mvnw.cmd -q -DskipTests spring-boot:run
 ```
 
-2. Levantar TPV Desktop:
+### 4.3 Verificar que responde
+
+- PDA web: `http://localhost:8080/pda`
+- Health POS: `http://localhost:8080/api/v1/pos/health`
+
+Usuario admin de bootstrap:
+
+- usuario: `admin`
+- password: `admin123`
+
+### 4.4 Levantar Desktop
 
 ```powershell
 cd tpv-desktop
 .\mvnw.cmd -q -Dtpv.mode=real -Dtpv.auto.login=false javafx:run
 ```
 
-3. PDA web:
+### 4.5 Levantar PDA Android (opcional)
 
-- Abrir `http://localhost:8080/pda`
-
-4. PDA Android:
+Desde raiz del repo:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-pda-android.ps1 -Install
 ```
 
-## Instalacion para bar (Windows)
+## 5) Flujo funcional minimo para probar todo
 
-Flujo recomendado:
+1. Login con `admin/admin123`.
+2. Abrir caja.
+3. Abrir mesa.
+4. Anadir linea al ticket.
+5. Enviar comanda.
+6. Cobrar ticket.
+7. Cerrar caja.
 
-1. Generar paquete e instalador con scripts de `scripts/`.
-2. Instalar en portatil destino con permisos de administrador.
-3. Arrancar con scripts runtime:
-   - `start-all.cmd`
-   - `stop-backend.ps1`
-4. Configurar impresoras, negocio, usuarios y catalogo.
-5. Configurar Tailscale para acceso PDA por datos moviles.
+Si este flujo funciona, el stack principal esta sano.
 
-Detalles en:
+## 6) Donde empezar si eres junior
 
-- `docs/install-bar-windows.md`
-- `docs/pda-tailscale-setup.md`
-- `docs/backup-restore.md`
+1. Lee `docs/onboarding-junior.md`.
+2. Sigue `architecture.md` para entender responsabilidades por modulo.
+3. Mira `api.md` para headers y endpoints base.
+4. Revisa `runbook` para operacion real e incidencias.
 
-## QA y release
+## 7) Comandos utiles
 
-- Smoke automatizado PDA: `scripts/pda-e2e-smoke.ps1`
-- Smoke automatizado backup/restore: `scripts/db-backup-restore-smoke.ps1`
-- Checklist de salida: `docs/release-checklist.md`
-- Ultimo estado QA: `docs/qa-final-report.md`
+Smoke E2E PDA:
 
-## Documentacion complementaria
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\pda-e2e-smoke.ps1
+```
+
+Smoke backup+restore:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\db-backup-restore-smoke.ps1 -Mode auto -RootPassword root
+```
+
+Backup manual:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\db-backup.ps1 -Compress
+```
+
+## 8) Documentacion por tema
 
 - Arquitectura: `architecture.md`
+- API operativa: `api.md`
 - Funcionalidades: `features.md`
-- API: `api.md`
-- Flujo de contribucion: `CONTRIBUTING.md`
+- Contribucion: `CONTRIBUTING.md`
+- Operacion diaria y soporte: `runbook`
+- Instalacion en bar: `docs/install-bar-windows.md`
+- Backup/restore: `docs/backup-restore.md`
+- Onboarding junior: `docs/onboarding-junior.md`
+
+## 9) Notas de higiene del repo
+
+No subir al repo:
+
+- builds (`target/`, `build/`, `dist/`)
+- logs (`.runlogs/`, `.run-logs/*.log`)
+- backups (`.backups/`)
+
