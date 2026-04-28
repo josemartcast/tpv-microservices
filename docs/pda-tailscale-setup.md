@@ -2,11 +2,11 @@
 
 Estado documentado a fecha: 2026-04-13.
 
-Objetivo: usar PDA por datos moviles sin abrir puertos del router.
+Objetivo: usar PDA por datos moviles sin abrir puertos del router y con URL HTTPS valida.
 
 ## Topologia
 
-PDA -> red Tailscale -> portatil TPV -> gateway `:8080`
+PDA -> red Tailscale (HTTPS) -> portatil TPV -> gateway local `:8080`
 
 ## 1) Instalacion
 
@@ -19,22 +19,29 @@ Iniciar sesion con la misma cuenta/tailnet.
 
 ## 2) Direccion recomendada
 
-Usar MagicDNS para no depender de IP dinamica:
+Usar MagicDNS para no depender de IP dinamica.
+Publicar el gateway por HTTPS con `tailscale serve`:
+
+```powershell
+tailscale serve --yes --bg --https=443 http://127.0.0.1:8080
+```
+
+Despues usar:
 
 ```text
-http://<host>.tail<id>.ts.net:8080
+https://<host>.tail<id>.ts.net
 ```
 
 Para PDA web, abrir:
 
 ```text
-http://<host>.tail<id>.ts.net:8080/pda
+https://<host>.tail<id>.ts.net/pda
 ```
 
 Para PDA Android nativa, configurar base URL:
 
 ```text
-http://<host>.tail<id>.ts.net:8080
+https://<host>.tail<id>.ts.net
 ```
 
 ## 3) Comprobacion rapida
@@ -49,7 +56,7 @@ tailscale ip -4
 En movil (navegador):
 
 ```text
-http://<host>.tail<id>.ts.net:8080/pda
+https://<host>.tail<id>.ts.net/pda
 ```
 
 ## 4) Buenas practicas
@@ -76,5 +83,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-portatil-prereqs.ps1 
 ## 6) Problemas comunes
 
 - `No se encuentra el servidor`: revisar que Tailscale este activo en ambos dispositivos.
-- `ERR_SSL_PROTOCOL_ERROR`: usar `http://` en MagicDNS interno (no forzar `https://` sin cert).
+- `ERR_SSL_PROTOCOL_ERROR`: reconfigura serve HTTPS y revisa estado:
+  - `tailscale serve reset`
+  - `tailscale serve --yes --bg --https=443 http://127.0.0.1:8080`
+  - `tailscale serve status`
 - Cambiaste de red y no conecta: refrescar Tailscale y volver a probar URL.

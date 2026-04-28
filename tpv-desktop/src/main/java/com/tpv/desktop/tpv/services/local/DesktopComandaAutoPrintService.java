@@ -45,6 +45,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
     private static final int CLOSED_TICKET_PRINT_MAX_RETRIES = 20;
     private static final long CLOSED_TICKET_PRINT_TTL_MS = 120000L;
     private static final long PAID_PRINT_DEDUP_MS = 120000L;
+    private static final long COMANDA_SNAPSHOT_DEDUP_MS = 90000L;
 
     private static final int COMANDA_LINE_WIDTH = 42;
     private static final int COMANDA_QTY_COL_WIDTH = 4;
@@ -73,6 +74,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
     private final Map<Long, TableCtx> tableCtxByTicket = new HashMap<>();
     private final Map<Long, ClosedTicketRetry> pendingClosedTicketPrints = new HashMap<>();
     private final Map<Long, Long> paidPrintedAtMsByTicket = new HashMap<>();
+    private final Map<String, Long> recentComandaPrintsMs = new HashMap<>();
     private Set<Long> previousOpenTickets = new HashSet<>();
 
     public DesktopComandaAutoPrintService(PrintQueueService printQueueService) {
@@ -166,6 +168,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         previousOpenTickets = openTickets;
 
         cleanupStateForClosed(openTickets);
+        cleanupRecentComandaPrints();
         cleanupSuppressions();
     }
 
@@ -228,6 +231,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             );
         }
         enqueueSnapshotForPrint(snapshot, ctx);
+        markComandaPrintedNow(ticketId);
     }
 
     private void processPrebillRequest(long ticketId, TableCtx ctx) {
@@ -371,6 +375,17 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
         }
     }
 
+    private void markComandaPrintedNow(long ticketId) {
+        if (ticketId <= 0) {
+            return;
+        }
+        Instant now = Instant.now();
+        Instant previous = lastFallbackPrintedAtByTicket.get(ticketId);
+        if (previous == null || now.isAfter(previous)) {
+            lastFallbackPrintedAtByTicket.put(ticketId, now);
+        }
+    }
+
     private void enqueueSnapshotForPrint(TicketPendingSnapshot snapshot, TableCtx table) {
         Map<DestinationKey, List<TicketLineResponse>> grouped = new LinkedHashMap<>();
         for (TicketLineResponse line : snapshot.lines()) {
@@ -378,6 +393,21 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(line);
         }
         for (Map.Entry<DestinationKey, List<TicketLineResponse>> entry : grouped.entrySet()) {
+            String signature = comandaSnapshotSignature(snapshot.ticketId(), entry.getKey(), entry.getValue());
+            if (isRecentComandaDuplicate(signature)) {
+                if (LOG.isLoggable(Level.INFO)) {
+                    LOG.log(
+                            Level.INFO,
+                            "AUTOPRINT_DUPLICATE_SKIPPED ticketId={0} destination={1} lineIds={2}",
+                            new Object[]{
+                                    snapshot.ticketId(),
+                                    entry.getKey().name(),
+                                    entry.getValue().stream().map(TicketLineResponse::id).toList()
+                            }
+                    );
+                }
+                continue;
+            }
             String payload = buildComandaPayload(snapshot.ticketId(), table, entry.getKey(), entry.getValue());
             if (LOG.isLoggable(Level.INFO)) {
                 LOG.log(
@@ -392,7 +422,58 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 );
             }
             printQueueService.enqueue(entry.getKey().name(), payload);
+            markRecentComandaPrinted(signature);
         }
+    }
+
+    private boolean isRecentComandaDuplicate(String signature) {
+        if (signature == null || signature.isBlank()) {
+            return false;
+        }
+        Long atMs = recentComandaPrintsMs.get(signature);
+        if (atMs == null) {
+            return false;
+        }
+        return (System.currentTimeMillis() - atMs) <= COMANDA_SNAPSHOT_DEDUP_MS;
+    }
+
+    private void markRecentComandaPrinted(String signature) {
+        if (signature == null || signature.isBlank()) {
+            return;
+        }
+        recentComandaPrintsMs.put(signature, System.currentTimeMillis());
+    }
+
+    private void cleanupRecentComandaPrints() {
+        long now = System.currentTimeMillis();
+        recentComandaPrintsMs.entrySet().removeIf(e -> e.getValue() == null || (now - e.getValue()) > COMANDA_SNAPSHOT_DEDUP_MS);
+    }
+
+    private static String comandaSnapshotSignature(long ticketId, DestinationKey destination, List<TicketLineResponse> lines) {
+        List<TicketLineResponse> normalized = new ArrayList<>();
+        if (lines != null) {
+            for (TicketLineResponse line : lines) {
+                if (line != null) {
+                    normalized.add(line);
+                }
+            }
+        }
+        normalized.sort((a, b) -> Long.compare(a.id(), b.id()));
+
+        StringBuilder out = new StringBuilder();
+        out.append(ticketId).append('|').append(destination == null ? "-" : destination.name());
+        for (TicketLineResponse line : normalized) {
+            long updatedAtMs = line.updatedAt() == null ? 0L : line.updatedAt().toEpochMilli();
+            out.append('|')
+                    .append(line.id())
+                    .append(':')
+                    .append(line.qty())
+                    .append(':')
+                    .append(line.unitPriceCents())
+                    .append(':')
+                    .append(updatedAtMs);
+        }
+        return out.toString();
     }
 
     /**

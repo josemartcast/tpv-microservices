@@ -1,5 +1,6 @@
 package com.tpv.desktop.tpv.ui.controllers.components;
 
+import com.tpv.desktop.api.ApiClient;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.tpv.app.AppContext;
 import com.tpv.desktop.ui.UiDialogs;
@@ -158,6 +159,7 @@ public class TopBarController implements LifecycleAware {
         MenuItem logout = new MenuItem("Logout");
         logout.setOnAction(e -> {
             AuthStore.clear();
+            ApiClient.clearRememberedCredentials();
             AppContext.get().appState().activeUserProperty().set(new User(0, "", ""));
             Navigator.get().goLogin();
         });
@@ -185,6 +187,7 @@ public class TopBarController implements LifecycleAware {
         MenuItem logout = new MenuItem("Logout");
         logout.setOnAction(e -> {
             AuthStore.clear();
+            ApiClient.clearRememberedCredentials();
             AppContext.get().appState().activeUserProperty().set(new User(0, "", ""));
             Navigator.get().goLogin();
         });

@@ -18,9 +18,21 @@ public final class ApiClient {
 
     private static final ObjectMapper MAPPER =
             new ObjectMapper().findAndRegisterModules();
+    private static volatile String rememberedUser = "";
+    private static volatile String rememberedPass = "";
 
     private static URI uri(String path) {
         return URI.create(SettingsStore.getApiBaseUrl() + path);
+    }
+
+    public static synchronized void rememberCredentials(String username, String password) {
+        rememberedUser = username == null ? "" : username.trim();
+        rememberedPass = password == null ? "" : password;
+    }
+
+    public static synchronized void clearRememberedCredentials() {
+        rememberedUser = "";
+        rememberedPass = "";
     }
 
     public static <T> T post(String path, Object body, Class<T> responseType) throws Exception {
@@ -163,8 +175,12 @@ public final class ApiClient {
     }
 
     private static synchronized boolean tryRecoverToken() {
-        String user = readConfig("TPV_AUTH_USER", "tpv.auth.user", "");
-        String pass = readConfig("TPV_AUTH_PASS", "tpv.auth.pass", "");
+        String user = rememberedUser == null ? "" : rememberedUser.trim();
+        String pass = rememberedPass == null ? "" : rememberedPass;
+        if (user.isBlank() || pass.isBlank()) {
+            user = readConfig("TPV_AUTH_USER", "tpv.auth.user", "");
+            pass = readConfig("TPV_AUTH_PASS", "tpv.auth.pass", "");
+        }
         if (user.isBlank() || pass.isBlank()) {
             return false;
         }
@@ -187,6 +203,7 @@ public final class ApiClient {
                 return false;
             }
             AuthStore.setToken(token);
+            rememberCredentials(user, pass);
             return true;
         } catch (Exception ignored) {
             return false;

@@ -1,6 +1,7 @@
 package com.tpv.desktop.ui.layout;
 
 import com.tpv.desktop.api.pos.SalonApi;
+import com.tpv.desktop.api.ApiClient;
 import com.tpv.desktop.core.AuthStore;
 import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.app.AppContext;
@@ -133,6 +134,7 @@ public class MainLayoutController {
     public void logout() {
         backendStatusTicker.stop();
         AuthStore.clear();
+        ApiClient.clearRememberedCredentials();
         AppContext.get().appState().activeUserProperty().set(new User(0, "", ""));
         Navigator.get().goLogin();
     }

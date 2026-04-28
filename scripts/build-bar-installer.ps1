@@ -96,6 +96,7 @@ Invoke-Step "Copiando scripts operativos (start/stop + backup/restore)" {
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\start-db.cmd") (Join-Path $ScriptsOut "start-db.cmd") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\start-backend.cmd") (Join-Path $ScriptsOut "start-backend.cmd") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\start-all.cmd") (Join-Path $ScriptsOut "start-all.cmd") -Force
+    Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\configure-pda-https.ps1") (Join-Path $ScriptsOut "configure-pda-https.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\stop-backend.ps1") (Join-Path $ScriptsOut "stop-backend.ps1") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\bar-runtime\stop-db.cmd") (Join-Path $ScriptsOut "stop-db.cmd") -Force
     Copy-Item (Join-Path $RepoRoot "scripts\db-common.ps1") (Join-Path $ScriptsOut "db-common.ps1") -Force

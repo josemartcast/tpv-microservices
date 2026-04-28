@@ -22,6 +22,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
+if exist "%SCRIPTS_DIR%\configure-pda-https.ps1" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPTS_DIR%\configure-pda-https.ps1" -GatewayUrl "http://127.0.0.1:8080"
+)
+
 set "DESKTOP_INPUT=%ROOT%\_desktop_input"
 set "JAVA_UI_BIN="
 if exist "%ROOT%\jdk\bin\javaw.exe" (

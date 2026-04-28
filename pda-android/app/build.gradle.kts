@@ -3,6 +3,19 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val pdaReleaseStoreFile = providers.gradleProperty("PDA_RELEASE_STORE_FILE").orNull
+    ?: System.getenv("PDA_RELEASE_STORE_FILE")
+val pdaReleaseStorePassword = providers.gradleProperty("PDA_RELEASE_STORE_PASSWORD").orNull
+    ?: System.getenv("PDA_RELEASE_STORE_PASSWORD")
+val pdaReleaseKeyAlias = providers.gradleProperty("PDA_RELEASE_KEY_ALIAS").orNull
+    ?: System.getenv("PDA_RELEASE_KEY_ALIAS")
+val pdaReleaseKeyPassword = providers.gradleProperty("PDA_RELEASE_KEY_PASSWORD").orNull
+    ?: System.getenv("PDA_RELEASE_KEY_PASSWORD")
+val hasPdaReleaseSigning = !pdaReleaseStoreFile.isNullOrBlank() &&
+    !pdaReleaseStorePassword.isNullOrBlank() &&
+    !pdaReleaseKeyAlias.isNullOrBlank() &&
+    !pdaReleaseKeyPassword.isNullOrBlank()
+
 android {
     namespace = "com.tpv.pda"
     compileSdk = 34
@@ -17,9 +30,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasPdaReleaseSigning) {
+            create("release") {
+                storeFile = file(pdaReleaseStoreFile!!)
+                storePassword = pdaReleaseStorePassword
+                keyAlias = pdaReleaseKeyAlias
+                keyPassword = pdaReleaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasPdaReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

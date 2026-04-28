@@ -1,6 +1,7 @@
 package com.tpv.desktop.ui.login;
 
 import com.tpv.desktop.api.ApiClient.ApiException;
+import com.tpv.desktop.api.ApiClient;
 import com.tpv.desktop.api.auth.AuthApi;
 import com.tpv.desktop.api.auth.LoginResponse;
 import com.tpv.desktop.core.AuthStore;
@@ -41,6 +42,7 @@ public class LoginController {
             }
 
             AuthStore.setToken(res.accessToken());
+            ApiClient.rememberCredentials(username, password);
             AppContext.get().appState().activeUserProperty().set(new User(0, username, initials(username)));
             Navigator.get().goHome();
         } catch (ApiException e) {

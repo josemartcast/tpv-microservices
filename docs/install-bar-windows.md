@@ -82,9 +82,10 @@ powershell -ExecutionPolicy Bypass -File C:\TPV-Bar\scripts\bar-runtime\stop-bac
 ## 6) PDA remota
 
 Configurar Tailscale en portatil y movil.
+`start-all.cmd` intenta configurar automaticamente `tailscale serve` en HTTPS hacia el gateway local.
 
-- PDA web: `http://<host>.tail<id>.ts.net:8080/pda`
-- PDA nativa: `http://<host>.tail<id>.ts.net:8080`
+- PDA web: `https://<host>.tail<id>.ts.net/pda`
+- PDA nativa: `https://<host>.tail<id>.ts.net`
 
 ## 7) Backup antes de operar
 

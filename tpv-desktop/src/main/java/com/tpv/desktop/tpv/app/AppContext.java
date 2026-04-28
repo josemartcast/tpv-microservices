@@ -119,6 +119,7 @@ public class AppContext {
                 return false;
             }
             AuthStore.setToken(login.accessToken());
+            com.tpv.desktop.api.ApiClient.rememberCredentials(user, pass);
             appState.activeUserProperty().set(new User(1, user, initials(user)));
             return true;
         } catch (Exception e) {

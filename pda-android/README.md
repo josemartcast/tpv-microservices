@@ -41,7 +41,7 @@ Ejemplos:
 
 - local: `http://10.0.2.2:8080` (emulador Android)
 - LAN: `http://192.168.x.x:8080`
-- Tailscale/MagicDNS: `http://<host>.tail<id>.ts.net:8080`
+- Tailscale/MagicDNS (recomendado): `https://<host>.tail<id>.ts.net`
 
 ## Ejecutar desde CLI
 
