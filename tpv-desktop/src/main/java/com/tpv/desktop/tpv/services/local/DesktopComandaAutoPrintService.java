@@ -45,6 +45,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
     private static final Logger LOG = Logger.getLogger(DesktopComandaAutoPrintService.class.getName());
     private static final long POLL_MS = 2500L;
     private static final long LOCAL_SUPPRESS_MS = 15000L;
+    private static final long LOCAL_SEND_FALLBACK_BLOCK_MS = 45000L;
     private static final int CLOSED_TICKET_PRINT_MAX_RETRIES = 20;
     private static final long CLOSED_TICKET_PRINT_TTL_MS = 120000L;
     private static final long PAID_PRINT_DEDUP_MS = 120000L;
@@ -63,6 +64,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
     private static final String RECEIPT_SEPARATOR = "-".repeat(RECEIPT_LINE_WIDTH);
 
     private static final Map<Long, Long> LOCAL_SEND_SUPPRESS_UNTIL = new ConcurrentHashMap<>();
+    private static final Map<Long, Long> LOCAL_SEND_FALLBACK_BLOCK_UNTIL = new ConcurrentHashMap<>();
     private static final Map<Long, Long> LOCAL_PAYMENT_SUPPRESS_UNTIL = new ConcurrentHashMap<>();
     private static final Map<Long, Long> LOCAL_PREBILL_SUPPRESS_UNTIL = new ConcurrentHashMap<>();
 
@@ -96,6 +98,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
 
     public static void markLocalSend(long ticketId) {
         markSuppress(LOCAL_SEND_SUPPRESS_UNTIL, ticketId);
+        markSuppress(LOCAL_SEND_FALLBACK_BLOCK_UNTIL, ticketId, LOCAL_SEND_FALLBACK_BLOCK_MS);
     }
 
     public static void markLocalPayment(long ticketId) {
@@ -119,16 +122,21 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 pendingClosedTicketPrints.size(),
                 paidPrintedAtMsByTicket.size(),
                 LOCAL_SEND_SUPPRESS_UNTIL.size(),
+                LOCAL_SEND_FALLBACK_BLOCK_UNTIL.size(),
                 LOCAL_PAYMENT_SUPPRESS_UNTIL.size(),
                 LOCAL_PREBILL_SUPPRESS_UNTIL.size()
         );
     }
 
     private static void markSuppress(Map<Long, Long> bucket, long ticketId) {
+        markSuppress(bucket, ticketId, LOCAL_SUPPRESS_MS);
+    }
+
+    private static void markSuppress(Map<Long, Long> bucket, long ticketId, long ttlMs) {
         if (ticketId <= 0) {
             return;
         }
-        bucket.put(ticketId, System.currentTimeMillis() + LOCAL_SUPPRESS_MS);
+        bucket.put(ticketId, System.currentTimeMillis() + ttlMs);
     }
 
     private void pollSafely() {
@@ -203,7 +211,8 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
 
         TicketPendingSnapshot snapshot = pendingByTicket.remove(ticketId);
         if (snapshot == null || snapshot.lines().isEmpty()) {
-            if (!isSuppressed(LOCAL_SEND_SUPPRESS_UNTIL, ticketId)) {
+            if (!isSuppressed(LOCAL_SEND_SUPPRESS_UNTIL, ticketId)
+                    && !isSuppressed(LOCAL_SEND_FALLBACK_BLOCK_UNTIL, ticketId)) {
                 enqueueFallbackFromRecentSentLines(ticketId, ctx);
             }
             return;
@@ -1069,6 +1078,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
     private void cleanupSuppressions() {
         long now = System.currentTimeMillis();
         LOCAL_SEND_SUPPRESS_UNTIL.entrySet().removeIf(e -> e.getValue() == null || e.getValue() < now);
+        LOCAL_SEND_FALLBACK_BLOCK_UNTIL.entrySet().removeIf(e -> e.getValue() == null || e.getValue() < now);
         LOCAL_PAYMENT_SUPPRESS_UNTIL.entrySet().removeIf(e -> e.getValue() == null || e.getValue() < now);
         LOCAL_PREBILL_SUPPRESS_UNTIL.entrySet().removeIf(e -> e.getValue() == null || e.getValue() < now);
     }
@@ -1160,6 +1170,7 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             int pendingClosedTicketPrints,
             int paidPrintedByTicket,
             int localSendSuppress,
+            int localSendFallbackBlock,
             int localPaymentSuppress,
             int localPrebillSuppress
     ) {}

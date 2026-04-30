@@ -13,6 +13,7 @@ import com.tpv.desktop.api.pos.TicketApi;
 import com.tpv.desktop.api.pos.TicketLineResponse;
 import com.tpv.desktop.api.pos.TicketResponse;
 import com.tpv.desktop.core.MoneyUtil;
+import com.tpv.desktop.tpv.services.local.DesktopComandaAutoPrintService;
 import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import java.io.IOException;
 import java.util.Arrays;
@@ -369,6 +370,7 @@ public class SalesController {
                 lastSendAttemptKey = key;
             }
             var sendRes = ComandaApi.send(currentTicket.id(), destination, key);
+            DesktopComandaAutoPrintService.markLocalSend(currentTicket.id());
             currentTicket = TicketApi.getById(currentTicket.id());
             lastSendAttemptSignature = null;
             lastSendAttemptKey = null;
