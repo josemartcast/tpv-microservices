@@ -13,6 +13,9 @@ import com.tpv.desktop.core.SettingsStore;
 import com.tpv.desktop.tpv.diagnostics.LeakDiagnostics;
 import com.tpv.desktop.tpv.services.PrintQueueService;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -408,6 +411,22 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                 }
                 continue;
             }
+            String printJobId = printJobIdFromSignature(signature);
+            if (!canClaimAutoPrint(snapshot.ticketId(), entry.getKey(), printJobId)) {
+                if (LOG.isLoggable(Level.INFO)) {
+                    LOG.log(
+                            Level.INFO,
+                            "AUTOPRINT_REMOTE_DUPLICATE_SKIPPED ticketId={0} destination={1} printJobId={2} lineIds={3}",
+                            new Object[]{
+                                    snapshot.ticketId(),
+                                    entry.getKey().name(),
+                                    printJobId,
+                                    entry.getValue().stream().map(TicketLineResponse::id).toList()
+                            }
+                    );
+                }
+                continue;
+            }
             String payload = buildComandaPayload(snapshot.ticketId(), table, entry.getKey(), entry.getValue());
             if (LOG.isLoggable(Level.INFO)) {
                 LOG.log(
@@ -423,6 +442,30 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
             }
             printQueueService.enqueue(entry.getKey().name(), payload);
             markRecentComandaPrinted(signature);
+        }
+    }
+
+    private boolean canClaimAutoPrint(long ticketId, DestinationKey destination, String printJobId) {
+        try {
+            boolean claimed = ComandaApi.claimAutoPrint(ticketId, destination.name(), printJobId).claimed();
+            if (LOG.isLoggable(Level.INFO)) {
+                LOG.log(
+                        Level.INFO,
+                        "AUTO_PRINT_CLAIM ticketId={0} destination={1} printJobId={2} claimed={3}",
+                        new Object[]{ticketId, destination == null ? "-" : destination.name(), printJobId, claimed}
+                );
+            }
+            return claimed;
+        } catch (Exception e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(
+                        Level.WARNING,
+                        "AUTOPRINT_REMOTE_CLAIM_FAILED ticketId={0} destination={1} printJobId={2} reason={3}",
+                        new Object[]{ticketId, destination == null ? "-" : destination.name(), printJobId, e.getMessage()}
+                );
+            }
+            // If the claim endpoint fails we keep current behavior to avoid dropping comandas.
+            return true;
         }
     }
 
@@ -474,6 +517,24 @@ public final class DesktopComandaAutoPrintService implements AutoCloseable {
                     .append(updatedAtMs);
         }
         return out.toString();
+    }
+
+    private static String printJobIdFromSignature(String signature) {
+        if (signature == null || signature.isBlank()) {
+            return "";
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(signature.getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                out.append(String.format(Locale.ROOT, "%02x", b));
+            }
+            return out.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // Fallback should never happen on modern JVMs, but keep a deterministic id anyway.
+            return Integer.toHexString(signature.hashCode());
+        }
     }
 
     /**

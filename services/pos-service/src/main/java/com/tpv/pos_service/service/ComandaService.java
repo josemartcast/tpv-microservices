@@ -3,6 +3,7 @@ package com.tpv.pos_service.service;
 import com.tpv.pos_service.domain.Ticket;
 import com.tpv.pos_service.domain.TicketLine;
 import com.tpv.pos_service.domain.TicketStatus;
+import com.tpv.pos_service.dto.AutoPrintClaimResponse;
 import com.tpv.pos_service.dto.SendComandaResponse;
 import com.tpv.pos_service.dto.SendPreviewResponse;
 import com.tpv.pos_service.dto.TicketLineResponse;
@@ -61,6 +62,26 @@ public class ComandaService {
     @Transactional
     public SendComandaResponse send(Long ticketId, String destination) {
         return send(ticketId, destination, null);
+    }
+
+    @Transactional
+    public AutoPrintClaimResponse claimAutoPrint(Long ticketId, String destination, String printJobId) {
+        ticketRepo.findById(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket not found: " + ticketId));
+        String normalizedDestination = normalizeDestination(destination);
+        String normalizedPrintJobId = normalizePrintJobId(printJobId);
+        String claimKey = normalizedDestination + ":" + normalizedPrintJobId;
+        boolean claimed = idempotencyService.claim("ticket-autoprint-comanda", ticketId, claimKey);
+        if (log.isInfoEnabled()) {
+            log.info(
+                    "AUTO_PRINT_CLAIM ticketId={} destination={} printJobId={} claimed={}",
+                    ticketId,
+                    normalizedDestination,
+                    normalizedPrintJobId,
+                    claimed
+            );
+        }
+        return new AutoPrintClaimResponse(ticketId, normalizedDestination, normalizedPrintJobId, claimed);
     }
 
     private SendComandaResponse doSend(Long ticketId, String destination) {
@@ -194,6 +215,17 @@ public class ComandaService {
             throw new ConflictException("Unsupported destination: " + destination);
         }
         return d;
+    }
+
+    private String normalizePrintJobId(String printJobId) {
+        if (printJobId == null || printJobId.isBlank()) {
+            throw new ConflictException("printJobId is required");
+        }
+        String normalized = printJobId.trim().toLowerCase();
+        if (normalized.length() > 70) {
+            throw new ConflictException("printJobId too long (max 70)");
+        }
+        return normalized;
     }
 
     private String summarizeItems(List<PendingComandaItem> items) {

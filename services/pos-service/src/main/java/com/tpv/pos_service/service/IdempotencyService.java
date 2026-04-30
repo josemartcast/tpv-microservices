@@ -49,6 +49,20 @@ public class IdempotencyService {
         return response;
     }
 
+    @Transactional
+    public boolean claim(String scope, Long resourceId, String idempotencyKey) {
+        String key = normalize(idempotencyKey);
+        if (key == null) {
+            throw new ConflictException("Idempotency-Key is required");
+        }
+        try {
+            repository.save(new IdempotencyRequest(scope, resourceId, key, "{\"claimed\":true}"));
+            return true;
+        } catch (DataIntegrityViolationException duplicate) {
+            return false;
+        }
+    }
+
     private String normalize(String key) {
         if (key == null) {
             return null;

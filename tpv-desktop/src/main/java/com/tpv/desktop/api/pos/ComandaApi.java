@@ -23,4 +23,12 @@ public final class ComandaApi {
                 idempotencyKey == null ? null : Map.of("Idempotency-Key", idempotencyKey)
         );
     }
+
+    public static AutoPrintClaimResponse claimAutoPrint(long ticketId, String destination, String printJobId) throws Exception {
+        return ApiClient.post(
+                "/api/v1/pos/tickets/" + ticketId + "/autoprint-claim",
+                new AutoPrintClaimRequest(destination, printJobId),
+                AutoPrintClaimResponse.class
+        );
+    }
 }
