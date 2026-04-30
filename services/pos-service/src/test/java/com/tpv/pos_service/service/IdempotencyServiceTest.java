@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -63,6 +64,26 @@ class IdempotencyServiceTest {
         ArgumentCaptor<IdempotencyRequest> captor = ArgumentCaptor.forClass(IdempotencyRequest.class);
         verify(repository).save(captor.capture());
         assertEquals("{\"ok\":true}", captor.getValue().getResponseJson());
+    }
+
+    @Test
+    void claim_returnsTrue_whenKeyIsNew() {
+        when(repository.save(any(IdempotencyRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        boolean claimed = service.claim("ticket-autoprint-comanda", 17L, "BAR:abc123");
+
+        assertTrue(claimed);
+    }
+
+    @Test
+    void claim_returnsFalse_whenDuplicateClaimArrives() {
+        when(repository.save(any(IdempotencyRequest.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        boolean claimed = service.claim("ticket-autoprint-comanda", 17L, "BAR:abc123");
+
+        assertFalse(claimed);
     }
 
     private record DummyResponse(boolean ok) {

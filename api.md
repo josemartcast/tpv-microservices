@@ -55,6 +55,7 @@ No pretende sustituir el codigo; para comportamiento exacto manda siempre el con
 - `DELETE /api/v1/pos/tickets/{id}/lines/{lineId}`
 - `GET /api/v1/pos/tickets/{id}/send-preview`
 - `POST /api/v1/pos/tickets/{id}/send`
+- `POST /api/v1/pos/tickets/{id}/autoprint-claim`
 
 ### Cobros, caja y fiscal
 
