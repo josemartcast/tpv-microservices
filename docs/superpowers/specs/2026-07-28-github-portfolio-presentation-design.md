@@ -32,21 +32,21 @@ La presentación pública actual no tiene biografía profesional ni README de pe
 
 Actualizar solamente biografía, descripción y topics.
 
-Ventaja: se completa muy rápido.  
+Ventaja: se completa muy rápido.
 Desventaja: el README seguiría ocultando el valor técnico y el carácter real del proyecto.
 
 ### B. Presentación primero
 
 Crear el README de perfil, rehacer la portada de Barix, añadir metadatos y preparar espacios para capturas. No modificar todavía código de negocio, persistencia ni despliegue.
 
-Ventaja: mayor impacto inmediato con bajo riesgo.  
+Ventaja: mayor impacto inmediato con bajo riesgo.
 Desventaja: CI, credenciales locales y limpieza interna quedarían para una segunda fase.
 
 ### C. Reforma integral
 
 Combinar presentación, limpieza del repositorio, CI, migraciones y endurecimiento de configuración en un único cambio.
 
-Ventaja: resultado técnico más completo.  
+Ventaja: resultado técnico más completo.
 Desventaja: mezcla objetivos distintos, aumenta el riesgo y retrasa la mejora visible del portfolio.
 
 ## Decisión
@@ -179,4 +179,3 @@ La mejora será correcta si un visitante puede identificar, sin abrir el código
 - qué calidad y pruebas existen;
 - cómo ejecutar el sistema;
 - el estado real y los próximos pasos.
-
