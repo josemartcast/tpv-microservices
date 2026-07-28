@@ -274,7 +274,19 @@ Si ya existe y tiene contenido, crear `agent/java-backend-profile`, hacer commit
 - Consumes: repositorios públicos existentes.
 - Produces: descripciones y topics visibles en el perfil.
 
-- [ ] **Step 1: Actualizar Barix**
+- [ ] **Step 1: Actualizar la cabecera del perfil**
+
+Run:
+
+```powershell
+gh api --method PATCH /user `
+  -f bio='Java Backend Junior | Java 21, Spring Boot, REST, SQL y Docker | Técnico Superior DAM' `
+  -f location='Jaén, España'
+```
+
+No modificar el nombre, avatar, empresa, email ni enlaces actuales.
+
+- [ ] **Step 2: Actualizar Barix**
 
 Run:
 
@@ -295,7 +307,7 @@ gh repo edit josemartcast/tpv-microservices `
   --add-topic hospitality
 ```
 
-- [ ] **Step 2: Actualizar API de reservas**
+- [ ] **Step 3: Actualizar API de reservas**
 
 Run:
 
@@ -312,7 +324,7 @@ gh repo edit josemartcast/reservas-api-spring-boot `
   --add-topic docker-compose
 ```
 
-- [ ] **Step 3: Actualizar ProFich**
+- [ ] **Step 4: Actualizar ProFich**
 
 Run:
 
@@ -328,7 +340,7 @@ gh repo edit josemartcast/profich `
   --add-topic rest-api
 ```
 
-- [ ] **Step 4: Actualizar Agenda Restaurante**
+- [ ] **Step 5: Actualizar Agenda Restaurante**
 
 Run:
 
@@ -344,11 +356,12 @@ gh repo edit josemartcast/agendaRestaurante `
   --add-topic android
 ```
 
-- [ ] **Step 5: Verificar los metadatos**
+- [ ] **Step 6: Verificar los metadatos**
 
 Run:
 
 ```powershell
+gh api /user --jq '{bio: .bio, location: .location}'
 gh repo view josemartcast/tpv-microservices --json description,repositoryTopics,url
 gh repo view josemartcast/reservas-api-spring-boot --json description,repositoryTopics,url
 gh repo view josemartcast/profich --json description,repositoryTopics,url
@@ -357,7 +370,7 @@ gh repo view josemartcast/agendaRestaurante --json description,repositoryTopics,
 
 Expected: cada repositorio devuelve la descripción exacta y todos sus topics.
 
-- [ ] **Step 6: Ordenar repositorios pineados**
+- [ ] **Step 7: Ordenar repositorios pineados**
 
 Orden deseado:
 
