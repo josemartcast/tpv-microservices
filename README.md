@@ -1,140 +1,237 @@
-﻿# TPV Microservices (Desktop + PDA)
+# Barix TPV
 
-Repositorio principal de TPV para bar/restaurante.
+![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk)
+![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F?logo=springboot&logoColor=white)
+![MySQL 8](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
-Este proyecto combina backend Java, cliente Desktop JavaFX y clientes PDA (web + Android).
-El objetivo de esta documentacion es que alguien nuevo pueda levantar el sistema, entender el flujo y empezar a aportar sin perderse.
+Sistema TPV para hostelería desarrollado con **Java 21, Spring Boot, APIs REST, JWT, MySQL, JavaFX y Android/Kotlin**.
 
-## 1) Que incluye el repo
+El proyecto nació para resolver una necesidad real de un negocio familiar: centralizar la operativa de sala, comandas, cobros y caja, conectando un puesto Desktop con dispositivos PDA.
 
-- `services/auth-service`: login, JWT, usuarios y roles.
-- `services/pos-service`: logica TPV (mesas, tickets, comandas, cobros, caja, fiscal, catalogo).
-- `gateway`: entrada unica para clientes y hosting de PDA web en `/pda`.
-- `tpv-desktop`: cliente JavaFX para caja/sala/admin.
-- `pda-android`: app Android nativa para camareros.
-- `docker/`: MySQL para desarrollo.
-- `scripts/`: automatizaciones de build, backup/restore y QA smoke.
+> **Estado:** proyecto funcional en evolución. La operativa principal está implementada y el repositorio incluye pruebas, automatizaciones y documentación de instalación y soporte.
 
-## 2) Arquitectura en una frase
+## Qué resuelve
 
-Clientes (Desktop/PDA) -> Gateway (`:8080`) -> Auth (`:8081`) y POS (`:8082`) -> MySQL (`tpv_auth`, `tpv_pos`).
+- Gestión de salones y mesas.
+- Apertura y edición de tickets.
+- Envío de comandas a barra, cocina y postres.
+- Cobros totales, parciales y por líneas.
+- Apertura, incidencias y cierre de caja.
+- Facturación, historial y auditoría.
+- Gestión de usuarios y permisos por roles.
+- Operativa desde Desktop, PDA web y PDA Android.
 
-Mas detalle en `architecture.md`.
+## Aspectos técnicos destacados
 
-## 3) Requisitos de desarrollo
+- **API Gateway** como punto único de entrada para los clientes.
+- Autenticación con **JWT** y autorización por roles.
+- Separación entre autenticación y dominio TPV.
+- Locks de mesa y heartbeat para evitar ediciones simultáneas.
+- Idempotencia en operaciones críticas como comandas y cobros.
+- Respuestas `409 Conflict` ante carreras o estados incompatibles.
+- Trazabilidad por terminal mediante headers de contexto.
+- Reglas específicas según el tipo de cliente.
+- Scripts de smoke test, backup y restauración.
 
-- Windows + PowerShell (scripts principales estan pensados para Windows).
+## Arquitectura
+
+```mermaid
+flowchart LR
+    Desktop["TPV Desktop<br/>JavaFX"]
+    PDAWeb["PDA Web"]
+    PDAAndroid["PDA Android<br/>Kotlin"]
+    Gateway["API Gateway<br/>Spring Cloud Gateway :8080"]
+    Auth["Auth Service<br/>Spring Boot :8081"]
+    POS["POS Service<br/>Spring Boot :8082"]
+    AuthDB[("MySQL<br/>tpv_auth")]
+    POSDB[("MySQL<br/>tpv_pos")]
+
+    Desktop --> Gateway
+    PDAWeb --> Gateway
+    PDAAndroid --> Gateway
+    Gateway --> Auth
+    Gateway --> POS
+    Auth --> AuthDB
+    POS --> POSDB
+```
+
+El Gateway enruta las peticiones a los servicios de autenticación y operativa. Los clientes nunca acceden directamente a esos servicios.
+
+## Stack
+
+| Área | Tecnologías |
+|---|---|
+| Backend | Java 21, Spring Boot 3.5, Spring Web, Spring Data JPA |
+| Seguridad | Spring Security, JWT, autorización por roles |
+| Integración | APIs REST, Spring Cloud Gateway, JSON |
+| Persistencia | MySQL 8, Hibernate/JPA |
+| Desktop | JavaFX |
+| Mobile | Kotlin, Android |
+| Entorno local | Docker Compose, Maven Wrapper, PowerShell |
+| Calidad | JUnit, Mockito, pruebas de controlador, seguridad y concurrencia |
+| Automatización | GitHub Actions, smoke tests E2E, backup y restore |
+
+## Calidad y pruebas
+
+El repositorio contiene **27 archivos de pruebas y 101 métodos `@Test`**.
+
+La suite cubre, entre otros:
+
+- reglas de tickets, pagos, comandas y caja;
+- autorización y restricciones por rol;
+- idempotencia de operaciones críticas;
+- conflictos de concurrencia;
+- controladores y contexto de Spring;
+- ViewModels y servicios del cliente Desktop;
+- políticas de navegación de la PDA Android.
+
+Smoke test E2E de la PDA:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\pda-e2e-smoke.ps1
+```
+
+Smoke test de backup y restauración:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\db-backup-restore-smoke.ps1 -Mode auto -RootPassword root
+```
+
+## Puesta en marcha local
+
+### Requisitos
+
 - JDK 21.
-- Docker Desktop (para MySQL local).
+- Docker Desktop.
+- PowerShell.
 - Git.
-- Android Studio si vas a tocar `pda-android`.
+- Android Studio solo para modificar la PDA Android.
 
-## 4) Arranque rapido (primera vez)
-
-### 4.1 Levantar base de datos
+### 1. Levantar MySQL
 
 ```powershell
 cd docker
 docker compose up -d mysql
 ```
 
-### 4.2 Levantar backend (3 terminales)
+### 2. Levantar los servicios
+
+En tres terminales:
 
 ```powershell
 cd services/auth-service
-.\mvnw.cmd -q -DskipTests spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 ```powershell
 cd services/pos-service
-.\mvnw.cmd -q -DskipTests spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 ```powershell
 cd gateway
-.\mvnw.cmd -q -DskipTests spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
-### 4.3 Verificar que responde
+### 3. Comprobar el sistema
 
 - PDA web: `http://localhost:8080/pda`
 - Health POS: `http://localhost:8080/api/v1/pos/health`
 
-Usuario admin de bootstrap:
+Credenciales de demostración local:
 
-- usuario: `admin`
-- password: `admin123`
+- Usuario: `admin`
+- Contraseña: `admin123`
 
-### 4.4 Levantar Desktop
+> Estas credenciales y los valores por defecto del repositorio son exclusivamente para desarrollo local. En un despliegue se deben definir `DB_PASSWORD`, `JWT_SECRET` y las credenciales iniciales mediante variables de entorno.
+
+### 4. Levantar el cliente Desktop
 
 ```powershell
 cd tpv-desktop
-.\mvnw.cmd -q -Dtpv.mode=real -Dtpv.auto.login=false javafx:run
+.\mvnw.cmd -Dtpv.mode=real -Dtpv.auto.login=false javafx:run
 ```
 
-### 4.5 Levantar PDA Android (opcional)
-
-Desde raiz del repo:
+### 5. Levantar la PDA Android
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-pda-android.ps1 -Install
 ```
 
-## 5) Flujo funcional minimo para probar todo
+## Flujo rápido de prueba
 
-1. Login con `admin/admin123`.
+1. Iniciar sesión.
 2. Abrir caja.
-3. Abrir mesa.
-4. Anadir linea al ticket.
-5. Enviar comanda.
-6. Cobrar ticket.
+3. Abrir una mesa.
+4. Añadir productos al ticket.
+5. Enviar la comanda.
+6. Cobrar el ticket.
 7. Cerrar caja.
 
-Si este flujo funciona, el stack principal esta sano.
+## API
 
-## 6) Donde empezar si eres junior
+La API se consume a través del Gateway en `http://localhost:8080/api/v1`.
 
-1. Lee `docs/onboarding-junior.md`.
-2. Sigue `architecture.md` para entender responsabilidades por modulo.
-3. Mira `api.md` para headers y endpoints base.
-4. Revisa `runbook` para operacion real e incidencias.
+| Método | Endpoint | Función |
+|---|---|---|
+| `POST` | `/api/v1/auth/login` | Iniciar sesión |
+| `GET` | `/api/v1/pos/salon/tables` | Consultar mesas |
+| `POST` | `/api/v1/pos/tickets/{id}/send` | Enviar comanda |
+| `POST` | `/api/v1/pos/tickets/{id}/payments` | Registrar cobro |
+| `POST` | `/api/v1/pos/cash-sessions/open` | Abrir caja |
+| `POST` | `/api/v1/pos/cash-sessions/{id}/close` | Cerrar caja |
 
-## 7) Comandos utiles
+Consulta la [guía de API](api.md) para ver el listado operativo.
 
-Smoke E2E PDA:
+## Estructura del repositorio
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\pda-e2e-smoke.ps1
+```text
+tpv-microservices/
+├── services/
+│   ├── auth-service/     Autenticación, JWT, usuarios y roles
+│   └── pos-service/      Dominio TPV y reglas de negocio
+├── gateway/              Entrada única y hosting de la PDA web
+├── tpv-desktop/          Cliente JavaFX
+├── pda-android/          Cliente Android/Kotlin
+├── docker/               MySQL para desarrollo
+├── scripts/              Smoke tests, backup y automatizaciones
+└── docs/                 Instalación, operación y soporte
 ```
 
-Smoke backup+restore:
+## Documentación
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\db-backup-restore-smoke.ps1 -Mode auto -RootPassword root
-```
+- [Arquitectura](architecture.md)
+- [API](api.md)
+- [Funcionalidades implementadas](features.md)
+- [Guía de contribución](CONTRIBUTING.md)
+- [Instalación en el negocio](docs/install-bar-windows.md)
+- [Backup y restauración](docs/backup-restore.md)
+- [Onboarding técnico](docs/onboarding-junior.md)
 
-Backup manual:
+## Estado y próximos pasos
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\db-backup.ps1 -Compress
-```
+Implementado:
 
-## 8) Documentacion por tema
+- autenticación y roles;
+- operativa de mesas, tickets y comandas;
+- cobros y caja;
+- facturación y auditoría;
+- clientes Desktop y PDA;
+- pruebas de negocio, seguridad y concurrencia;
+- smoke tests y backup/restore.
 
-- Arquitectura: `architecture.md`
-- API operativa: `api.md`
-- Funcionalidades: `features.md`
-- Contribucion: `CONTRIBUTING.md`
-- Operacion diaria y soporte: `runbook`
-- Instalacion en bar: `docs/install-bar-windows.md`
-- Backup/restore: `docs/backup-restore.md`
-- Onboarding junior: `docs/onboarding-junior.md`
+Próximas mejoras:
 
-## 9) Notas de higiene del repo
+- añadir capturas y una demo grabada;
+- ejecutar toda la suite en CI;
+- incorporar migraciones de base de datos versionadas;
+- facilitar el arranque completo con un único comando;
+- documentar una release estable.
 
-No subir al repo:
+## Autoría
 
-- builds (`target/`, `build/`, `dist/`)
-- logs (`.runlogs/`, `.run-logs/*.log`)
-- backups (`.backups/`)
+Proyecto desarrollado de forma individual por **José Ángel Martínez Castillo** para resolver una necesidad real de un negocio familiar.
+
+He trabajado en el diseño del backend, reglas de negocio, API REST, persistencia, seguridad, clientes Desktop y Android, pruebas, automatización y puesta en marcha. He utilizado documentación y herramientas de IA como apoyo al aprendizaje y a la revisión, validando y adaptando el código al funcionamiento real del sistema.
 
